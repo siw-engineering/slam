@@ -1,2 +1,2 @@
-# slam_python
-Intended for rapid prototyping slam systems
+# slam_dev
+Reseach ideas/rapid prototyping of slam systems
