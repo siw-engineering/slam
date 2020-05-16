@@ -110,6 +110,7 @@ ENV/
 env.bak/
 venv.bak/
 
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -130,3 +131,4 @@ dmypy.json
 
 deps
 deps/*
+
