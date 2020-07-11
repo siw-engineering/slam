@@ -6,6 +6,7 @@ import numpy as np
 from .models.matching import Matching
 from .models.utils import (AverageTimer,
 							frame2tensor, get_pose)
+import transformations as tf
 
 
 class Odometry:
@@ -40,7 +41,7 @@ class Odometry:
 		self.last_image_id = 0
 
 
-	def get_poses(self, frame, i):
+	def get_poses(self, frame, i, t):
 
 		# frame, ret = self.vs.next_frame()
 		# timer.update('data')
@@ -60,15 +61,18 @@ class Odometry:
 		color = cm.jet(confidence[valid])
 
 		thresh = 1
-		# :/
-		rt = get_pose(mkpts0, mkpts1, np.linalg.inv(self.K), thresh)
-
+		# :/ opencv pose estimation
+		# pose = get_pose(mkpts0, mkpts1, np.linalg.inv(self.K), thresh)
+		# ransac sklearn
+		E = tf.find_correspondace(mkpts0, mkpts1, t)
+		pose = tf.recoverpose(E)
 		self.last_data = {k+'0': pred[k+'1'] for k in self.keys}
 		self.last_data['image0'] = frame_tensor
 		self.last_frame = frame
 		self.last_image_id = (i - 1)
 
-		if rt is not None:
+		if pose is not None:
+			'''
 			self.rotationMat = rt[0]
 			self.translationMat = rt[1]
 
@@ -81,11 +85,11 @@ class Odometry:
 			# poses
 			self.translationMatrix = self.translationMatrix + (self.rotationMatrix.dot(self.translationMat))
 			self.rotationMatrix = self.rotationMatrix.dot(self.rotationMat)
-
+			'''
 		# return self.rotationMatrix, self.translationMatrix
-			return rt[0], rt[1]
+			return pose
 		else:
-			return None, None
+			return None
 
 
 # if __name__ == "__main__":

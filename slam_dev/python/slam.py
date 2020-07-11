@@ -46,13 +46,14 @@ while True:
 	# fm = FrameMatcher(f1, f2, t)
 	# f2.pose = recoverpose(fm.E)
 
+	if not ret:
+		break
+	# pose : 4x4 R&T mat
+	pose = odom.get_poses(frame, vs.i, t)
+	print(pose)
+
 	# cam_pos = cam_pos + np.subtract(f2.pose[:3,3], cam_pos)/100
 	# cam_pose_display.q.put([cam_pos])
 	# rgb_display.q.put([draw_matches(fm, t)])
 
 	# f1 = f2
-
-	if not ret:
-		break
-	R, T = odom.get_poses(frame, vs.i)
-	print(R, T)
