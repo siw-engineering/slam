@@ -1,0 +1,34 @@
+{
+	"SuperGlue":{
+                "name":"SuperGlue",
+                "input": "/run/media/user1/disk2/practice/SLAM/OpenCV-RgbdOdometry/rgbd_dataset_freiburg2_pioneer_slam3/rgb",
+                "output_dir":0,
+                "image_glob": ["*.png", "*.jpg", "*.jpeg"],
+                "skip":1,
+                "max_length":1000000,
+                "resize":[640, 480],
+                "superglue":"indoor",
+                "max_keypoints":-1,
+                "keypoint_threshold":0.005,
+                "nms_radius":4,
+                "sinkhorn_iterations":20,
+                "match_threshold":0.2,
+                "show_keypoints":"False",
+                "force_cpu":"False",
+                "K":[[574.54320988, 0, 322.7782716], [0, 577.58181818, 238.80991736], [0, 0, 1]]
+
+	},
+
+        "BasicSlam":{
+                "name":"",
+                "input":"",
+                "output_dir":0,
+                "image_glob": ["*.png", "*.jpg", "*.jpeg"],
+                "skip":1,
+                "resize":[640, 480],
+                "K":[[574.54320988, 0, 322.7782716], [0, 577.58181818, 238.80991736], [0, 0, 1]]
+
+
+        }
+
+}

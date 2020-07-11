@@ -1,15 +1,8 @@
 import numpy as np
 
 class Transform:
-	def __init__(self,F,W,H):
-		self.F = F
-		self.W = W
-		self.H = H
-		self.K =np.array([
-					[F,0,W//2],
-					[0,F,H//2],
-					[0,0,1]
-					]) 
+	def __init__(self, K):
+		self.K =np.array(K)
 		self.Kinv = np.linalg.inv(self.K)
 
 	def toWorldSpace(self, pts):
