@@ -1,2 +1,2 @@
-# slam_dev
+# slam
 Research ideas/rapid prototyping of slam systems
