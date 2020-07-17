@@ -5,7 +5,7 @@ import re
 """
 Loads video files
 """
-class Video(object):
+class VideoStream(object):
 	def __init__(self, path, preprocessor=None):
 		cap = cv2.VideoCapture(path)
 		self.path = path

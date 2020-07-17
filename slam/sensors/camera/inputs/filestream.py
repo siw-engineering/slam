@@ -7,7 +7,7 @@ Loads images in path sorted based on idx in name
 it assumes all images to have the same widht and height and 
 contained in a single dir
 """
-class Images(object):
+class ImageFileStream(object):
 	def __init__(self, path, pattern="*", preprocessor=None):
 		self.path = path
 		files = glob.glob("%s/%s"%(self.path,pattern))
