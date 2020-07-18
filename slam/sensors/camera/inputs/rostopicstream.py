@@ -5,7 +5,7 @@ from sensor_msgs.msg import CompressedImage
 from multiprocessing import Process
 import numpy as np
 
-# "/ROBOTIKA_X2/image_raw/compressed"
+
 class RosTopicStream(object):
 	def __init__(self, topic):
 		self.buf = None

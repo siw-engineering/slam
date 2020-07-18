@@ -1,6 +1,4 @@
-import sys
-sys.path.append("/home/developer/slam/slam/sensors")
-from buffer import Buffer
+from slam.sensors import Buffer
 import numpy as np
 
 class Camera:
