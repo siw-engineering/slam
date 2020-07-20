@@ -60,6 +60,7 @@ class SuperPoint(nn.Module):
         'keypoint_threshold': 0.005,
         'max_keypoints': -1,
         'remove_borders': 4,
+        'enable_scores':False,
     }
 
     def __init__(self, config):
@@ -149,7 +150,14 @@ class SuperPoint(nn.Module):
         descriptors = [utils.sample_descriptors(k[None], d[None], 8)[0]
                        for k, d in zip(keypoints, descriptors)]
 
-        return {
-            'keypoints': keypoints,
-            'descriptors': descriptors,
-        }
+        if self.config['enable_scores']:
+            return {
+                'keypoints': keypoints,
+                'scores': scores,
+                'descriptors': descriptors,
+            }
+        else:
+            return {
+                'keypoints': keypoints,
+                'descriptors': descriptors,
+            }
