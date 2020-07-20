@@ -52,6 +52,7 @@ class SuperPoint(nn.Module):
     SuperPoint: Self-Supervised Interest Point Detection and
     Description. Daniel DeTone, Tomasz Malisiewicz, and Andrew
     Rabinovich. In CVPRW, 2019. https://arxiv.org/abs/1712.07629
+    weight files : https://github.com/magicleap/SuperGluePretrainedNetwork/tree/master/models/weights
 
     """
     default_config = {

@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-def sift(img):
+def sift_features(img):
 	feature = cv2.xfeatures2d.SIFT_create()
 	feature_pts, descriptors = feature.detectAndCompute(img, None)
 	scores = 0
@@ -13,7 +13,7 @@ def sift(img):
 	}
 
 
-def orb(img):
+def orb_features(img):
 	feature = cv2.ORB_create(nfeatures=1500)
 	feature_pts, descriptors = feature.detectAndCompute(img, None)
 	scores = 0
@@ -24,7 +24,7 @@ def orb(img):
 	}
 
 
-def surf(img):
+def surf_features(img):
 	feature = cv2.xfeatures2d.SURF_create()
 	feature_pts, descriptors = feature.detectAndCompute(img, None)
 	scores = 0
