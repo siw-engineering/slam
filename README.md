@@ -29,7 +29,7 @@ This repo focusing  on integration of live feed Realsense with Elastic fusion od
     ```sh 
      $make -j SurfelMeshing
 # Note :
- Code has been completed till odometry (live realsense feed), reconstruction still under progress. It will load given dataset and realsense video feed simultaneosuly (debug)
+ Code has been completed till odometry (live realsense feed), reconstruction still under progress. It will load given dataset and realsense video feed simultaneously (debug)
 
 ### Run
   ```sh
