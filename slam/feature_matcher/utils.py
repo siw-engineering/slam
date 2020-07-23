@@ -1,6 +1,6 @@
 import numpy as np
 
-def filter_distance(matches, kp1, kp2, ratio):
+def lows_filter(matches, kp1, kp2, ratio):
 	dist = [m.distance for m in matches]
 	thres_dist = (sum(dist) / len(dist)) * ratio
 	
