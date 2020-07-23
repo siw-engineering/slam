@@ -17,6 +17,7 @@ class Camera:
 		self.stream.init_ros_node(cam_type)
 		self._buf = Buffer(l=l)
 		self.stream.start(self._buf)
+		self._buf.wait_for_fill()
 
 	def read(self):
 		data = self._buf.read()

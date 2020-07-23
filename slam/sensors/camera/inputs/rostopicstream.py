@@ -23,6 +23,7 @@ class RosTopicStream(object):
 	def callback(self, ros_data):
 		image_np = CvBridge().imgmsg_to_cv2(ros_data, desired_encoding=self.cam_type)
 		if self.buf:
+			print ("writing")
 			self.buf.add(image_np)
 
 

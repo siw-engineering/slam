@@ -6,7 +6,7 @@ class Buffer:
 		self.l = l
 		self.read_ptr = 0
 		self.write_ptr = 0
-		self.buf = [None] * self.l 
+		self.buf = [np.zeros(1)] * l 
 
 	def add(self, data):
 
@@ -21,6 +21,7 @@ class Buffer:
 			raise ValueError("Buffer element is None")
 
 		if self.read_ptr >= self.l:
+			print("read ptr 0")
 			self.read_ptr = 0
 
 		data = self.buf[self.read_ptr]
@@ -30,5 +31,17 @@ class Buffer:
 	def has_next(self):
 		if self.read_ptr + 1 >= self.l:
 			self.read_ptr = 0
-			return False
 		return self.buf[self.read_ptr + 1] is not None	
+
+
+	def wait_for_fill(self):
+		print("waiting for fill")
+		while 1:
+			e = 0
+			for i in range(self.l):
+				if self.buf[i].any():
+					e += 1
+			if e == self.l:
+				print ("done")
+				return
+			pass
