@@ -6,6 +6,10 @@ import pangolin
 
 '''
 Class used for displaying 2D Data(frames from the queue)
+
+To inset images:
+	Display2D cam_display
+	cam_display.q.put([cam_pos])
 '''
 
 class Display2D(object):
