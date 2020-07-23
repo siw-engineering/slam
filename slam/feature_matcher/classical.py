@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from .utils import filter_distance
+from .utils import lows_filter
 
 
 class FrameMatcher(object):
@@ -14,4 +14,4 @@ class FrameMatcher(object):
 
 	def match(self, kp1, d1, kp2, d2):
 		matches = self.matcher.match(d1, d2)
-		return filter_distance(matches, kp1, kp2, self.ratio)
+		return lows_filter(matches, kp1, kp2, self.ratio)
