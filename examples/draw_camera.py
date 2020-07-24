@@ -1,10 +1,7 @@
 import sys
 sys.path.append("/home/developer/packages/pangolin/")
 sys.path.append("/home/developer/slam/")
-
 import numpy as np
-import pangolin 
-import OpenGL.GL as gl
 from slam.visualizer.display import DisplayCam
 
 cd = DisplayCam("cam")

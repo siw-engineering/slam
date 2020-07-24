@@ -8,6 +8,9 @@ import numpy as np
 import time
 import pdb
 
+"""
+reads ros topics
+"""
 class RosTopicStream(object):
 	def __init__(self, topic):
 		self.topic = topic

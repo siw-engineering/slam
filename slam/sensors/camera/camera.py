@@ -1,4 +1,5 @@
 import numpy as np
+from slam.sensors.camera.inputs import RosTopicStream
 
 class Camera:
 	def __init__(self, cam_type="rgb",F=None, Cx=100, Cy=100, sf=100, stream=None):
@@ -14,7 +15,8 @@ class Camera:
 			]) 
 		self.Kinv = np.linalg.inv(self.K)
 		self.stream = stream
-		self.stream.init_ros_node(cam_type)
+		if isintance(stream, RosTopicStream):
+			self.stream.init_ros_node(cam_type)
 
 	def read(self):
 		return self.stream.read()

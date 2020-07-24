@@ -138,7 +138,7 @@ class DisplayCam(object):
 					# Draw cam
 					gl.glLineWidth(1)
 					gl.glColor3f(0.0, 0.0, 1.0)
-					pangolin.DrawCamera(state[0], 0.5, 0.75, 0.8)
+					pangolin.DrawrawCamera(state[0], 0.5, 0.75, 0.8)
 					pangolin.FinishFrame()
 			except:
 				continue
