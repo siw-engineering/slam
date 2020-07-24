@@ -30,7 +30,7 @@ class Display2D(object):
 					state = q.get() 
 				if state is not None:
 					cv2.imshow(self.name, state[0])
-					cv2.waitKey(10)
+					cv2.waitKey(1)
 			except:
 				continue
 	

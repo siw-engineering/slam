@@ -10,7 +10,6 @@ import pdb
 
 class RosTopicStream(object):
 	def __init__(self, topic):
-		self.buf = None
 		self.topic = topic
 
 	def init_ros_node(self, cam_type):
@@ -18,19 +17,8 @@ class RosTopicStream(object):
 		if rospy.get_name() == "/unnamed":	
 			# rospy.init_node('image_topic_reader_%s_%s'%(str(int(time.time())), cam_type), anonymous=True)
 			rospy.init_node('image_topic_reader', anonymous=True)
-		self.subscriber = rospy.Subscriber(self.topic, Image, self.callback,  queue_size = 1)
 
-	def callback(self, ros_data):
+	def read(self):
+		ros_data = rospy.wait_for_message(self.topic, Image, timeout=None)
 		image_np = CvBridge().imgmsg_to_cv2(ros_data, desired_encoding=self.cam_type)
-		if self.buf:
-			print ("writing")
-			self.buf.add(image_np)
-
-
-	def spin(self):
-		rospy.spin()
-
-	def start(self, buf):
-		self.buf = buf
-		p = Process(target=self.spin, args=())
-		p.start()
+		return image_np	
