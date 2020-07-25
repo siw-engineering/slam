@@ -11,7 +11,7 @@ from slam.feature_extractor.classical import orb_features
 from slam.feature_matcher.classical import FrameMatcher
 import slam.pose_recovery as pose
 
-rgb_cam = Camera(cam_type="rgb8",F=100, stream=VideoStream("/media/anandhu/disk2/practice/SLAM/Lucas-Kanade-Tracker/slow_traffic_small.mp4"))
+rgb_cam = Camera(cam_type="rgb8",F=100, stream=VideoStream("path/to/video.mp4"))
 rbg_display = Display2D("display")
 depth_display = Display2D("display")
 cam_display = DisplayCam("cam")
