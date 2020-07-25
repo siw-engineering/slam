@@ -8,10 +8,11 @@ class FrameMatcher(object):
 		self.ratio = 0.65
 		if matcher == 'bf':
 			self.matcher = cv2.DescriptorMatcher_create("BruteForce-Hamming")
+		# not working
 		elif matcher == 'flann':
 			self.matcher = cv2.DescriptorMatcher_create(cv2.DescriptorMatcher_FLANNBASED)
 
 
-	def match(self, kp1, d1, kp2, d2):
-		matches = self.matcher.match(d1, d2)
-		return lows_filter(matches, kp1, kp2, self.ratio)
+	def match(self, f1, f2):
+		matches = self.matcher.match(f1['descriptors'], f2['descriptors'])
+		return lows_filter(matches, f1['keypoints'], f2['keypoints'], self.ratio)
