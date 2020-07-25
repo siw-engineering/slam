@@ -1,12 +1,13 @@
-from slam.sensors import Buffer
 import numpy as np
+from slam.sensors.camera.inputs import RosTopicStream
 
 class Camera:
-	_buf = None
-	def __init__(self, cam_type="rgb",F=None, Cx=100, Cy=100, stream=None, l=100):
+	def __init__(self, cam_type="rgb",F=None, Cx=100, Cy=100, sf=100, stream=None):
 		self.F = F
 		self.Cx = Cx
 		self.Cy	= Cy
+		#scaling factor
+		self.sf = sf
 		self.K =np.array([
 			[F,0,Cx],
 			[0,F,Cy],
@@ -14,14 +15,11 @@ class Camera:
 			]) 
 		self.Kinv = np.linalg.inv(self.K)
 		self.stream = stream
-		self.stream.init_ros_node(cam_type)
-		self._buf = Buffer(l=l)
-		self.stream.start(self._buf)
-		self._buf.wait_for_fill()
+		if isintance(stream, RosTopicStream):
+			self.stream.init_ros_node(cam_type)
 
 	def read(self):
-		data = self._buf.read()
-		return data
+		return self.stream.read()
 
 	def has_next(self):
-		return self._buf.has_next()
+		return True

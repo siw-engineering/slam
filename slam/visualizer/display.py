@@ -30,7 +30,7 @@ class Display2D(object):
 					state = q.get() 
 				if state is not None:
 					cv2.imshow(self.name, state[0])
-					cv2.waitKey(10)
+					cv2.waitKey(1)
 			except:
 				continue
 	
@@ -96,6 +96,55 @@ class Display3D(object):
 	def start(self):
 		self.process.start()
 
+
+'''
+Class used for displaying Camera
+'''
+
+class DisplayCam(object):
+	"""docstring for  Display2D"""
+	def __init__(self, name, history=False):
+		self.process = Process(target=self.draw)
+		self.process.daemon = True
+		self.q = Queue()
+		self.name = name
+
+	def draw_init(self):
+		pangolin.CreateWindowAndBind(self.name, 640, 480)
+		gl.glEnable(gl.GL_DEPTH_TEST)
+		self.scam = pangolin.OpenGlRenderState(
+			pangolin.ProjectionMatrix(640, 480, 420, 420, 320, 240, 0.2, 100),
+			pangolin.ModelViewLookAt(-2, 2, -2, 0, 0, 0, pangolin.AxisDirection.AxisY))
+		handler = pangolin.Handler3D(self.scam)
+		self.dcam = pangolin.CreateDisplay()
+		self.dcam.SetBounds(0.0, 1.0, 0.0, 1.0, -640.0/480.0)
+		self.dcam.SetHandler(handler)
+
+
+
+	def draw(self):
+		q = self.q
+		self.draw_init()
+		while not pangolin.ShouldQuit():
+			try:
+				while not q.empty():
+					state = q.get()
+
+				if state is not None:
+
+					gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+					gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+					self.dcam.Activate(self.scam)
+					# Draw cam
+					gl.glLineWidth(1)
+					gl.glColor3f(0.0, 0.0, 1.0)
+					pangolin.DrawrawCamera(state[0], 0.5, 0.75, 0.8)
+					pangolin.FinishFrame()
+			except:
+				continue
+
+	def start(self):
+		self.process.start()
 
 def draw_matches(fm, t):
 	img = fm._f1.img
