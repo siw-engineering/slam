@@ -131,14 +131,13 @@ class DisplayCam(object):
 					state = q.get()
 
 				if state is not None:
-
 					gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-					gl.glClearColor(0.0, 0.0, 0.0, 0.0)
+					gl.glClearColor(1.0, 1.0, 1.0, 1.0)
 					self.dcam.Activate(self.scam)
 					# Draw cam
-					gl.glLineWidth(1)
-					gl.glColor3f(0.0, 0.0, 1.0)
-					pangolin.DrawrawCamera(state[0], 0.5, 0.75, 0.8)
+					gl.glLineWidth(2)
+					gl.glColor3f(0.0, 1.0, 0.0)
+					pangolin.DrawCamera(state[0], 0.5, 0.75, 0.8)
 					pangolin.FinishFrame()
 			except:
 				continue

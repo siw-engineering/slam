@@ -15,7 +15,7 @@ class Camera:
 			]) 
 		self.Kinv = np.linalg.inv(self.K)
 		self.stream = stream
-		if isintance(stream, RosTopicStream):
+		if isinstance(stream, RosTopicStream):
 			self.stream.init_ros_node(cam_type)
 
 	def read(self):
