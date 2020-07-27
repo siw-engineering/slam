@@ -20,8 +20,7 @@ cam_display.start()
 rbg_display.start()
 depth_display.start()
 
-R = np.eye(3, 3, dtype=np.float)
-t = np.array([0.0, 0, 0], dtype=np.float)
+
 # depth_cam = Camera(cam_type="32FC1",F=100, stream=RosTopicStream("/ROBOTIKA_X2/front/depth"))
 rgb1 = rgb_cam.read()
 
@@ -33,7 +32,7 @@ while 1:
 	f1 = orb_features(rgb1)
 	f2 = orb_features(rgb2)
 	pts1, pts2 = feat.match(f1, f2)
-	Rt = pose.by_ransac(pts1, pts2, R, t, rgb_cam.K)
+	Rt = pose.by_ransac(pts1, pts2, rgb_cam.K)
 	rgb1 = rgb2
 	# cam_pos = cam_pos + np.subtract(Rt[:3,3], cam_pos)/rgb_cam.sf
 	cam_display.q.put([Rt])
