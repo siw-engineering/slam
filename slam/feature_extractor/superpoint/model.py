@@ -39,12 +39,12 @@
 # %AUTHORS_END%
 # --------------------------------------------------------------------*/
 # %BANNER_END%
-
+from os import path
 from pathlib import Path
 import torch
 from torch import nn
-import superpoint.utils as utils
-
+from .utils import (simple_nms, remove_borders, top_k_keypoints,
+                    sample_descriptors, frame2tensor, to_gray)
 
 class SuperPoint(nn.Module):
     """SuperPoint Convolutional Detector and Descriptor
@@ -61,13 +61,14 @@ class SuperPoint(nn.Module):
         'keypoint_threshold': 0.005,
         'max_keypoints': -1,
         'remove_borders': 4,
-        'enable_scores':False,
+        'enable_scores':True,
     }
 
-    def __init__(self, config):
+    def __init__(self):
         super().__init__()
-        self.config = {**self.default_config, **config}
-
+        # self.config = {**self.default_config, **config}
+        self.config = self.default_config
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.relu = nn.ReLU(inplace=True)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         c1, c2, c3, c4, c5 = 64, 64, 128, 128, 256
@@ -89,8 +90,15 @@ class SuperPoint(nn.Module):
             c5, self.config['descriptor_dim'],
             kernel_size=1, stride=1, padding=0)
 
-        path = Path(__file__).parent / 'weights/superpoint_v1.pth'
-        self.load_state_dict(torch.load(str(path)))
+        weight = Path(__file__).parent / 'weights/superpoint_v1.pth'
+        # downloading superpoint weight file 
+        # if not path.exists(weight):
+        #     import wget
+        #     url = 'https://github.com/magicleap/SuperGluePretrainedNetwork/blob/master/models/weights/superpoint_v1.pth'
+        #     wget.download(url, str(weight))
+        
+        self.load_state_dict(torch.load(str(weight)))
+
 
         mk = self.config['max_keypoints']
         if mk == 0 or mk < -1:
@@ -98,10 +106,10 @@ class SuperPoint(nn.Module):
 
         print('Loaded SuperPoint model')
 
-    def forward(self, data):
+    def forward(self, img):
         """ Compute keypoints, scores, descriptors for image """
         # Shared Encoder
-        x = self.relu(self.conv1a(data['image']))
+        x = self.relu(self.conv1a(frame2tensor(to_grayscale(img), self.device)))
         x = self.relu(self.conv1b(x))
         x = self.pool(x)
         x = self.relu(self.conv2a(x))
@@ -120,7 +128,7 @@ class SuperPoint(nn.Module):
         b, _, h, w = scores.shape
         scores = scores.permute(0, 2, 3, 1).reshape(b, h, w, 8, 8)
         scores = scores.permute(0, 1, 3, 2, 4).reshape(b, h*8, w*8)
-        scores = utils.simple_nms(scores, self.config['nms_radius'])
+        scores = simple_nms(scores, self.config['nms_radius'])
 
         # Extract keypoints
         keypoints = [
@@ -130,13 +138,13 @@ class SuperPoint(nn.Module):
 
         # Discard keypoints near the image borders
         keypoints, scores = list(zip(*[
-            utils.remove_borders(k, s, self.config['remove_borders'], h*8, w*8)
+            remove_borders(k, s, self.config['remove_borders'], h*8, w*8)
             for k, s in zip(keypoints, scores)]))
 
         # Keep the k keypoints with highest score
         if self.config['max_keypoints'] >= 0:
             keypoints, scores = list(zip(*[
-                utils.top_k_keypoints(k, s, self.config['max_keypoints'])
+                top_k_keypoints(k, s, self.config['max_keypoints'])
                 for k, s in zip(keypoints, scores)]))
 
         # Convert (h, w) to (x, y)
@@ -148,17 +156,17 @@ class SuperPoint(nn.Module):
         descriptors = torch.nn.functional.normalize(descriptors, p=2, dim=1)
 
         # Extract descriptors
-        descriptors = [utils.sample_descriptors(k[None], d[None], 8)[0]
+        descriptors = [sample_descriptors(k[None], d[None], 8)[0]
                        for k, d in zip(keypoints, descriptors)]
 
         if self.config['enable_scores']:
             return {
-                'keypoints': keypoints,
-                'scores': scores,
-                'descriptors': descriptors,
+                'keypoints': keypoints[0].cpu().detach().numpy(),
+                'scores': scores[0].cpu().detach().numpy(),
+                'descriptors': descriptors[0].cpu().detach().numpy(),
             }
         else:
             return {
-                'keypoints': keypoints,
-                'descriptors': descriptors,
+                'keypoints': keypoints[0].cpu().detach().numpy(),
+                'descriptors': descriptors[0].cpu().detach().numpy(),
             }

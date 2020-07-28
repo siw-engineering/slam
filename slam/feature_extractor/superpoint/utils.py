@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import cv2
 
 
 def simple_nms(scores, nms_radius: int):
@@ -49,4 +50,8 @@ def sample_descriptors(keypoints, descriptors, s: int = 8):
         descriptors.reshape(b, c, -1), p=2, dim=1)
     return descriptors
 
+def to_grayscale(img):
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+def frame2tensor(frame, device):
+    return torch.from_numpy(frame/255.).float()[None, None].to(device)
