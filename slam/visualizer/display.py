@@ -108,6 +108,7 @@ class DisplayCam(object):
 		self.process.daemon = True
 		self.q = Queue()
 		self.name = name
+		self.cams = []
 
 	def draw_init(self):
 		pangolin.CreateWindowAndBind(self.name, 640, 480)
@@ -131,13 +132,16 @@ class DisplayCam(object):
 					state = q.get()
 
 				if state is not None:
+					self.cams.append(state[0])
 					gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 					gl.glClearColor(1.0, 1.0, 1.0, 1.0)
 					self.dcam.Activate(self.scam)
 					# Draw cam
 					gl.glLineWidth(2)
 					gl.glColor3f(0.0, 1.0, 0.0)
-					pangolin.DrawCamera(state[0], 0.5, 0.75, 0.8)
+					# pangolin.DrawCamera(state[0], 0.5, 0.75, 0.8)
+					pangolin.DrawCameras(self.cams)
+
 					pangolin.FinishFrame()
 			except:
 				continue
