@@ -50,7 +50,7 @@ def sample_descriptors(keypoints, descriptors, s: int = 8):
         descriptors.reshape(b, c, -1), p=2, dim=1)
     return descriptors
 
-def to_grayscale(img):
+def to_gray(img):
     return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 def frame2tensor(frame, device):

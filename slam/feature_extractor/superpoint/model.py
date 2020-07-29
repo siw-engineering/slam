@@ -109,7 +109,7 @@ class SuperPoint(nn.Module):
     def forward(self, img):
         """ Compute keypoints, scores, descriptors for image """
         # Shared Encoder
-        x = self.relu(self.conv1a(frame2tensor(to_grayscale(img), self.device)))
+        x = self.relu(self.conv1a(frame2tensor(to_gray(img), self.device)))
         x = self.relu(self.conv1b(x))
         x = self.pool(x)
         x = self.relu(self.conv2a(x))
