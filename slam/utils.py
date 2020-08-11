@@ -35,3 +35,35 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling):
 
 
 	return residuals
+
+
+def weighting(residuals, INITIAL_SIGMA, DEFAULT_DOF):
+	w,h = residuals.shape
+	weights = np.zeros(residuals.shape, dtype=np.float32)
+	variance_init = 1.0 / (INITIAL_SIGMA * INITIAL_SIGMA)
+	variance = variance_init
+	num = 0.0
+	dof = DEFAULT_DOF
+	itr = 0
+	while ((variance - variance_init) > 1e-3):
+		itr += 1
+		variance_init = variance
+		variance = 0.0
+		num = 0.0
+
+		for i in range(w):
+			for j in range(h):
+				data = residuals[i, j]
+
+				if not np.isnan(data):
+					num += 1
+					variance += data * data * ((dof + 1) /  (dof + variance_init * data * data))
+
+
+	for i in range(w):
+		for j in range(h):
+			data = residuals[i, j]
+			weights[i, j] = ( (dof + 1) / (dof + variance * data * data) )
+
+
+	return weights
