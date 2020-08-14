@@ -74,7 +74,7 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling):
 				continue
 
 			P = np.dot(Kinv, (u,v,Z))
-			P = np.dot(T[0:3,0:3], np.asarray([X, Y, Z])) + T[0:3,3]
+			P = np.dot(T[0:3,0:3], P) + T[0:3,3]
 			P = np.reshape(P, (3,1))
 
 			p_warped = np.dot(K, P)
