@@ -1,5 +1,5 @@
 import numpy as np
-from slam.math.se3 import SE3_Exp
+from slam.math.se3 import SE3_Exp, SO3_hat, SO3_left_jacobian
 
 
 # Interpolate an intensity value bilinearly (useful when a warped point is not integral)
@@ -120,3 +120,51 @@ def dvo_weighting(residuals, INITIAL_SIGMA, DEFAULT_DOF):
 
 
 	return weights
+
+# Function to compute image gradients (used in Jacobian computation)
+def computeImageGradients(img):
+	"""
+	We use a simple form for the image gradient. For instance, a gradient along the X-direction 
+	at location (y, x) is computed as I(y, x+1) - I(y, x-1).
+	"""
+	gradX = np.zeros(img.shape, dtype = np.float32)
+	gradY = np.zeros(img.shape, dtype = np.float32)
+
+	width = img.shape[1]
+	height = img.shape[0]
+
+	# Exploit the fact that we can perform matrix operations on images, to compute gradients quicker
+	gradX[:, 1:width-1] = img[:, 2:] - img[:,0:width-2]
+	gradY[1:height-1, :] = img[2:, :] - img[:height-2, :]
+
+	return gradX, gradY
+
+def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
+
+	width = f1.shape[1]
+	height = f1.shape[0]
+	Kinv = np.linalg.inv(K)
+	f = K[0, 0]
+	cx = K[0, 2]
+	cy = K[1, 2]
+	T = SE3_Exp(xi)
+	J = np.zeros([height, width, 6])
+
+	grad_ix, grad_iy = computeImageGradients(f1)
+
+	for u in range(f1.shape[0]):
+		for v in range(f1.shape[1]):
+			Z = f1_d[u, v]/ depth_scaling
+			if Z <= 0:
+				continue
+			P = np.dot(Kinv, (u,v,Z))
+			P = np.dot(T[0:3,0:3], P) + T[0:3,3]
+			P = np.reshape(P, (3,1))
+
+			J_img = np.reshape(np.asarray([[grad_ix[v,u], grad_iy[v,u]]]), (1,2))
+			J_pi = np.reshape(np.asarray([[f/P[2], 0, -f*P[0]/(P[2]*P[2])], [0, f/2, -f*P[1]/(P[2]*P[2])]]), (2,3))
+			J_exp = np.concatenate((np.eye(3), SO3_hat(-P)), axis=1)
+
+			J_exp = np.dot(J_exp, SE3_left_jacobian(xi))
+			J[v,u,:] = residuals[v,u] * np.reshape(np.dot(J_img, np.dot(J_pi, J_exp)), (6))
+	return J
