@@ -1,6 +1,6 @@
 import numpy as np
 from slam.math.se3 import SE3_Exp, SO3_hat, SO3_left_jacobian
-
+import pdb
 
 # Interpolate an intensity value bilinearly (useful when a warped point is not integral)
 # Translated from: https://github.com/muskie82/simple_dvo/blob/master/src/util.cpp
@@ -10,10 +10,17 @@ def bilinear_interpolation(img, x, y, width, height):
 	valid = np.nan
 
 	# Get the four corner coordinates for the current floating point values x, y
-	x0 = np.floor(x).astype(np.uint8)
-	y0 = np.floor(y).astype(np.uint8)
+	x0 = np.floor(x)
+	y0 = np.floor(y)
+
+	x0 = x0.astype(np.uint64)
+	y0 = y0.astype(np.uint64)
+
 	x1 = x0 + 1
 	y1 = y0 + 1
+
+	x1 = x1.astype(np.uint64)
+	y1 = y1.astype(np.uint64)
 
 	# Compute weights for each corner location, inversely proportional to the distance
 	x1_weight = x - x0
@@ -25,7 +32,7 @@ def bilinear_interpolation(img, x, y, width, height):
 	if x0 < 0 or x0 >= width:
 		x0_weight = 0
 	if x1 < 0 or x1 >= width:
-		x0_weight = 0
+		x1_weight = 0
 	if y0 < 0 or y0 >= height:
 		y0_weight = 0
 	if y1 < 0 or y1 >= height:
@@ -38,8 +45,10 @@ def bilinear_interpolation(img, x, y, width, height):
 	w11 = x1_weight * y1_weight
 
 	# Bilinearly interpolate intensities
+
 	sum_weights = w00 + w10 + w01 + w11
 	total = 0
+	total = np.int64(total)
 	if w00 > 0:
 		total += img.item((y0, x0)) * w00
 	if w01 > 0:
@@ -55,7 +64,7 @@ def bilinear_interpolation(img, x, y, width, height):
 	return valid
 
 
-def residual_map(f1, f2, f1_d, K, xi, depth_scaling):
+def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 
 	residuals = np.zeros(f1.shape, dtype = np.float32)
 
@@ -67,8 +76,9 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling):
 	width = f1.shape[0]
 	height = f1.shape[1]
 	T = SE3_Exp(xi)
-	for u in range(width):
-		for v in range(height):
+	for v in range(width):
+		for u in range(height):
+			intensity_prev = f1.item((v,u))
 			Z = f1_d[u,v]/depth_scaling
 			if Z <= 0:
 				continue
@@ -81,7 +91,7 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling):
 			px = p_warped[0] / p_warped[2]
 			py = p_warped[1] / p_warped[2]
 
-			intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height)
+			intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height-1)
 
 			if not np.isnan(intensity_warped):
 				residuals.itemset((v, u), intensity_prev - intensity_warped)
