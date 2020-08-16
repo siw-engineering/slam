@@ -79,18 +79,18 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 	for v in range(width):
 		for u in range(height):
 			intensity_prev = f1.item((v,u))
-			Z = f1_d[u,v]/depth_scaling
+			Z = f1_d[v, u]/depth_scaling
 			if Z <= 0:
 				continue
 
-			P = np.dot(Kinv, (u,v,Z))
+			P = np.dot(Kinv, (v, u, Z))
 			P = np.dot(T[0:3,0:3], P) + T[0:3,3]
 			P = np.reshape(P, (3,1))
 
 			p_warped = np.dot(K, P)
 			px = p_warped[0] / p_warped[2]
 			py = p_warped[1] / p_warped[2]
-
+			# print ("%f, %f\n"%(px,py))
 			intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height-1)
 
 			if not np.isnan(intensity_warped):
