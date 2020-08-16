@@ -149,10 +149,7 @@ class DisplayCam(object):
 	def start(self):
 		self.process.start()
 
-def draw_matches(fm, t):
-	img = fm._f1.img
-	pts1 = t.toCameraSpace(fm.pts1)
-	pts2 = t.toCameraSpace(fm.pts2)
+def draw_matches(pts1, pts2, img):
 
 	for pt1, pt2 in zip(pts1, pts2):
 		pt1, pt2 = np.int32(pt1), np.int32(pt2)

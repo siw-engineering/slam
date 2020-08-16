@@ -5,13 +5,12 @@ code is compact, mainly because I'm writing these functions for the Nth time.
 """
 
 import numpy as np
-
+import pdb
 
 epsil = 1e-6
 
 # SO(3) hat operator
 def SO3_hat(omega):
-	
 	omega_hat = np.zeros((3,3))
 	omega_hat[0][1] = -omega[2]
 	omega_hat[1][0] = omega[2]
