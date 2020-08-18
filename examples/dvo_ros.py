@@ -3,12 +3,14 @@ sys.path.append("../")
 sys.path.append("/home/developer/packages/pangolin/")
 import cv2
 import numpy as np
+from scipy import linalg
+import pdb
 
 from slam.sensors.camera import Camera
 from slam.sensors.camera.inputs import RosTopicStream
 from slam.visualizer.display import Display2D
 from slam.utils import residual_map, dvo_weighting, computeJacobian
-
+from slam.math.se3 import SE3_Exp, SE3_Log
 
 rgb_cam = Camera(cam_type="rgb8",F=100, stream=RosTopicStream("/ROBOTIKA_X2/image_raw"))
 rgb_cam.K = np.array(
@@ -49,8 +51,10 @@ while 1:
 				J[i*width+j,k] = J[i*width+j,k] * weights[i,j]
 
 	error = res * res.T
-	b = J.T * res.reshape(width*height)
+	b = np.dot(J.T,res.reshape((width*height,1)))
 	H = np.dot(J.T, J)
+	inc = -linalg.solve(linalg.cholesky(H),b)
+	zz = SE3_Log(SE3_Exp(xi) * SE3_Exp(inc))
 	# res_display.q.put([weights])
 	# print (res)
 	f1 = f2
