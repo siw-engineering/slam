@@ -7,7 +7,7 @@ class TumStream(object):
 		self.path = path
 		self.depth_file = open(os.path.join(self.path, "depth.txt")).readlines()
 		self.rgb_file = open(os.path.join(self.path, "rgb.txt")).readlines()
-		self.ptr = 0
+		self.ptr = 3
 
 	def __len__(self):
 		pass
@@ -19,10 +19,10 @@ class TumStream(object):
 
 	def depth(self, ptr):
 		file = self.depth_file[ptr].split(" ")[1].strip()
-		_frame = cv2.imread(os.path.join(self.path, file))
+		_frame = cv2.imread(os.path.join(self.path, file), cv2.IMREAD_GRAYSCALE)
 		return _frame
 
-	def rgbd(self):
+	def read(self):
 		if self.ptr > len(self.rgb_file) and self.ptr >len(self.depth_file):
 			return None
 		else:
