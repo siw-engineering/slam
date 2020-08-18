@@ -1,5 +1,5 @@
 import numpy as np
-from slam.math.se3 import SE3_Exp, SO3_hat, SO3_left_jacobian
+from slam.math.se3 import SE3_Exp, SO3_hat, SO3_left_jacobian, SE3_left_jacobian
 import pdb
 
 # Interpolate an intensity value bilinearly (useful when a warped point is not integral)
@@ -100,7 +100,7 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 	return residuals
 
 
-def dvo_weighting(residuals, INITIAL_SIGMA, DEFAULT_DOF):
+def dvo_weighting(residuals, INITIAL_SIGMA=5, DEFAULT_DOF=5):
 	w,h = residuals.shape
 	weights = np.zeros(residuals.shape, dtype=np.float32)
 	variance_init = 1.0 / (INITIAL_SIGMA * INITIAL_SIGMA)
@@ -158,7 +158,7 @@ def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
 	cx = K[0, 2]
 	cy = K[1, 2]
 	T = SE3_Exp(xi)
-	J = np.zeros([height, width, 6])
+	J = np.zeros([height*width, 6])
 
 	grad_ix, grad_iy = computeImageGradients(f1)
 
@@ -176,5 +176,5 @@ def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
 			J_exp = np.concatenate((np.eye(3), SO3_hat(-P)), axis=1)
 
 			J_exp = np.dot(J_exp, SE3_left_jacobian(xi))
-			J[v,u,:] = residuals[v,u] * np.reshape(np.dot(J_img, np.dot(J_pi, J_exp)), (6))
+			J[u*width+v,:] = residuals[v,u] * np.reshape(np.dot(J_img, np.dot(J_pi, J_exp)), (6))
 	return J
