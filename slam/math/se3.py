@@ -5,9 +5,10 @@ code is compact, mainly because I'm writing these functions for the Nth time.
 """
 
 import numpy as np
-import pdb
+import math
 
 epsil = 1e-6
+M_PI_SQRT2 = 2.22144146907918312351 
 
 # SO(3) hat operator
 def SO3_hat(omega):
@@ -49,6 +50,36 @@ def SE3_Exp(xi):
 	lastrow[0][3] = 1.
 	return np.concatenate((np.concatenate((R, t), axis = 1), lastrow), axis = 0)
 
+def SE3_Log(SO3):
+
+    cosTheta = 0.5 * (SO3[0,0] + SO3[1,1] + SO3[2,2] - 1.0)
+    if cosTheta < epsil - 1.0:
+        if SO3[0,0] > 1.0 - epsil:
+            return np.array([math.pi, 0., 0.], float)
+        elif SO3[1,1] > 1.0 - epsil:
+            return np.array([0., math.pi, 0.], float)
+        elif SO3[2,2] > 1.0 - epsil:
+            return np.array([0., 0., math.pi], float)
+        else:
+            return np.array(
+               [M_PI_SQRT2 * math.sqrt((SO3[1,0] * SO3[1,0] + SO3[2,0] * SO3[2,0]) / (1.0 - SO3[0,0])),
+                M_PI_SQRT2 * math.sqrt((SO3[0,1] * SO3[0,1] + SO3[2,1] * SO3[2,1]) / (1.0 - SO3[1,1])),
+                M_PI_SQRT2 * math.sqrt((SO3[0,2] * SO3[0,2] + SO3[1,2] * SO3[1,2]) / (1.0 - SO3[2,2]))], float)  
+    else:
+        if cosTheta > 1.0:
+            cosTheta = 1.0
+        theta = math.acos(cosTheta)
+        
+        if theta < epsil: 
+            cof = 3.0 / (6.0 - theta*theta)
+        else:
+            cof = theta / (2.0 * math.sin(theta))
+            
+        return np.array(
+            [cof * (SO3[2][1] - SO3[1][2]),
+            cof * (SO3[0][2] - SO3[2][0]),
+            cof * (SO3[1][0] - SO3[0][1])]
+            , float)
 
 # Functions to help compute the left jacobian for SE(3)
 # See Tim Barfoot's book http://asrl.utias.utoronto.ca/~tdb/bib/barfoot_ser17.pdf
