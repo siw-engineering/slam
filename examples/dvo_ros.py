@@ -4,13 +4,16 @@ sys.path.append("/home/developer/packages/pangolin/")
 import cv2
 import numpy as np
 from scipy import linalg
+import sys
 import pdb
 
 from slam.sensors.camera import Camera
 from slam.sensors.camera.inputs import RosTopicStream
 from slam.visualizer.display import Display2D
 from slam.utils import residual_map, dvo_weighting, computeJacobian
-from slam.math.se3 import SE3_Exp, SE3_Log
+from slam.imgutils import buildPyramid
+# from slam.math.se3 import SE3_Exp, SE3_Log
+from slam.math import lie
 
 rgb_cam = Camera(cam_type="rgb8",F=100, stream=RosTopicStream("/ROBOTIKA_X2/image_raw"))
 rgb_cam.K = np.array(
@@ -28,34 +31,50 @@ depth_cam.K = np.array(
 
 res_display = Display2D("display")
 res_display.start()
-xi = np.zeros((6,1))
 
-# f1= cv2.resize(rgb_cam.read()[:,:,0],(80,80))
 f1= rgb_cam.read()
 
 
 #gauss newton params
-gn_iteration = 100
+gn_iterations = 100
 width = 80
 height = 80
 while 1:
+	Rt = np.identity(4)
 	f1_d = depth_cam.read()
 	f2 = rgb_cam.read()
-	res  = residual_map(cv2.resize(f1[:,:,0],(width,height)) , cv2.resize(f2[:,:,0], (width,height)), cv2.resize(f1_d, (width,height)), rgb_cam.K, xi)
-	weights = dvo_weighting(res)
-	res = weights* res
-	J = computeJacobian(cv2.resize(f1[:,:,0],(width,height)), cv2.resize(f1_d, (width,height)), cv2.resize(f2[:,:,0], (width,height)), rgb_cam.K, xi, res, depth_scaling=1)
-	for i in range(width):
-		for j in range(height):
-			for k in range(J.shape[1]):
-				J[i*width+j,k] = J[i*width+j,k] * weights[i,j]
+	f1 = cv2.resize(cv2.cvtColor(f1, cv2.COLOR_BGR2GRAY),(width,height)).astype(np.float32)
+	f1 /= 255
+	f2 = cv2.resize(cv2.cvtColor(f2, cv2.COLOR_BGR2GRAY), (width,height)).astype(np.float32)
+	f2 /= 255
+	f1_d = cv2.resize(f1_d, (width,height)).astype(np.float32)
 
-	error = res * res.T
-	b = np.dot(J.T,res.reshape((width*height,1)))
-	H = np.dot(J.T, J)
-	inc = -linalg.solve(linalg.cholesky(H),b)
-	zz = SE3_Log(SE3_Exp(xi) * SE3_Exp(inc))
-	# res_display.q.put([weights])
-	# print (res)
-	f1 = f2
+	f1_pyr, f1_d_pyr, f2_pyr, k_pyr = buildPyramid(f1, f1_d, f2, rgb_cam.K)
+
+	for level in range(3):
+		error_prev = sys.float_info.max
+		f1 = f1_pyr[level]
+		f1_d = f1_d_pyr[level]
+		f2 = f2_pyr[level]
+		xi = lie.SE3(Rt).log().vector()
+		for itr in range(gn_iterations):
+			res  = residual_map(f1, f2, f1_d, rgb_cam.K, xi)
+			weights = dvo_weighting(res)
+			res = weights * res
+			J = computeJacobian(f1, f1_d, f2, rgb_cam.K, xi, res, depth_scaling=1)
+			J[np.isnan(J)]  = 0
+			for i in range(width):
+				for j in range(height):
+					for k in range(J.shape[1]):
+						J[i*width+j,k] = J[i*width+j,k] * weights[i,j]
+
+			error = res * res.T
+			b = np.dot(J.T,res.reshape((width*height,1)))
+			H = np.dot(J.T, J)
+			inc = -linalg.solve(linalg.cholesky(H),b)
+			# zz = lie.SE3(lie.se3(xi).exp() * lie.se3(inc).exp()).log().vector()
+			zz = lie.SE3((lie.se3(vector=xi).exp() * lie.se3(vector=xi).exp()).matrix()).log().vector()
+			# res_display.q.put([weights])
+			print (zz)
+			f1 = f2
 

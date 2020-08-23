@@ -45,13 +45,13 @@ def downsampleDepth(img):
 	return img_new.astype(np.uint8)
 
 
-def buildPyramid(f1, f1_d, f2, f2_d, K):
+def buildPyramid(f1, f1_d, f2, K):
 	pyramid_size = 4
 	k_pyramid = []
 	f1_pyramid = []
 	f1_d_pyramid = []
 	f2_pyramid = []
-	f2_d_pyramid = []
+	# f2_d_pyramid = []
 
 	for level in range(pyramid_size):
 		k_id = np.identity(3)
@@ -60,13 +60,13 @@ def buildPyramid(f1, f1_d, f2, f2_d, K):
 		f1_pyramid.append(f1)
 		f1_d_pyramid.append(f1_d)
 		f2_pyramid.append(f2)
-		f2_d_pyramid.append(f2_d)
+		# f2_d_pyramid.append(f2_d)
 		# if level < pyramid_size -1:
 		f1 =  downsampleGray(f1)
 		f1_d = downsampleDepth(f1_d)
 		f2 = downsampleGray(f2)
-		f2_d = downsampleDepth(f2_d)
+		# f2_d = downsampleDepth(f2_d)
 		K[:2, :3] = np.dot(k_id[:2, :3], 0.5)
 
 
-	return f1_pyramid, f1_d_pyramid, f2_pyramid, f2_d_pyramid, k_pyramid
+	return f1_pyramid, f1_d_pyramid, f2_pyramid, k_pyramid

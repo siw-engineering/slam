@@ -131,7 +131,6 @@ def dvo_weighting(residuals, INITIAL_SIGMA=5, DEFAULT_DOF=5):
 			data = residuals[i, j]
 			weights[i, j] = ( (dof + 1) / (dof + lambda_ * data * data) )
 
-
 	return weights
 
 # Function to compute image gradients (used in Jacobian computation)
