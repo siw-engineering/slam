@@ -75,23 +75,23 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 
 	width = f1.shape[0]
 	height = f1.shape[1]
-	T = SE3_Exp(xi)
+	Rt = SE3_Exp(xi)
 	for v in range(width):
 		for u in range(height):
 			intensity_prev = f1.item((v,u))
-			Z = f1_d[v, u]/depth_scaling
+			Z = f1_d[v, u]
 			if Z <= 0:
 				continue
 
 			P = np.dot(Kinv, (v, u, Z))
-			P = np.dot(T[0:3,0:3], P) + T[0:3,3]
+			P = np.dot(Rt[0:3,0:3], P) + Rt[0:3,3]
 			P = np.reshape(P, (3,1))
 
 			p_warped = np.dot(K, P)
 			px = p_warped[0] / p_warped[2]
 			py = p_warped[1] / p_warped[2]
 			# print ("%f, %f\n"%(px,py))
-			intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height-1)
+			intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height)
 
 			if not np.isnan(intensity_warped):
 				residuals.itemset((v, u), intensity_prev - intensity_warped)
@@ -103,15 +103,15 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 def dvo_weighting(residuals, INITIAL_SIGMA=5, DEFAULT_DOF=5):
 	w,h = residuals.shape
 	weights = np.zeros(residuals.shape, dtype=np.float32)
-	variance_init = 1.0 / (INITIAL_SIGMA * INITIAL_SIGMA)
-	variance = variance_init
+	lambda_init = 1.0 / (INITIAL_SIGMA * INITIAL_SIGMA)
+	lambda_ = lambda_init
 	num = 0.0
 	dof = DEFAULT_DOF
 	itr = 0
-	while ((variance - variance_init) > 1e-3):
+	while True:
 		itr += 1
-		variance_init = variance
-		variance = 0.0
+		lambda_init = lambda_
+		lambda_ = 0.0
 		num = 0.0
 
 		for i in range(w):
@@ -120,13 +120,16 @@ def dvo_weighting(residuals, INITIAL_SIGMA=5, DEFAULT_DOF=5):
 
 				if not np.isnan(data):
 					num += 1
-					variance += data * data * ((dof + 1) /  (dof + variance_init * data * data))
-
+					lambda_ += data * data * ((dof + 1) /  (dof + lambda_init * data * data))
+		lambda_ /= num
+		lambda_ = 1.0 / lambda_
+		if not (abs(lambda_ - lambda_init) > 1e-3):
+			break
 
 	for i in range(w):
 		for j in range(h):
 			data = residuals[i, j]
-			weights[i, j] = ( (dof + 1) / (dof + variance * data * data) )
+			weights[i, j] = ( (dof + 1) / (dof + lambda_ * data * data) )
 
 
 	return weights
