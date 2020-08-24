@@ -152,9 +152,8 @@ def computeImageGradients(img):
 	return gradX, gradY
 
 def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
-
-	width = f1.shape[1]
-	height = f1.shape[0]
+	width = f1.shape[0]
+	height = f1.shape[1]
 	Kinv = np.linalg.inv(K)
 	f = K[0, 0]
 	cx = K[0, 2]
@@ -173,10 +172,10 @@ def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
 			P = np.dot(T[0:3,0:3], P) + T[0:3,3]
 			P = np.reshape(P, (3,1))
 
-			J_img = np.reshape(np.asarray([[grad_ix[v,u], grad_iy[v,u]]]), (1,2))
+			J_img = np.reshape(np.asarray([[grad_ix[u,v], grad_iy[u,v]]]), (1,2))
 			J_pi = np.reshape(np.asarray([[f/P[2], 0, -f*P[0]/(P[2]*P[2])], [0, f/2, -f*P[1]/(P[2]*P[2])]]), (2,3))
 			J_exp = np.concatenate((np.eye(3), SO3_hat(-P)), axis=1)
 
 			J_exp = np.dot(J_exp, SE3_left_jacobian(xi))
-			J[u*width+v,:] = residuals[v,u] * np.reshape(np.dot(J_img, np.dot(J_pi, J_exp)), (6))
+			J[u*width+v,:] = residuals[u,v] * np.reshape(np.dot(J_img, np.dot(J_pi, J_exp)), (6))
 	return J
