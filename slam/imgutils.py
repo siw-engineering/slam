@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import pdb
 
 
 	# Convert input color image to grayscale
@@ -46,7 +47,7 @@ def downsampleDepth(img):
 
 
 def buildPyramid(f1, f1_d, f2, K):
-	pyramid_size = 4
+	pyramid_size = 3
 	k_pyramid = []
 	f1_pyramid = []
 	f1_d_pyramid = []

@@ -1,5 +1,7 @@
 import numpy as np
 from slam.math.se3 import SE3_Exp, SO3_hat, SO3_left_jacobian, SE3_left_jacobian
+from slam.math import lie
+
 import pdb
 
 # Interpolate an intensity value bilinearly (useful when a warped point is not integral)
@@ -10,11 +12,16 @@ def bilinear_interpolation(img, x, y, width, height):
 	valid = np.nan
 
 	# Get the four corner coordinates for the current floating point values x, y
+	
 	x0 = np.floor(x)
 	y0 = np.floor(y)
 
 	x0 = x0.astype(np.uint64)
 	y0 = y0.astype(np.uint64)
+	if type(x0) == np.ndarray:
+		x0 = x0[0]
+	if type(y0) == np.ndarray:
+		y0 = y0[0]
 
 	x1 = x0 + 1
 	y1 = y0 + 1
@@ -73,11 +80,11 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 	cx = K[0,2]
 	cy = K[1,2]
 
-	width = f1.shape[0]
-	height = f1.shape[1]
-	Rt = SE3_Exp(xi)
-	for v in range(width):
-		for u in range(height):
+	width = f1.shape[1]
+	height = f1.shape[0]
+	Rt = lie.se3(vector=xi).exp().matrix()
+	for v in range(height):
+		for u in range(width):
 			intensity_prev = f1.item((v,u))
 			Z = f1_d[v, u]
 			if Z <= 0:
@@ -87,15 +94,16 @@ def residual_map(f1, f2, f1_d, K, xi, depth_scaling=1):
 			P = np.dot(Rt[0:3,0:3], P) + Rt[0:3,3]
 			P = np.reshape(P, (3,1))
 
-			p_warped = np.dot(K, P)
-			px = p_warped[0] / p_warped[2]
-			py = p_warped[1] / p_warped[2]
 			# print ("%f, %f\n"%(px,py))
-			intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height)
+			if P[2,0] > 0:
+				p_warped = np.dot(K, P)
+				px = p_warped[0] / p_warped[2]
+				py = p_warped[1] / p_warped[2]
+				intensity_warped = bilinear_interpolation(f2, px[0], py[0], width, height)
 
-			if not np.isnan(intensity_warped):
-				residuals.itemset((v, u), intensity_prev - intensity_warped)
-
+				if not np.isnan(intensity_warped):
+					residuals.itemset((v, u), intensity_prev - intensity_warped)
+				
 
 	return residuals
 
@@ -146,8 +154,8 @@ def computeImageGradients(img):
 	height = img.shape[0]
 
 	# Exploit the fact that we can perform matrix operations on images, to compute gradients quicker
-	gradX[:, 1:width-1] = img[:, 2:] - img[:,0:width-2]
-	gradY[1:height-1, :] = img[2:, :] - img[:height-2, :]
+	gradX[:, 1:width-1] = (img[:, 2:] - img[:,0:width-2]) * 0.5
+	gradY[1:height-1, :] = (img[2:, :] - img[:height-2, :]) * 0.5
 
 	return gradX, gradY
 
@@ -155,13 +163,14 @@ def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
 	width = f1.shape[0]
 	height = f1.shape[1]
 	Kinv = np.linalg.inv(K)
+	grad_ix, grad_iy = computeImageGradients(f1)
+
 	f = K[0, 0]
 	cx = K[0, 2]
 	cy = K[1, 2]
-	T = SE3_Exp(xi)
+	Rt = lie.se3(vector=xi).exp().matrix()
 	J = np.zeros([height*width, 6])
 
-	grad_ix, grad_iy = computeImageGradients(f1)
 
 	for u in range(f1.shape[0]):
 		for v in range(f1.shape[1]):
@@ -169,7 +178,7 @@ def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
 			if Z <= 0:
 				continue
 			P = np.dot(Kinv, (u,v,Z))
-			P = np.dot(T[0:3,0:3], P) + T[0:3,3]
+			P = np.dot(Rt[0:3,0:3], P) + Rt[0:3,3]
 			P = np.reshape(P, (3,1))
 
 			J_img = np.reshape(np.asarray([[grad_ix[u,v], grad_iy[u,v]]]), (1,2))
@@ -178,4 +187,42 @@ def computeJacobian(f1, f1_d, f2, K, xi, residuals, depth_scaling):
 
 			J_exp = np.dot(J_exp, SE3_left_jacobian(xi))
 			J[u*width+v,:] = residuals[u,v] * np.reshape(np.dot(J_img, np.dot(J_pi, J_exp)), (6))
+	return J
+
+def jacobian(f1, f1_d, f2, K, Kinv, xi, residuals):
+
+	grad_ix, grad_iy = computeImageGradients(f1)
+	J1 = np.zeros([1,2])
+	h,w = f1.shape
+	J = np.zeros([h*w, 6])
+	fx = K[0,0]
+	fy = K[1,1]
+	cx = K[0,2]
+	cy = K[1,2]
+	fxi = 1/fx
+	fyi = 1/fy
+
+	Rt = lie.se3(vector=xi).exp().matrix()
+	for v in range(h):
+		for u in range(w):
+			Z = f1_d[v, u]
+			if Z <= 0:
+				continue
+			P = np.dot(Kinv, (v, u, Z))
+			P = np.dot(Rt[0:3,0:3], P) + Rt[0:3,3]
+			P = np.reshape(P, (3,1))
+			Jw = np.array([fx*1/P.T[0,2], 0, -fx*P.T[0,0]/(P.T[0,2]*P.T[0,2]), -fx*(P.T[0,0]*P.T[0,1])/(P.T[0,2]*P.T[0,2]), fx*(1 + (P.T[0,0]*P.T[0,0])/(P.T[0,2]*P.T[0,2])), -fx*P.T[0,1]/P.T[0,2],0, fy*1/P.T[0,2], -fy*P.T[0,1]/(P.T[0,2]*P.T[0,2]), -fy*(1+(P.T[0,1]*P.T[0,1])/(P.T[0,2]*P.T[0,2])), fy*P.T[0,0]*P.T[0,1]/(P.T[0,2]*P.T[0,2]), fy*P.T[0,0]/P.T[0,2]]).reshape(2,6)
+
+		if P[2,0] > 0:
+			p2_warped = np.dot(K, P)
+			px = p2_warped[0] / p2_warped[2];
+			py = p2_warped[1] / p2_warped[2];
+			J1[0,0] = bilinear_interpolation(grad_ix, px, py, w, h);
+			J1[0,1] = bilinear_interpolation(grad_iy, px ,py, w, h);
+
+			J[v*h+u,:] = -np.dot(J1,Jw)
+
+		if np.isnan(J[v*h+u,0]):
+			J[v*h+u,:] = np.zeros([1,6])
+
 	return J
