@@ -12,10 +12,10 @@ using namespace cv;
 class RGBSubscriber
 {
 public:
-	RGBSubscriber(std::string topic, int argc, char** argv);
+	RGBSubscriber(std::string topic, ros::NodeHandle nh);
 	~RGBSubscriber(){}
-	cv::Mat read();
 	void callback(const sensor_msgs::ImageConstPtr& msg);
+	cv::Mat read();
 private:
 	image_transport::Subscriber sub;
 	cv::Mat img;
