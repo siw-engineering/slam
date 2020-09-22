@@ -13,12 +13,16 @@ void RGBSubscriber::callback(const sensor_msgs::ImageConstPtr& msg)
 	try
 	{
 		cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-		cv::Mat img = cv_ptr->image;
-		ROS_INFO("img!");
+		img = cv_ptr->image;
 	}
 	catch (cv_bridge::Exception& e)
 	{
 		ROS_ERROR("cv_bridge exception: %s", e.what());
 		return;
 	}
+}
+
+cv::Mat RGBSubscriber::read()
+{
+	return img;
 }

@@ -48,10 +48,12 @@ include_directories(${PROJECT_SOURCE_DIR})
 
 
 file(GLOB srcs *.cpp)
+file(GLOB srcsh *.h)
 file(GLOB inputs_ros inputs/ros/*.cpp)
 
 
 add_executable(${PROJECT_NAME}
+               ${srcsh}
                ${srcs}
                ${inputs_ros}
 )
