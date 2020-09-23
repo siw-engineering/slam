@@ -50,12 +50,27 @@ include_directories(${PROJECT_SOURCE_DIR})
 file(GLOB srcs *.cpp)
 file(GLOB srcsh *.h)
 file(GLOB inputs_ros inputs/ros/*.cpp)
+file(GLOB cuda cuda/*.cu)
+
+
+set(CUDA_ARCH_PTX "" CACHE STRING "Specify 'virtual' PTX arch to build PTX intermediate code for. Example: 1.0 1.2 or 10 12")
+include(CudaComputeTargetFlags.cmake)
+APPEND_TARGET_ARCH_FLAGS()
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}  "-Xcompiler;-fPIC;-D_FORCE_INLINES;")
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "--ftz=true;--prec-div=false;--prec-sqrt=false")
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}  "-g")
+endif(CMAKE_BUILD_TYPE MATCHES Debug)
+
+CUDA_COMPILE(cuda_objs ${cuda})
 
 
 add_executable(${PROJECT_NAME}
                ${srcsh}
                ${srcs}
                ${inputs_ros}
+               ${cuda}
+               ${cuda_objs}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -68,7 +83,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME}
     ${Eigen_LIBRARIES}
     ${cv_bridge_LIBRARIES}
-	${catkin_LIBRARIES}
+	  ${catkin_LIBRARIES}
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
     boost_filesystem
