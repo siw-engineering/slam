@@ -7,9 +7,14 @@
 #define MAX_THREADS 1024
 #endif
 
+#include <stdio.h>
+#include<stdlib.h> 
+#include "Camera.h"
+#include <opencv2/core/core.hpp>
 
-void test(void);
-void test_wrapper(void);
+using namespace GSLAM;
+
+void unproject(cv::Mat img, GSLAM::CameraPinhole cam);
 
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */
