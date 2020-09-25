@@ -11,10 +11,11 @@
 #include<stdlib.h> 
 #include "Camera.h"
 #include <opencv2/core/core.hpp>
+#include "Point.h"
 
 using namespace GSLAM;
 
-void unproject(cv::Mat img, GSLAM::CameraPinhole cam);
+void unproject(cv::Mat img, GSLAM::CameraPinhole* cam);
 
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */
