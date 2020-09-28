@@ -15,7 +15,7 @@
 
 using namespace GSLAM;
 
-void unproject(cv::Mat img, GSLAM::CameraPinhole* cam);
+void unproject(cv::Mat img, GSLAM::CameraPinhole cam);
 
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */

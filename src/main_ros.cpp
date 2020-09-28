@@ -11,8 +11,7 @@ int main(int argc, char **argv)
 	DepthSubscriber* depthsub;
 	depthsub  = new DepthSubscriber("/X1/front/optical/depth", nh);
 	cv::Mat img;
-	GSLAM::CameraPinhole* cam;
-	cam = new GSLAM::CameraPinhole(320,240,277,277,160,120);
+	GSLAM::CameraPinhole cam(320,240,277,277,160,120);
 
 	while (ros::ok())
 	{
