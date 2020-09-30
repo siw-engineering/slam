@@ -11,12 +11,14 @@ void unproject_kernel(unsigned char *depth, double* d_3d_points, int rows, int c
 	{
 		// add depth info
 		id = idx * idy;
-		d_3d_points[id] = (idx-cx)*fx_inv;
-		d_3d_points[id+(rows*cols)] = (idy-cy)*fy_inv;
-		d_3d_points[id+2*(rows*cols)] = 1;
+		double z = (double)depth[id];
+		d_3d_points[id] = (idx-cx)*fx_inv*z;
+		d_3d_points[id+(rows*cols)] = (idy-cy)*fy_inv*z;
+		d_3d_points[id+2*(rows*cols)] = z;
 		// printf("--%f--\n",(cx));
 	}
 }
+
 
 
 void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
@@ -32,7 +34,6 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 	size_t totalpixels = rows*cols;
 	const dim3 dimGrid((int)ceil((cols)/16), (int)ceil((rows)/16));
 	const dim3 dimBlock(16, 16);
-	int size_[] = { rows,cols,3 };
 	// *input_image = (uchar4 *)img.ptr<uchar4 *>(0);
 	// cudaMalloc(ddepth, sizeof(uchar4) * totalpixels * CHANNELS);
 	// cudaMemcpy(*ddepth, *input_image, sizeof(uchar4) * totalpixels * CHANNELS, cudaMemcpyHostToDevice);
@@ -45,6 +46,6 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 	unproject_kernel<<<dimGrid,dimBlock>>>(d_depth_image, d_3d_points, rows, cols, cam.cx, cam.cy, cam.fx, cam.fy, cam.fx_inv, cam.fy_inv);
 	cudaMemcpy(h_3d_points, d_3d_points, sizeof(double) * totalpixels * 3, cudaMemcpyDeviceToHost);
 	
-	std::cout<<*(h_3d_points+sizeof(double)+2*(rows*cols));
+	std::cout<<*(h_3d_points+sizeof(double)+(rows*cols));
 	cudaFree(d_depth_image);
 }

@@ -12,6 +12,7 @@
 #include "Camera.h"
 #include <opencv2/core/core.hpp>
 #include "Point.h"
+#include "cuda/containers/device_array.hpp"
 
 using namespace GSLAM;
 

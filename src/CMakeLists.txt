@@ -51,6 +51,8 @@ file(GLOB srcs *.cpp)
 file(GLOB srcsh *.h)
 file(GLOB inputs_ros inputs/ros/*.cpp)
 file(GLOB cuda cuda/*.cu)
+file(GLOB cuda_containers cuda/containers/*.cpp)
+
 
 
 set(CUDA_ARCH_PTX "" CACHE STRING "Specify 'virtual' PTX arch to build PTX intermediate code for. Example: 1.0 1.2 or 10 12")
@@ -71,6 +73,7 @@ add_executable(${PROJECT_NAME}
                ${inputs_ros}
                ${cuda}
                ${cuda_objs}
+               ${cuda_containers}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
