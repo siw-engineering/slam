@@ -20,7 +20,6 @@ void unproject_kernel(unsigned char *depth, double* d_3d_points, int rows, int c
 }
 
 
-
 void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 {
 
@@ -38,14 +37,23 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 	// cudaMalloc(ddepth, sizeof(uchar4) * totalpixels * CHANNELS);
 	// cudaMemcpy(*ddepth, *input_image, sizeof(uchar4) * totalpixels * CHANNELS, cudaMemcpyHostToDevice);
 
-	h_3d_points = (double*)malloc(sizeof(double) * totalpixels * 3);
-	unsigned char* depth_image = (unsigned char*)img.data;
-	cudaMalloc((void **)&d_depth_image, sizeof(unsigned char) * totalpixels );
-	cudaMalloc((void **)&d_3d_points, sizeof(double) * totalpixels * 3 );
-	cudaMemcpy(d_depth_image, depth_image, sizeof(unsigned char) * totalpixels , cudaMemcpyHostToDevice);
-	unproject_kernel<<<dimGrid,dimBlock>>>(d_depth_image, d_3d_points, rows, cols, cam.cx, cam.cy, cam.fx, cam.fy, cam.fx_inv, cam.fy_inv);
-	cudaMemcpy(h_3d_points, d_3d_points, sizeof(double) * totalpixels * 3, cudaMemcpyDeviceToHost);
+	// h_3d_points = (double*)malloc(sizeof(double) * totalpixels * 3);
+	// unsigned char* depth_image = (unsigned char*)img.data;
+	// cudaMalloc((void **)&d_depth_image, sizeof(unsigned char) * totalpixels );
+	// cudaMalloc((void **)&d_3d_points, sizeof(double) * totalpixels * 3 );
+	// cudaMemcpy(d_depth_image, depth_image, sizeof(unsigned char) * totalpixels , cudaMemcpyHostToDevice);
+	// unproject_kernel<<<dimGrid,dimBlock>>>(d_depth_image, d_3d_points, rows, cols, cam.cx, cam.cy, cam.fx, cam.fy, cam.fx_inv, cam.fy_inv);
+	// cudaMemcpy(h_3d_points, d_3d_points, sizeof(double) * totalpixels * 3, cudaMemcpyDeviceToHost);
 	
-	std::cout<<*(h_3d_points+sizeof(double)+(rows*cols));
-	cudaFree(d_depth_image);
+	// std::cout<<*(h_3d_points+sizeof(double)+(rows*cols));
+	// cudaFree(d_depth_image);
+
+	texture<double, cudaTextureType2D,  cudaReadModeElementType> t;
+	cudaArray* cuArray;
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0,
+                                             cudaChannelFormatKindFloat );
+    cudaMallocArray(&cuArray, &channelDesc, cols, rows);
+    cudaMemcpyToArray(cuArray, 0, 0, img.data, sizeof(double)*totalpixels, cudaMemcpyHostToDevice);
+
+      
 }

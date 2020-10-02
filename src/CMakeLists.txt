@@ -48,7 +48,6 @@ include_directories(${PROJECT_SOURCE_DIR})
 
 
 file(GLOB srcs *.cpp)
-file(GLOB srcsh *.h)
 file(GLOB inputs_ros inputs/ros/*.cpp)
 file(GLOB cuda cuda/*.cu)
 file(GLOB cuda_containers cuda/containers/*.cpp)
@@ -68,7 +67,6 @@ CUDA_COMPILE(cuda_objs ${cuda})
 
 
 add_executable(${PROJECT_NAME}
-               ${srcsh}
                ${srcs}
                ${inputs_ros}
                ${cuda}

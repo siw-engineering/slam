@@ -13,7 +13,7 @@
 #include <opencv2/core/core.hpp>
 #include "Point.h"
 #include "cuda/containers/device_array.hpp"
-
+#include "cuda/cudafuncs.cuh"
 using namespace GSLAM;
 
 void unproject(cv::Mat img, GSLAM::CameraPinhole cam);

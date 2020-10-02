@@ -2,6 +2,8 @@
 #include "Camera.h"
 #include "cuda/vertex_ops.cuh"
 #include "cuda/containers/device_array.hpp"
+#include "cuda/cudafuncs.cuh"
+
 using namespace GSLAM;
 
 int main(int argc, char **argv)
