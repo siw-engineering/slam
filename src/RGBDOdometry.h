@@ -3,7 +3,7 @@
 #include <vector>
 #include <vector_types.h>
 #include "cuda/cudafuncs.cuh"
-
+#include "cuda/types.cuh"
 
 class RGBDOdometry {
  public:

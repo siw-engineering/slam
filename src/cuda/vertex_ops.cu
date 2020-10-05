@@ -1,5 +1,8 @@
 #include "vertex_ops.cuh"
 
+
+texture<float, 2, cudaReadModeElementType> texRef; 
+
 __global__
 void unproject_kernel(unsigned char *depth, double* d_3d_points, int rows, int cols, double cx, double cy, double fx, double fy, double fx_inv, double fy_inv)
 {
@@ -33,6 +36,7 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 	size_t totalpixels = rows*cols;
 	const dim3 dimGrid((int)ceil((cols)/16), (int)ceil((rows)/16));
 	const dim3 dimBlock(16, 16);
+	std::cout<<"t";
 	// *input_image = (uchar4 *)img.ptr<uchar4 *>(0);
 	// cudaMalloc(ddepth, sizeof(uchar4) * totalpixels * CHANNELS);
 	// cudaMemcpy(*ddepth, *input_image, sizeof(uchar4) * totalpixels * CHANNELS, cudaMemcpyHostToDevice);
@@ -56,4 +60,28 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
     cudaMemcpyToArray(cuArray, 0, 0, img.data, sizeof(double)*totalpixels, cudaMemcpyHostToDevice);
 
       
+}
+
+void rgb_texture_test(cv::Mat img)
+{
+	int width = img.cols;
+	int height = img.rows;
+	int size = width * height  * sizeof(float);
+
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32,32,32,32,cudaChannelFormatKindFloat);
+	cudaArray* cuArray;
+	cudaSafeCall(cudaMallocArray(&cuArray, &channelDesc, width, height));
+	cudaSafeCall(cudaMemcpyToArray(cuArray, 0, 0, img.data, size, cudaMemcpyHostToDevice));
+
+	texRef.addressMode[0] = cudaAddressModeWrap;
+	texRef.addressMode[1] = cudaAddressModeWrap;
+	texRef.filterMode = cudaFilterModeLinear;
+	texRef.normalized = true;
+
+	cudaBindTextureToArray(texRef, cuArray, channelDesc);
+
+    cudaCheckError();
+    std::cout<<"working\n";
+    cudaFreeArray(cuArray);
+
 }
