@@ -1,4 +1,4 @@
-#include "inputs/ros/DepthSubscriber.h"
+	#include "inputs/ros/DepthSubscriber.h"
 #include "inputs/ros/RGBSubscriber.h"
 
 #include "Camera.h"
@@ -6,6 +6,7 @@
 #include "cuda/containers/device_array.hpp"
 #include "cuda/cudafuncs.cuh"
 #include "RGBDOdometry.h"
+// #include "GPUTexture.h"
 
 using namespace GSLAM;
 
@@ -39,7 +40,7 @@ int main(int argc, char **argv)
 		}
 		
 		uchar* camData = new uchar[img.total()*4];
-		Mat continuousRGBA(img.size(), CV_32FC4, camData);
+		Mat continuousRGBA(img.size(), CV_8UC4, camData);
 		cv::cvtColor(img, continuousRGBA, CV_BGR2RGBA, 4);
 
 		rgb_texture_test(continuousRGBA);

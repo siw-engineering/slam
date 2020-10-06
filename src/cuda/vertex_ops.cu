@@ -60,52 +60,53 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 
       
 }
+texture<uchar4, cudaTextureType2D, cudaReadModeElementType> texRef;
 __global__
-void rgb_texture_kernel(cudaTextureObject_t tex_obj, int width, int height)
+void rgb_texture_kernel(int width, int height)
 {
 	int x = threadIdx.x + (blockDim.x *blockIdx.x);
 	int y = threadIdx.y + (blockDim.y *blockIdx.y);
 
-	float u = x/(float)width;
-	float v = y/(float)height;
+	// u -= 0.5;
+	// v -= 0.5;
 
-	u -= 0.5;
-	v -= 0.5;
-
-	float t = tex2D<float>(tex_obj, u,v);
-	printf("%f\n",t);
+	uchar4 t = tex2D(texRef, x,y);
+	printf("%c\n",t.x);
 
 }
 void rgb_texture_test(cv::Mat img)
 {
 	int width = img.cols;
 	int height = img.rows;
-	int size = width * height  * sizeof(float);
+	int size = width *  sizeof(unsigned char);
+	int nchannels = 4;
 
 	const dim3 dimGrid((int)ceil((width)/16), (int)ceil((height)/16));
 	const dim3 dimBlock(16, 16);
 
-	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32,32,32,32,cudaChannelFormatKindFloat);
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8,8,8,8,cudaChannelFormatKindUnsigned);
 	cudaArray* cuArray;
+
+	int widthstep = ((width*sizeof(unsigned char)*nchannels)%4!=0)?((((width*sizeof(unsigned char)*nchannels)/4)*4) + 4):(width*sizeof(unsigned char)*nchannels);
 	cudaSafeCall(cudaMallocArray(&cuArray, &channelDesc, width, height));
-	cudaSafeCall(cudaMemcpyToArray(cuArray, 0, 0, img.ptr(), size, cudaMemcpyHostToDevice));
+	cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, (unsigned char*)img.data, widthstep, size, height, cudaMemcpyHostToDevice));
+	cudaBindTextureToArray(texRef,cuArray);
+	// struct cudaResourceDesc resDesc;
+	// memset(&resDesc, 0, sizeof(resDesc));
+	// resDesc.resType = cudaResourceTypeArray;
+	// resDesc.res.array.array = cuArray;
 
-	struct cudaResourceDesc resDesc;
-	memset(&resDesc, 0, sizeof(resDesc));
-	resDesc.resType = cudaResourceTypeArray;
-	resDesc.res.array.array = cuArray;
+	// struct cudaTextureDesc texDesc;
+	// memset(&texDesc, 0, sizeof(texDesc));
+	// texDesc.addressMode[0]   = cudaAddressModeWrap;
+	// texDesc.addressMode[1]   = cudaAddressModeWrap;
+	// texDesc.filterMode       = cudaFilterModeLinear;
+	// texDesc.readMode         = cudaReadModeElementType;    
+	// texDesc.normalizedCoords = 0;
 
-	struct cudaTextureDesc texDesc;
-	memset(&texDesc, 0, sizeof(texDesc));
-	texDesc.addressMode[0]   = cudaAddressModeWrap;
-	texDesc.addressMode[1]   = cudaAddressModeWrap;
-	texDesc.filterMode       = cudaFilterModeLinear;
-	texDesc.readMode         = cudaReadModeElementType;    
-	texDesc.normalizedCoords = 1;
-
-	cudaTextureObject_t texObj = 0;
-    cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-	rgb_texture_kernel<<<dimGrid, dimBlock>>>(texObj, width, height);
+	// cudaTextureObject_t texObj = 0;
+    //  cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
+	rgb_texture_kernel<<<dimGrid, dimBlock>>>(width, height);
 
     cudaCheckError();
     cudaFreeArray(cuArray);
