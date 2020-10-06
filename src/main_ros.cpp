@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 	std::vector<DeviceArray2D<unsigned char>> a; 
 	// std::cout<<" cx :" <<cam.cx<<" cy :" <<cam.cy<<" fx :" <<cam.fx<<" fy :" <<cam.fy<<" fx_inv :" <<cam.fx_inv<<" fy_inv :" <<cam.fy_inv;
 
-
+	cudaArray* ca;
 	while (ros::ok())
 	{
 		// img = depthsub->read();
@@ -43,7 +43,8 @@ int main(int argc, char **argv)
 		Mat continuousRGBA(img.size(), CV_8UC4, camData);
 		cv::cvtColor(img, continuousRGBA, CV_BGR2RGBA, 4);
 
-		rgb_texture_test(continuousRGBA);
+		ca = rgb_texture_test(continuousRGBA);
+		odom.initFirstRGB(ca);
 		
 		delete(camData);
 		ros::spinOnce();

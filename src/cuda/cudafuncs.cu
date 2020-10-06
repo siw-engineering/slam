@@ -634,6 +634,8 @@ __global__ void bgr2IntensityKernel(PtrStepSz<unsigned char> dst)
 
     int value = (float)src.x * 0.114f + (float)src.y * 0.299f + (float)src.z * 0.587f;
 
+    printf("%d\n", value);
+
     dst.ptr (y)[x] = value;
 }
 

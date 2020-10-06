@@ -74,7 +74,7 @@ void rgb_texture_kernel(int width, int height)
 	printf("%c\n",t.x);
 
 }
-void rgb_texture_test(cv::Mat img)
+cudaArray* rgb_texture_test(cv::Mat img)
 {
 	int width = img.cols;
 	int height = img.rows;
@@ -90,7 +90,7 @@ void rgb_texture_test(cv::Mat img)
 	int widthstep = ((width*sizeof(unsigned char)*nchannels)%4!=0)?((((width*sizeof(unsigned char)*nchannels)/4)*4) + 4):(width*sizeof(unsigned char)*nchannels);
 	cudaSafeCall(cudaMallocArray(&cuArray, &channelDesc, width, height));
 	cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, (unsigned char*)img.data, widthstep, size, height, cudaMemcpyHostToDevice));
-	cudaBindTextureToArray(texRef,cuArray);
+	// cudaBindTextureToArray(texRef,cuArray);
 	// struct cudaResourceDesc resDesc;
 	// memset(&resDesc, 0, sizeof(resDesc));
 	// resDesc.resType = cudaResourceTypeArray;
@@ -106,9 +106,10 @@ void rgb_texture_test(cv::Mat img)
 
 	// cudaTextureObject_t texObj = 0;
     //  cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-	rgb_texture_kernel<<<dimGrid, dimBlock>>>(width, height);
+	// rgb_texture_kernel<<<dimGrid, dimBlock>>>(width, height);
 
     cudaCheckError();
-    cudaFreeArray(cuArray);
+    // cudaFreeArray(cuArray);
+    return cuArray;
 
 }
