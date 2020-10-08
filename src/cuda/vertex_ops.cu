@@ -51,52 +51,45 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 	// std::cout<<*(h_3d_points+sizeof(double)+(rows*cols));
 	// cudaFree(d_depth_image);
 
-	texture<double, cudaTextureType2D,  cudaReadModeElementType> t;
-	cudaArray* cuArray;
-    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0,
-                                             cudaChannelFormatKindFloat );
-    cudaMallocArray(&cuArray, &channelDesc, cols, rows);
-    cudaMemcpyToArray(cuArray, 0, 0, img.data, sizeof(double)*totalpixels, cudaMemcpyHostToDevice);
-
       
 }
+
 texture<uchar4, cudaTextureType2D, cudaReadModeElementType> texRef;
+static cudaArray *cuArray = NULL;
+
 __global__
-void rgb_texture_kernel(uchar* t_img, int width, int height)
+void rgb_texture_kernel(unsigned char* d_img, int width, int height, int widthstep)
 {
 	int x = threadIdx.x + (blockDim.x *blockIdx.x);
 	int y = threadIdx.y + (blockDim.y *blockIdx.y);
 
-	// u -= 0.5;
-	// v -= 0.5;
 	  if (x >= width || y >= height)
         return;
-	uchar4 t = tex2D(texRef, x,y);
-	printf("%d %d %d\n",x,y, width*x+y);
-	t_img[width*x+y] = (uchar)t.x;
-	printf("burking\n");
+	uchar4 t;
+	t = tex2D(texRef,x,y);
+	printf("x = %d y = %d  widthstep*y+x = %d\n", x, y, widthstep*y+x);
+	d_img[widthstep*y+x] = t.x;
+	// d_img[widthstep*(x+1)+y] = t.y;
+	// d_img[widthstep*(x+2)+y] = t.z;
 
 }
-cudaArray* rgb_texture_test(cv::Mat img)
+void rgb_texture_test(unsigned char* input, unsigned char* output, int width, int height, int widthstep)
 {
-	int width = img.cols;
-	int height = img.rows;
-	int size = width *  sizeof(unsigned char);
 	int nchannels = 4;
 
-	const dim3 dimGrid((int)ceil((width)/16), (int)ceil((height)/16));
-	const dim3 dimBlock(16, 16);
+	dim3 blocksize(16,16);
+	dim3 gridsize;
+	gridsize.x=(width+blocksize.x-1)/blocksize.x;
+	gridsize.y=(height+blocksize.y-1)/blocksize.y;
 
 	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8,8,8,8,cudaChannelFormatKindUnsigned);
-	cudaArray* cuArray;
-
-	uchar *t_img;
-
-	int widthstep = ((width*sizeof(unsigned char)*nchannels)%4!=0)?((((width*sizeof(unsigned char)*nchannels)/4)*4) + 4):(width*sizeof(unsigned char)*nchannels);
+	// cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
+	unsigned char *d_img;
+	// output = (uchar*)malloc(sizeof(uchar) * width * height * 3);
 	cudaSafeCall(cudaMallocArray(&cuArray, &channelDesc, width, height));
-	cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, (unsigned char*)img.data, widthstep, size, height, cudaMemcpyHostToDevice));
-	cudaSafeCall(cudaMalloc(&t_img, sizeof(uchar) * width * height * 3));
-	// cudaBindTextureToArray(texRef,cuArray);
+	cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, input, widthstep, width*sizeof(unsigned char), height, cudaMemcpyHostToDevice));
+	cudaBindTextureToArray(texRef,cuArray,channelDesc);
+	cudaSafeCall(cudaMalloc(&d_img, widthstep*height));
 	// struct cudaResourceDesc resDesc;
 	// memset(&resDesc, 0, sizeof(resDesc));
 	// resDesc.resType = cudaResourceTypeArray;
@@ -112,11 +105,13 @@ cudaArray* rgb_texture_test(cv::Mat img)
 
 	// cudaTextureObject_t texObj = 0;
     //  cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-	rgb_texture_kernel<<<dimGrid, dimBlock>>>(t_img, width, height);
+	rgb_texture_kernel<<<gridsize, blocksize>>>(d_img, width, height, widthstep/sizeof(unsigned char));
+	cudaSafeCall(cudaMemcpy(output, d_img, widthstep * height, cudaMemcpyDeviceToHost));
+	// cv::Mat s_img(img.size(), CV_8UC3, output);
 
-    cudaCheckError();
-    // delete(t_img);
-    // cudaFreeArray(cuArray);
-    return cuArray;
+	cudaCheckError();
+    cudaFree(d_img);
+    cudaFreeArray(cuArray);
 
 }
+

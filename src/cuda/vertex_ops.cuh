@@ -19,6 +19,8 @@
 using namespace GSLAM;
 
 void unproject(cv::Mat img, GSLAM::CameraPinhole cam);
-cudaArray* rgb_texture_test(cv::Mat img);
+void rgb_texture_test(unsigned char* input, unsigned char* output, int width, int height, int widthstep);
+// cv::Mat rgb_texture_test(cv::Mat img);
+
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */

@@ -29,7 +29,7 @@ int main(int argc, char **argv)
 	std::vector<DeviceArray2D<unsigned char>> a; 
 	// std::cout<<" cx :" <<cam.cx<<" cy :" <<cam.cy<<" fx :" <<cam.fx<<" fy :" <<cam.fy<<" fx_inv :" <<cam.fx_inv<<" fy_inv :" <<cam.fy_inv;
 
-	cudaArray* ca;
+	cv::Mat s_img;
 	while (ros::ok())
 	{
 		// img = depthsub->read();
@@ -41,28 +41,44 @@ int main(int argc, char **argv)
 			continue;
 		}
 		
-		// gtex.texture->Upload(img.data,GL_RGB, GL_UNSIGNED_BYTE);
+		unsigned char *camData = new unsigned char[img.total()*4];
+		unsigned char *h_img = new unsigned char[img.total()*4];
+		cv::Mat continuousRGBA(img.size(), CV_8UC4, camData);
+		cv::Mat s_img(img.size(), CV_8UC4, h_img);
+		// cv::cvtColor(img, continuousRGBA, CV_BGR2RGBA, 4);
+		img.convertTo(continuousRGBA, CV_8UC4);
+		
+		unsigned char *input, *ouput;
+		input = (unsigned char *)continuousRGBA.data;
+		ouput = (unsigned char *)s_img.data;
 
-		uchar* camData = new uchar[img.total()*4];
-		Mat continuousRGBA(img.size(), CV_8UC4, camData);
-		cv::cvtColor(img, continuousRGBA, CV_BGR2RGBA, 4);
-		// bool check;
-		// check = cv::imwrite("src/MyImage.jpg", continuousRGBA);
-		//     // if the image is not saved 
-	 //    if (check == false) { 
-	 //        std::cout << "Mission - Saving the image, FAILED" << std::endl; 
-	  
-	 //        // wait for any key to be pressed 
-	 //        return -1; 
-	 //    } 
-	  
-	 //    std::cout << "Successfully saved the image. " << std::endl; 
-	 //    return 0;
-		ca = rgb_texture_test(continuousRGBA);
-		// odom.initFirstRGB(ca);
+		int width = img.cols;
+		int height = img.rows;
+		int nchannels = 4;
+
+		int widthstep = (width*sizeof(unsigned char)*nchannels);
+		rgb_texture_test(input, ouput, width, height, widthstep);
+		bool check;
+
+		// float *fdata = new float[img.total()*4];
+		// cv::Mat f_img_mat(img.size(), CV_32FC4, fdata);
+
+		// s_img.convertTo(f_img_mat,CV_32FC4);
+
+		check = cv::imwrite("src/MyImage.jpg", s_img);
+		   if (check == false) { 
+		       std::cout << "Mission - Saving the image, FAILED" << std::endl; 
+
+		       // wait for any key to be pressed 
+		       return -1; 
+		   } 
+	 	std::cout << "Successfully saved the image. " << std::endl; 
+		// // odom.initFirstRGB(ca);
 
 
 		delete(camData);
+		delete(h_img);
+
 		ros::spinOnce();
 
 	}
