@@ -6,7 +6,7 @@
 #include "cuda/containers/device_array.hpp"
 #include "cuda/cudafuncs.cuh"
 #include "RGBDOdometry.h"
-#include "GPUTexture.h"
+// #include "GPUTexture.h"
 
 using namespace GSLAM;
 
@@ -20,8 +20,8 @@ int main(int argc, char **argv)
 	RGBSubscriber* rgbsub;
 	// GPUTexture gtex(320, 240, GL_RGBA, GL_RGB, GL_UNSIGNED_BYTE, true, true);
 	RGBDOdometry odom(320,240,277,277,160,120);
-	depthsub  = new DepthSubscriber("/X1/front/optical/depth", nh);
-	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
+	depthsub  = new DepthSubscriber("/ROBOTIKA_X1/front/depth", nh);
+	rgbsub = new RGBSubscriber("/ROBOTIKA_X1/front/image_raw", nh);
 
 
 	cv::Mat img;
@@ -58,21 +58,21 @@ int main(int argc, char **argv)
 
 		int widthstep = (width*sizeof(unsigned char)*nchannels);
 		rgb_texture_test(input, ouput, width, height, widthstep);
-		bool check;
+		// bool check;
 
 		// float *fdata = new float[img.total()*4];
 		// cv::Mat f_img_mat(img.size(), CV_32FC4, fdata);
 
 		// s_img.convertTo(f_img_mat,CV_32FC4);
 
-		check = cv::imwrite("src/MyImage.jpg", s_img);
-		   if (check == false) { 
-		       std::cout << "Mission - Saving the image, FAILED" << std::endl; 
+		// check = cv::imwrite("src/MyImage.jpg", im);
+		//    if (check == false) { 
+		//        std::cout << "Mission - Saving the image, FAILED" << std::endl; 
 
-		       // wait for any key to be pressed 
-		       return -1; 
-		   } 
-	 	std::cout << "Successfully saved the image. " << std::endl; 
+		//        // wait for any key to be pressed 
+		//        return -1; 
+		//    } 
+	 // 	std::cout << "Successfully saved the image. " << std::endl; 
 		// // odom.initFirstRGB(ca);
 
 

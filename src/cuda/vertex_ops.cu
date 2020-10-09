@@ -63,14 +63,19 @@ void rgb_texture_kernel(unsigned char* d_img, int width, int height, int widthst
 	int x = threadIdx.x + (blockDim.x *blockIdx.x);
 	int y = threadIdx.y + (blockDim.y *blockIdx.y);
 
+
+
+
 	  if (x >= width || y >= height)
         return;
 	uchar4 t;
 	t = tex2D(texRef,x,y);
-	printf("x = %d y = %d  widthstep*y+x = %d\n", x, y, widthstep*y+x);
-	d_img[widthstep*y+x] = t.x;
-	// d_img[widthstep*(x+1)+y] = t.y;
-	// d_img[widthstep*(x+2)+y] = t.z;
+	// printf("x = %d y = %d  widthstep*y+x = %d\n", x, y, widthstep*y+x);
+	// printf("width = %d    height = %d   widthstep = %d \n", width, height, widthstep);
+	// d_img[widthstep*y+x] = t.x;
+	d_img[widthstep*x+y] = t.x;
+	d_img[widthstep*(x+1)+y] = t.y;
+	d_img[widthstep*(x+2)+y] = t.z;
 
 }
 void rgb_texture_test(unsigned char* input, unsigned char* output, int width, int height, int widthstep)
@@ -87,8 +92,10 @@ void rgb_texture_test(unsigned char* input, unsigned char* output, int width, in
 	unsigned char *d_img;
 	// output = (uchar*)malloc(sizeof(uchar) * width * height * 3);
 	cudaSafeCall(cudaMallocArray(&cuArray, &channelDesc, width, height));
-	cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, input, widthstep, width*sizeof(unsigned char), height, cudaMemcpyHostToDevice));
-	cudaBindTextureToArray(texRef,cuArray,channelDesc);
+	cudaSafeCall(cudaMemcpyToArray(cuArray, 0, 0, input,  width*sizeof(unsigned char)*height, cudaMemcpyHostToDevice));
+	// cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, input, widthstep, width*sizeof(unsigned char), height, cudaMemcpyHostToDevice));
+
+	cudaBindTextureToArray(texRef, cuArray, channelDesc);
 	cudaSafeCall(cudaMalloc(&d_img, widthstep*height));
 	// struct cudaResourceDesc resDesc;
 	// memset(&resDesc, 0, sizeof(resDesc));
@@ -105,9 +112,14 @@ void rgb_texture_test(unsigned char* input, unsigned char* output, int width, in
 
 	// cudaTextureObject_t texObj = 0;
     //  cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-	rgb_texture_kernel<<<gridsize, blocksize>>>(d_img, width, height, widthstep/sizeof(unsigned char));
-	cudaSafeCall(cudaMemcpy(output, d_img, widthstep * height, cudaMemcpyDeviceToHost));
-	// cv::Mat s_img(img.size(), CV_8UC3, output);
+	rgb_texture_kernel<<<gridsize, blocksize>>>(d_img, width, height, widthstep);
+	
+	cudaSafeCall(cudaDeviceSynchronize());
+	cudaSafeCall(cudaMemcpy(output, d_img, width * height, cudaMemcpyDeviceToHost));
+
+	// cv::Mat s_img(width, width, CV_8UC3, (void *)output);
+	// cv::imwrite("src/MyImage.jpg", s_img);
+	// printf("saved\n");
 
 	cudaCheckError();
     cudaFree(d_img);
