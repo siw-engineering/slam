@@ -29,6 +29,8 @@ int main(int argc, char **argv)
 	std::vector<DeviceArray2D<unsigned char>> a; 
 	// std::cout<<" cx :" <<cam.cx<<" cy :" <<cam.cy<<" fx :" <<cam.fx<<" fy :" <<cam.fy<<" fx_inv :" <<cam.fx_inv<<" fy_inv :" <<cam.fy_inv;
 
+	int h, w = 512;
+
 	cv::Mat s_img;
 	while (ros::ok())
 	{
@@ -41,43 +43,35 @@ int main(int argc, char **argv)
 			continue;
 		}
 		
-		unsigned char *camData = new unsigned char[img.total()*4];
-		unsigned char *h_img = new unsigned char[img.total()*4];
-		cv::Mat continuousRGBA(img.size(), CV_8UC4, camData);
-		cv::Mat s_img(img.size(), CV_8UC4, h_img);
-		// cv::cvtColor(img, continuousRGBA, CV_BGR2RGBA, 4);
-		img.convertTo(continuousRGBA, CV_8UC4);
+		// unsigned char *camData = new unsigned char[img.total()*4];
+		// unsigned char *h_img = new unsigned char[img.total()*4];
+		// cv::Mat continuousRGBA(img.size(), CV_8UC4, camData);
+		// cv::Mat s_img(img.size(), CV_8UC4, h_img);
+		// // cv::cvtColor(img, continuousRGBA, CV_BGR2RGBA, 4);
+		// img.convertTo(continuousRGBA, CV_8UC4);
 		
-		unsigned char *input, *ouput;
-		input = (unsigned char *)continuousRGBA.data;
-		ouput = (unsigned char *)s_img.data;
+		// unsigned char *input, *ouput;
+		// input = (unsigned char *)continuousRGBA.data;
+		// ouput = (unsigned char *)s_img.data;
 
-		int width = img.cols;
-		int height = img.rows;
-		int nchannels = 4;
+		// int width = img.cols;
+		// int height = img.rows;
+		// int nchannels = 4;
 
-		int widthstep = (width*sizeof(unsigned char)*nchannels);
-		rgb_texture_test(input, ouput, width, height, widthstep);
-		// bool check;
-
-		// float *fdata = new float[img.total()*4];
-		// cv::Mat f_img_mat(img.size(), CV_32FC4, fdata);
-
-		// s_img.convertTo(f_img_mat,CV_32FC4);
-
-		// check = cv::imwrite("src/MyImage.jpg", im);
-		//    if (check == false) { 
-		//        std::cout << "Mission - Saving the image, FAILED" << std::endl; 
-
-		//        // wait for any key to be pressed 
-		//        return -1; 
-		//    } 
-	 // 	std::cout << "Successfully saved the image. " << std::endl; 
-		// // odom.initFirstRGB(ca);
+		// int widthstep = (width*sizeof(unsigned char)*nchannels);
 
 
-		delete(camData);
-		delete(h_img);
+		// cv::resize(img, img, Size(h, w));
+		cv::cvtColor(img, img, CV_BGR2BGRA);
+
+
+
+
+
+		rgb_texture_test(img);
+
+
+
 
 		ros::spinOnce();
 

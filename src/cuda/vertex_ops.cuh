@@ -15,12 +15,16 @@
 #include "cuda/containers/device_array.hpp"
 #include "cuda/convenience.cuh"
 #include "cuda/cudafuncs.cuh"
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include "opencv2/opencv.hpp"
+
 
 using namespace GSLAM;
 
 void unproject(cv::Mat img, GSLAM::CameraPinhole cam);
-void rgb_texture_test(unsigned char* input, unsigned char* output, int width, int height, int widthstep);
-// cv::Mat rgb_texture_test(cv::Mat img);
+// void rgb_texture_test(unsigned char* input, unsigned char* output, int width, int height, int widthstep);
+void rgb_texture_test(cv::Mat img);
 
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */
