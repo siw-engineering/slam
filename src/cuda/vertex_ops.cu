@@ -84,17 +84,13 @@ void test(char *img,int width,int heigth,int channels)
 
     unsigned int x = blockIdx.x*blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y*blockDim.y + threadIdx.y;
-    unsigned int offset = x + y*blockDim.x+gridDim.x;
 
-    //If using normalization
-    float u = x/(float)width;
-    float v = y/(float)heigth;
 
     float4 pixel = tex2D(tex, x, y);
 
-	img[(y*width+x)*channels+0] = pixel.x /4 * 255;
-	img[(y*width+x)*channels+1] = pixel.y /4 * 255;
-	img[(y*width+x)*channels+2] = pixel.z /4 * 255;
+	img[(y*width+x)*channels+0] = pixel.x  * 255;
+	img[(y*width+x)*channels+1] = pixel.y  * 255;
+	img[(y*width+x)*channels+2] = pixel.z  * 255;
 	img[(y*width+x)*channels+3] = 0;
 
 
@@ -102,7 +98,7 @@ void test(char *img,int width,int heigth,int channels)
 }
 void rgb_texture_test(cv::Mat img)
 {
-
+	cv::resize(img, img, cv::Size(512, 512));
 
 	int rows=img.rows;
 	int cols=img.cols;
@@ -131,15 +127,16 @@ void rgb_texture_test(cv::Mat img)
 
 	test <<<dimGrid,dimBlock,0>>>(dev_out,width,height,channels);
 
-	printf("working\n");
 
 
     cudaMemcpy(out.data,dev_out,size,cudaMemcpyDeviceToHost);
 
+
+    // cv::imwrite("src/MyImage.jpg", out);
     cv::imshow("orignal",img);
     cv::imshow("smooth_image",out);
     cv::waitKey(0);
-
+    printf("saving\n");
     cudaFree(dev_out);
     cudaFree(cuArray);
     cudaUnbindTexture(tex);
