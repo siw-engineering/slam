@@ -54,14 +54,6 @@ int main(int argc, char **argv)
 		// input = (unsigned char *)continuousRGBA.data;
 		// ouput = (unsigned char *)s_img.data;
 
-		// int width = img.cols;
-		// int height = img.rows;
-		// int nchannels = 4;
-
-		// int widthstep = (width*sizeof(unsigned char)*nchannels);
-
-
-		// cv::resize(img, img, Size(h, w));
 		cv::cvtColor(img, img, CV_BGR2BGRA);
 
 

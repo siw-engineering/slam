@@ -56,27 +56,7 @@ void unproject(cv::Mat img, GSLAM::CameraPinhole cam)
 
 texture<uchar4,cudaTextureType2D,cudaReadModeNormalizedFloat> tex;
 
-// __global__
-// void rgb_texture_kernel(unsigned char* d_img, int width, int height, int widthstep)
-// {
-// 	int x = threadIdx.x + (blockDim.x *blockIdx.x);
-// 	int y = threadIdx.y + (blockDim.y *blockIdx.y);
 
-
-
-
-// 	  if (x >= width || y >= height)
-//         return;
-// 	uchar4 t;
-// 	t = tex2D(texRef,x,y);
-// 	// printf("x = %d y = %d  widthstep*y+x = %d\n", x, y, widthstep*y+x);
-// 	// printf("width = %d    height = %d   widthstep = %d \n", width, height, widthstep);
-// 	// d_img[widthstep*y+x] = t.x;
-// 	d_img[widthstep*x+y] = tex2D(texRef, (3 * x) , y);
-// 	d_img[widthstep*(x+1)+y] =  tex2D(texRef, (3 * x) + 1, y);
-// 	d_img[widthstep*(x+2)+y] =  tex2D(texRef, (3 * x) + 2, y);
-
-// }\
 
 __global__
 void test(char *img,int width,int heigth,int channels)
@@ -140,56 +120,7 @@ void rgb_texture_test(cv::Mat img)
     cudaFree(dev_out);
     cudaFree(cuArray);
     cudaUnbindTexture(tex);
-	// int nchannels = 4;
 
-	// dim3 blocksize(16,16);
-	// dim3 gridsize;
-	// gridsize.x=(width+blocksize.x-1)/blocksize.x;
-	// gridsize.y=(height+blocksize.y-1)/blocksize.y;
-
-	// cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(8,8,8,8,cudaChannelFormatKindUnsigned);
-	// // cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
-	// // unsigned char *d_img;
-	// // output = (uchar*)malloc(sizeof(uchar) * width * height * 3);
-	// cudaSafeCall(cudaMallocArray(&cuArray, &channelDesc, width, height));
-	// cudaSafeCall(cudaMemcpyToArray(cuArray, 0, 0, input,  width*sizeof(unsigned char)*height, cudaMemcpyHostToDevice));
-	// // cudaSafeCall(cudaMemcpy2DToArray(cuArray, 0, 0, input, widthstep, width*sizeof(unsigned char), height, cudaMemcpyHostToDevice));
-
-	// cv::Mat imageOutput = cv::Mat(cv::Size(width, height), CV_8UC1);
-	// uchar * d_img = imageOutput.data;
- 
-	// cudaMalloc((void**)&d_img, width * height * sizeof(unsigned char));
-
-
-	// cudaBindTextureToArray(texRef, cuArray, channelDesc);
-	// cudaSafeCall(cudaMalloc(&d_img, widthstep*height));
-	// // struct cudaResourceDesc resDesc;
-	// // memset(&resDesc, 0, sizeof(resDesc));
-	// // resDesc.resType = cudaResourceTypeArray;
-	// // resDesc.res.array.array = cuArray;
-
-	// // struct cudaTextureDesc texDesc;
-	// // memset(&texDesc, 0, sizeof(texDesc));
-	// // texDesc.addressMode[0]   = cudaAddressModeWrap;
-	// // texDesc.addressMode[1]   = cudaAddressModeWrap;
-	// // texDesc.filterMode       = cudaFilterModeLinear;
-	// // texDesc.readMode         = cudaReadModeElementType;    
-	// // texDesc.normalizedCoords = 0;
-
-	// // cudaTextureObject_t texObj = 0;
- //    //  cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-	// rgb_texture_kernel<<<gridsize, blocksize>>>(d_img, width, height, widthstep);
-	
-	// // cudaSafeCall(cudaDeviceSynchronize());
-	// cudaSafeCall(cudaMemcpy(imageOutput.data, d_img, width * height, cudaMemcpyDeviceToHost));
-
-	// // cv::Mat s_img(width, width, CV_8UC3, (void *)output);
-	// cv::imwrite("src/MyImage.jpg", imageOutput);
-	// printf("saved\n");
-
-	// cudaCheckError();
- //    cudaFree(d_img);
- //    cudaFreeArray(cuArray);
 
 }
 
