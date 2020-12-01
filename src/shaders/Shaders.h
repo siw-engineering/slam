@@ -102,9 +102,9 @@ static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& ver
 
   program->AddShaderFromFile(pangolin::GlSlVertexShader, "/home/developer/slam/src/shaders/" + vertex_shader_file,  {},
                              {"/home/developer/slam/src/shaders/"});
-  program->AddShaderFromFile(pangolin::GlSlGeometryShader, "/home/developer/slam/src/shaders/" + fragment_shader_file,  {},
+  program->AddShaderFromFile(pangolin::GlSlGeometryShader, "/home/developer/slam/src/shaders/" + geometry_shader_file,  {},
                              {"/home/developer/slam/src/shaders/"});
-  program->AddShaderFromFile(pangolin::GlSlFragmentShader, "/home/developer/slam/src/shaders/" + geometry_shader_file,  {},
+  program->AddShaderFromFile(pangolin::GlSlFragmentShader, "/home/developer/slam/src/shaders/" + fragment_shader_file,  {},
                              {"/home/developer/slam/src/shaders/"});
   program->Link();
 

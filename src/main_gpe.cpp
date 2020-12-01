@@ -16,10 +16,10 @@ int main(int argc, char *argv[])
 	DepthSubscriber* depthsub;
 	RGBSubscriber* rgbsub;
 	cv::Mat dimg, img;
-	int width = 640/2;
-	int height = 480/2;
+	int width = 320;
+	int height = 240;
 	std::shared_ptr<Shader> warper_program, test_program;
-	GSLAM::CameraPinhole cam(320,240,277,277,160,120);
+	GSLAM::CameraPinhole cam_model(320,240,277,277,160,120);
 	// GPUTexture *rgb, *depth;
 	
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
@@ -33,17 +33,17 @@ int main(int argc, char *argv[])
 	pangolin::Params windowParams;
 	pangolin::CreateWindowAndBind("Main", width, height, windowParams);
 	pangolin::OpenGlRenderState s_cam(
-		pangolin::ProjectionMatrix(640,480,420,420,320,240,0.1,1000),
+		pangolin::ProjectionMatrix(320,240,277,277,160,120,0.1,1000),
 		pangolin::ModelViewLookAt(-1,1,-1, 0,0,0, pangolin::AxisY)
 	);	
 	pangolin::View& d_cam = pangolin::Display("cam")
-	.SetBounds(0,1.0f,0,1.0f,-640/480.0)
+	.SetBounds(0,1.0f,0,1.0f,-320/240.0)
 	.SetHandler(new pangolin::Handler3D(s_cam)
 	);
 	glEnable(GL_DEPTH_TEST	);
 	glDepthMask(GL_TRUE);
 	glDepthFunc(GL_ALWAYS);
-	test_program = std::shared_ptr<Shader>(loadProgramFromFile("test.vert", "test.frag"));
+	test_program = std::shared_ptr<Shader>(loadProgramFromFile("test.vert", "test.frag", "test.geom"));
 	warper_program = std::shared_ptr<Shader>(loadProgramFromFile("warper.vert"));
   	GLuint vbo, ebo;
     float vertices[] = {
@@ -109,9 +109,33 @@ int main(int argc, char *argv[])
 	CheckGlDieOnError();
 
 
-	GLuint fid;
+	GLuint fid, uvo;
 	glGenTransformFeedbacks(1, &fid);
   	// pangolin::GlTexture* imageTexture(width,height,GL_RGB,false,0,GL_RGB,GL_UNSIGNED_BYTE);
+
+  	 std::vector<Eigen::Vector2f> uv;
+
+	// Create one uvo-element for each pixel
+	for (int i = 0; i < width; i++) 
+	{
+		for (int j = 0; j < height; j++)
+			{
+			  uv.push_back(Eigen::Vector2f(((float)i / (float)width) + 1.0 / (2 * (float)width),((float)j / (float)height) + 1.0 / (2 * (float)height)));
+			}
+	}
+
+	glGenBuffers(1, &uvo);
+	glBindBuffer(GL_ARRAY_BUFFER, uvo);
+	glBufferData(GL_ARRAY_BUFFER, uv.size() * sizeof(Eigen::Vector2f), &uv[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  	Eigen::Vector4f cam(cam_model.cx, cam_model.cy, 1.0f / cam_model.fx,
+                      1.0f / cam_model.fy);
+
+
+
+	Eigen::Matrix4f mvp = Eigen::Map<Eigen::Matrix<pangolin::GLprecision, 4, 4>>(s_cam.GetProjectionModelViewMatrix().m).cast<float>();
+
 	while (ros::ok())
 	{
 
@@ -126,6 +150,22 @@ int main(int argc, char *argv[])
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		/*texture testing*/
 
+		test_program->Bind();
+		
+	    test_program->setUniform(Uniform("cam", cam));
+		test_program->setUniform(Uniform("threshold", 0.0f));
+		test_program->setUniform(Uniform("cols", height));
+		test_program->setUniform(Uniform("rows", width));
+		test_program->setUniform(Uniform("gSampler", 0));
+		test_program->setUniform(Uniform("cSampler", 1));
+  		test_program->setUniform(Uniform("MVP", mvp));
+
+
+
+		glEnableVertexAttribArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, uvo);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, rgb_tid);
 		glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,width,height,0,GL_BGR,GL_UNSIGNED_BYTE,(void*)img.data);
@@ -133,9 +173,7 @@ int main(int argc, char *argv[])
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, depth_tid);
 		glTexImage2D(GL_TEXTURE_2D,0,GL_LUMINANCE32F_ARB, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, (void*)dimg.data);
-		
 
-		test_program->Bind();
 
 	    glMatrixMode(GL_PROJECTION);
 	    glLoadIdentity();
@@ -143,11 +181,12 @@ int main(int argc, char *argv[])
 	    glLoadIdentity();
 
 
-	    glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	    // glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	    glDrawArrays(GL_POINTS, 0, width*height);
 		test_program->Unbind();
 
 
-		
+
 		// glDrawArrays(GL_POINTS, 0, width*height);  // GPU-PASS
 
 
