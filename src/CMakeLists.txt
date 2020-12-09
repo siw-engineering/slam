@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.1.0)
 project(slam)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
+set(Pangolin_DIR "/home/developer/co-fusion/deps/Pangolin/build")
 #find_package(cv_bridge_1_13 REQUIRED)
 
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
@@ -43,6 +44,11 @@ find_package(PkgConfig)
 pkg_search_module(Eigen3 REQUIRED eigen3)
 include_directories(${Eigen3_INCLUDE_DIRS})
 
+#pangolin
+find_package(Pangolin 0.1 REQUIRED)
+message("Pangolin_INCLUDE_DIRS: ${Pangolin_INCLUDE_DIRS}")
+include_directories(${Pangolin_INCLUDE_DIRS})
+
 # project-wide paths
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -79,14 +85,16 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${CUDA_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
     ${BOOST_INCLUDE_DIRS}
+    ${Pangolin_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME}
     ${Eigen_LIBRARIES}
     ${cv_bridge_LIBRARIES}
-	  ${catkin_LIBRARIES}
+	${catkin_LIBRARIES}
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    ${Pangolin_LIBRARIES}
     boost_filesystem
     boost_system
     pthread
