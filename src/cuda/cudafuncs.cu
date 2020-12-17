@@ -653,6 +653,33 @@ void imageBGRToIntensity(cudaArray * cuArr, DeviceArray2D<unsigned char> & dst)
     cudaSafeCall(cudaUnbindTexture(inTex));
 }
 
+__global__ void bgr2IntensityKernelDM(int rows, int cols, float * rgb_src, PtrStepSz<unsigned char> rgb_dst)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x < cols && y < rows)
+    {
+        float3 vsrc, vdst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+        vsrc.x = rgb_src[y * cols * 4 + (x * 4) + 0];
+        vsrc.y = rgb_src[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
+        vsrc.z = rgb_src[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
+        int value = (float)vsrc.x * 0.114f + (float)vsrc.y * 0.299f + (float)vsrc.z * 0.587f;
+        rgb_dst.ptr(y)[x] = value;
+
+    }
+}
+
+void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, DeviceArray2D<unsigned char>& rgb_dst)
+{
+    dim3 block (32, 8);
+    dim3 grid (getGridDim (rgb_dst.cols(), block.x), getGridDim (rgb_dst.rows(), block.y));
+    int rows = rgb_dst.rows() / 3;
+    int cols = rgb_dst.cols();
+    bgr2IntensityKernelDM<<<grid, block>>>(rows, cols, rgb_src, rgb_dst);
+    cudaCheckError();
+
+}
+
 __constant__ float gsobel_x3x3[9];
 __constant__ float gsobel_y3x3[9];
 
@@ -749,4 +776,92 @@ void projectToPointCloud(const DeviceArray2D<float> & depth,
     projectPointsKernel<<<grid, block>>>(depth, cloud, 1.0f / intrinsicsLevel.fx, 1.0f / intrinsicsLevel.fy, intrinsicsLevel.cx, intrinsicsLevel.cy);
     cudaCheckError();
     cudaSafeCall (cudaDeviceSynchronize ());
+}
+
+
+__global__ void splatDepthPredictKernel(int rows, int cols, int cx, int cy, int fx, int fy, float* tinv, float * vmap, PtrStepSz<float> vmap_dst, float* nmap, PtrStepSz<float> nmap_dst)
+{
+     int x = threadIdx.x + blockIdx.x * blockDim.x;
+     int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+     if (x >= cols || y >= rows)
+       return;
+     
+     float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+     float3 nsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+     
+     vsrc.x = vmap[y * cols * 4 + (x * 4) + 0];
+     vsrc.y = vmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
+     vsrc.z = vmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
+
+     nsrc.x = nmap[y * cols * 4 + (x * 4) + 0];
+     nsrc.y = nmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
+     nsrc.z = nmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
+
+      /*
+     tinv = [ ax, ay, az, aw,
+              bx, by, bz, bw,
+              cx, cy, cz, cw,
+              dx, dy, dz, dw ]
+      */
+
+     float3 v_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+     float3 n_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+     v_.x = tinv[0]*vsrc.x + tinv[1]*vsrc.y + tinv[2]*vsrc.z + tinv[3]*1;
+     v_.y = tinv[4]*vsrc.x + tinv[5]*vsrc.y + tinv[6]*vsrc.z + tinv[7]*1;
+     v_.z = tinv[8]*vsrc.x + tinv[9]*vsrc.y + tinv[10]*vsrc.z + tinv[11]*1;
+
+     n_.x = tinv[0]*nsrc.x + tinv[1]*nsrc.y + tinv[2]*nsrc.z;
+     n_.y = tinv[4]*nsrc.x + tinv[5]*nsrc.y + tinv[6]*nsrc.z;
+     n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
+
+     n_.x = n_.x/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+     n_.y = n_.y/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+     n_.z = n_.z/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+
+    // vec3 l = normalize(vec3((vec2(gl_FragCoord) - cam.xy) / cam.zw, 1.0f));
+    // vec3 corrected_pos = (dot(position.xyz, normRad.xyz) / dot(l, normRad.xyz)) * l; 
+    // vertexConf = vec4((gl_FragCoord.x - cam.x) * z * (1.f / cam.z), (gl_FragCoord.y - cam.y) * z * (1.f / cam.w), z, position.w);
+
+    float3 l = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+    float3 cp = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+    l.x = (x - cx)/fx;
+    l.y = (y - cy)/fy;
+    l.z = 1;
+
+    l.x = l.x/sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
+    l.y = l.y/sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
+    l.z = l.z/sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
+
+    float coeff;
+    coeff = (v_.x*n_.x + v_.y+n_.y + v_.z*n_.z)/(l.x*n_.x + l.y+n_.y + l.z*n_.z); 
+
+    cp.x = l.x * coeff;
+    cp.y = l.y * coeff;
+    cp.z = l.z * coeff;
+
+    vmap_dst.ptr (y           )[x] = (x - cx)*cp.z*(1/fx);
+    vmap_dst.ptr (y + rows    )[x] = (y - cy)*cp.z*(1/fy);
+    vmap_dst.ptr (y + rows * 2)[x] = cp.z;
+
+
+    nmap_dst.ptr (y       )[x] = n_.x;
+    nmap_dst.ptr (y + rows)[x] = n_.y;
+    nmap_dst.ptr (y + 2 * rows)[x] = n_.z;
+
+
+}
+void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* tinv, DeviceArray<float>& vmap, DeviceArray2D<float>& vmap_dst, DeviceArray<float>& nmap, DeviceArray2D<float>& nmap_dst)
+{
+    dim3 block (32, 8);
+    dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y));
+
+    float fx = intr.fx, cx = intr.cx;
+    float fy = intr.fy, cy = intr.cy;
+
+    splatDepthPredictKernel<<<grid, block>>>(rows, cols, cx, cy , fx, fy, tinv, vmap, vmap_dst, nmap, nmap_dst);
+    cudaCheckError();
+
 }

@@ -5,6 +5,7 @@
 #include <iostream>
 #include "cuda/cudafuncs.cuh"
 #include "cuda/containers/device_array.hpp"
+#include "RGBDOdometry.h"
 
 using namespace std;
 
@@ -19,12 +20,20 @@ int main(int argc, char  *argv[])
 {
 	int width = 320;
 	int height = 240;
+	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+	float *d;
+
+	d = pose.data();
+
+	std::cout<<d[4];
+	cin>>width;
 
 	ros::init(argc, argv, "test_node");
 	ros::NodeHandle nh;
 	DepthSubscriber* depthsub;
 	RGBSubscriber* rgbsub;
 	cv::Mat dimg, img;
+	RGBDOdometry* rgbd_odom;
 
 	GSLAM::CameraPinhole cam_model(320,240,277,277,160,120);
 	CameraModel intr;
@@ -33,12 +42,16 @@ int main(int argc, char  *argv[])
 	intr.fx = cam_model.fx;
 	intr.fy = cam_model.fy;
 
-	DeviceArray2D<BGR8> rgb;
+	rgbd_odom = new RGBDOdometry(width, height, (float)cam_model.cx, (float)cam_model.cy, (float)cam_model.fx, (float)cam_model.fy);
+
+	DeviceArray<float> rgb;
+	DeviceArray2D<unsigned char> intesity_map;
 	DeviceArray2D<float> depth;
 	
-	DeviceArray2D<float> vmap;
+	DeviceArray2D<float> vmap, nmap;
 
-	rgb.create(height, width);
+	rgb.create(height*3*width);
+	intesity_map.create(height, width);
 	depth.create(height, width);
 
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
@@ -48,17 +61,22 @@ int main(int argc, char  *argv[])
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
+		img.convertTo(img, CV_32FC3);
 		dimg = depthsub->read();
 		if (dimg.empty() || img.empty())
 		{
 			ros::spinOnce();
 			continue;	
 		}
-		// std::cout<<"\nw->"<<img.cols<<std::endl<<img.rows;
-		// rgb.upload(img.data, width*sizeof(BGR8), height, width);
+
+		rgb.upload((float*)img.data, height*3*width);
+		// imageBGRToIntensityDM(rgb, intesity_map);
 		depth.upload(dimg.data, width*sizeof(float), height, width);
 		createVMap(intr, depth, vmap, 100);
-		vmap.download(&vmap_host[0], width*sizeof(float));
+		createNMap(vmap, nmap);
+
+
+		// vmap.download(&vmap_host[0], width*sizeof(float));
 
 	}
 

@@ -758,8 +758,6 @@ struct RGBResidual
     PtrStepSz<unsigned char> lastImage;
     PtrStepSz<unsigned char> nextImage;
 
-    PtrStepSz<unsigned char> lastMask;
-    PtrStepSz<unsigned char> nextMask;
 
     mutable PtrStepSz<DataTerm> corresImg;
 
@@ -772,9 +770,6 @@ struct RGBResidual
     int rows;
     int N;
 
-#ifdef MASK_RGB_RESIDUAL
-    unsigned char maskID;
-#endif
 
     int pitch;
     int imgPitch;
@@ -805,11 +800,7 @@ struct RGBResidual
                     for(int v = max(j0 - 2, 0); v < min(j0 + 2, cols); v++)
                     {
 
-                        valid = valid && (nextImage.ptr(u)[v] > 0)
-#ifdef MASK_RGB_RESIDUAL
-                                && (nextMask.ptr(u)[v] == maskID)
-#endif
-                                ;
+                        valid = valid && (nextImage.ptr(u)[v] > 0);
                     }
                 }
 
@@ -897,8 +888,6 @@ void computeRgbResidual(const float & minScale,
                         const DeviceArray2D<float> & nextDepth,
                         const DeviceArray2D<unsigned char> & lastImage,
                         const DeviceArray2D<unsigned char> & nextImage,
-                        const DeviceArray2D<unsigned char> & lastMask,
-                        const DeviceArray2D<unsigned char> & nextMask,
                         DeviceArray2D<DataTerm> & corresImg,
                         DeviceArray<int2> & sumResidual,
                         const float maxDepthDelta,
@@ -908,8 +897,7 @@ void computeRgbResidual(const float & minScale,
                         int & count,
                         int threads,
                         int blocks,
-                        const cudaSurfaceObject_t& rgbErrorSurface,
-                        unsigned char maskID)
+                        const cudaSurfaceObject_t& rgbErrorSurface)
 {
     int cols = nextImage.cols ();
     int rows = nextImage.rows ();
@@ -927,8 +915,6 @@ void computeRgbResidual(const float & minScale,
     rgb.lastImage = lastImage;
     rgb.nextImage = nextImage;
 
-    rgb.lastMask = lastMask;
-    rgb.nextMask = nextMask;
 
     rgb.corresImg = corresImg;
 
@@ -946,9 +932,6 @@ void computeRgbResidual(const float & minScale,
     rgb.out = sumResidual;
     rgb.outErrorSurface = rgbErrorSurface;
 
-#ifdef MASK_RGB_RESIDUAL
-    rgb.maskID = maskID;
-#endif
 
     residualKernel<<<blocks, threads>>>(rgb);
 

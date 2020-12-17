@@ -158,6 +158,8 @@ void resizeNMap(const DeviceArray2D<float>& input,
 void imageBGRToIntensity(cudaArray * cuArr,
                          DeviceArray2D<unsigned char> & dst);
 
+void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, DeviceArray2D<unsigned char>& rgb_dst);
+
 void verticesToDepth(DeviceArray<float>& vmap_src,
                      DeviceArray2D<float> & dst,
                      float cutOff);
@@ -188,5 +190,7 @@ void pyrDownUcharGauss(const DeviceArray2D<unsigned char>& src,
 void computeDerivativeImages(DeviceArray2D<unsigned char>& src,
                              DeviceArray2D<short>& dx,
                              DeviceArray2D<short>& dy);
+
+void splatDepthPredict(const CameraModel& intr, float* tinv, DeviceArray<float>& vmap, DeviceArray<float>& vmap_dst, DeviceArray<float>& nmap, DeviceArray<float>& nmap_dst);
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */

@@ -91,7 +91,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 target_link_libraries(${PROJECT_NAME}
     ${Eigen_LIBRARIES}
     ${cv_bridge_LIBRARIES}
-	${catkin_LIBRARIES}
+    ${catkin_LIBRARIES}
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
     ${Pangolin_LIBRARIES}
