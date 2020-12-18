@@ -21,12 +21,6 @@ int main(int argc, char  *argv[])
 	int width = 320;
 	int height = 240;
 	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
-	float *d;
-
-	d = pose.data();
-
-	std::cout<<d[4];
-	cin>>width;
 
 	ros::init(argc, argv, "test_node");
 	ros::NodeHandle nh;
@@ -48,7 +42,7 @@ int main(int argc, char  *argv[])
 	DeviceArray2D<unsigned char> intesity_map;
 	DeviceArray2D<float> depth;
 	
-	DeviceArray2D<float> vmap, nmap;
+	DeviceArray2D<float> vmap, nmap, vmap_dst, nmap_dst;
 
 	rgb.create(height*3*width);
 	intesity_map.create(height, width);
@@ -74,7 +68,7 @@ int main(int argc, char  *argv[])
 		depth.upload(dimg.data, width*sizeof(float), height, width);
 		createVMap(intr, depth, vmap, 100);
 		createNMap(vmap, nmap);
-
+		splatDepthPredict(intr, height, width, pose.data(), vmap, vmap_dst, nmap, nmap_dst);
 
 		// vmap.download(&vmap_host[0], width*sizeof(float));
 

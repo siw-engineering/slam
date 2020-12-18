@@ -191,6 +191,6 @@ void computeDerivativeImages(DeviceArray2D<unsigned char>& src,
                              DeviceArray2D<short>& dx,
                              DeviceArray2D<short>& dy);
 
-void splatDepthPredict(const CameraModel& intr, float* tinv, DeviceArray<float>& vmap, DeviceArray<float>& vmap_dst, DeviceArray<float>& nmap, DeviceArray<float>& nmap_dst);
+void splatDepthPredict(const CameraModel& intr, int rows, int cols, float* tinv, DeviceArray2D<float>& vmap, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap, DeviceArray2D<float>& nmap_dst);
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */

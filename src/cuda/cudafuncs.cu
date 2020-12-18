@@ -113,7 +113,7 @@ __global__ void computeVmapKernel(const PtrStepSz<float> depth, PtrStep<float> v
 
     if(u < depth.cols && v < depth.rows)
     {
-        float z = depth.ptr (v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
+        float z = depth.ptr(v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
 
         if(z != 0 && z < depthCutoff /*&& m == maskID*/) //FIXME
         {
@@ -779,7 +779,7 @@ void projectToPointCloud(const DeviceArray2D<float> & depth,
 }
 
 
-__global__ void splatDepthPredictKernel(int rows, int cols, int cx, int cy, int fx, int fy, float* tinv, float * vmap, PtrStepSz<float> vmap_dst, float* nmap, PtrStepSz<float> nmap_dst)
+__global__ void splatDepthPredictKernel(float rows, float cols, float cx, float cy, float fx, float fy, float* tinv, PtrStep<float> vmap, PtrStepSz<float> vmap_dst, PtrStep<float> nmap, PtrStepSz<float> nmap_dst)
 {
      int x = threadIdx.x + blockIdx.x * blockDim.x;
      int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -787,42 +787,45 @@ __global__ void splatDepthPredictKernel(int rows, int cols, int cx, int cy, int 
      if (x >= cols || y >= rows)
        return;
      
-     float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
-     float3 nsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+    float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+    float3 nsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
      
-     vsrc.x = vmap[y * cols * 4 + (x * 4) + 0];
-     vsrc.y = vmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
-     vsrc.z = vmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
+    // vsrc.x = vmap[y * cols * 4 + (x * 4) + 0];
+    // vsrc.y = vmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
+    // vsrc.z = vmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
 
-     nsrc.x = nmap[y * cols * 4 + (x * 4) + 0];
-     nsrc.y = nmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
-     nsrc.z = nmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
+    // nsrc.x = nmap[y * cols * 4 + (x * 4) + 0];
+    // nsrc.y = nmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
+    // nsrc.z = nmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
 
-      /*
-     tinv = [ ax, ay, az, aw,
-              bx, by, bz, bw,
-              cx, cy, cz, cw,
-              dx, dy, dz, dw ]
-      */
+    vsrc.x = vmap.ptr (y           )[x];
+    vsrc.y = vmap.ptr (y + rows    )[x];
+    vsrc.z = vmap.ptr (y + rows * 2)[x];
 
-     float3 v_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
-     float3 n_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+    nsrc.x = nmap.ptr (y           )[x];
+    nsrc.y = nmap.ptr (y + rows    )[x];
+    nsrc.z = nmap.ptr (y + rows * 2)[x];
 
-     v_.x = tinv[0]*vsrc.x + tinv[1]*vsrc.y + tinv[2]*vsrc.z + tinv[3]*1;
-     v_.y = tinv[4]*vsrc.x + tinv[5]*vsrc.y + tinv[6]*vsrc.z + tinv[7]*1;
-     v_.z = tinv[8]*vsrc.x + tinv[9]*vsrc.y + tinv[10]*vsrc.z + tinv[11]*1;
+    if (isnan (vsrc.x) || isnan(vsrc.y) || isnan(vsrc.z))
+        return;
+    if (isnan (nsrc.x) || isnan(nsrc.y) || isnan(nsrc.z))
+        return;
 
-     n_.x = tinv[0]*nsrc.x + tinv[1]*nsrc.y + tinv[2]*nsrc.z;
-     n_.y = tinv[4]*nsrc.x + tinv[5]*nsrc.y + tinv[6]*nsrc.z;
-     n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
+    float3 v_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+    float3 n_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
 
-     n_.x = n_.x/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
-     n_.y = n_.y/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
-     n_.z = n_.z/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+    v_.x = tinv[0]*vsrc.x + tinv[1]*vsrc.y + tinv[2]*vsrc.z + tinv[3]*1;
+    v_.y = tinv[4]*vsrc.x + tinv[5]*vsrc.y + tinv[6]*vsrc.z + tinv[7]*1;
+    v_.z = tinv[8]*vsrc.x + tinv[9]*vsrc.y + tinv[10]*vsrc.z + tinv[11]*1;
 
-    // vec3 l = normalize(vec3((vec2(gl_FragCoord) - cam.xy) / cam.zw, 1.0f));
-    // vec3 corrected_pos = (dot(position.xyz, normRad.xyz) / dot(l, normRad.xyz)) * l; 
-    // vertexConf = vec4((gl_FragCoord.x - cam.x) * z * (1.f / cam.z), (gl_FragCoord.y - cam.y) * z * (1.f / cam.w), z, position.w);
+    n_.x = tinv[0]*nsrc.x + tinv[1]*nsrc.y + tinv[2]*nsrc.z;
+    n_.y = tinv[4]*nsrc.x + tinv[5]*nsrc.y + tinv[6]*nsrc.z;
+    n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
+
+    n_.x = n_.x/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+    n_.y = n_.y/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+    n_.z = n_.z/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
 
     float3 l = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     float3 cp = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -843,9 +846,9 @@ __global__ void splatDepthPredictKernel(int rows, int cols, int cx, int cy, int 
     cp.z = l.z * coeff;
 
     vmap_dst.ptr (y           )[x] = (x - cx)*cp.z*(1/fx);
+    vmap_dst.ptr (y           )[x] = (x - cx)*cp.z*(1/fx);
     vmap_dst.ptr (y + rows    )[x] = (y - cy)*cp.z*(1/fy);
     vmap_dst.ptr (y + rows * 2)[x] = cp.z;
-
 
     nmap_dst.ptr (y       )[x] = n_.x;
     nmap_dst.ptr (y + rows)[x] = n_.y;
@@ -853,13 +856,20 @@ __global__ void splatDepthPredictKernel(int rows, int cols, int cx, int cy, int 
 
 
 }
-void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* tinv, DeviceArray<float>& vmap, DeviceArray2D<float>& vmap_dst, DeviceArray<float>& nmap, DeviceArray2D<float>& nmap_dst)
+void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* pose_inv, DeviceArray2D<float>& vmap, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap, DeviceArray2D<float>& nmap_dst)
 {
     dim3 block (32, 8);
     dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y));
 
+    vmap_dst.create(rows*3, cols);
+    nmap_dst.create(rows*3, cols);
+    
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
+
+    float * tinv;
+    cudaSafeCall(cudaMalloc((void**) &tinv, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(tinv, pose_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
     splatDepthPredictKernel<<<grid, block>>>(rows, cols, cx, cy , fx, fy, tinv, vmap, vmap_dst, nmap, nmap_dst);
     cudaCheckError();
