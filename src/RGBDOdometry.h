@@ -16,7 +16,6 @@
  *
  */
 
-
 #include <cuda_runtime_api.h>
 #include "cuda/cudafuncs.cuh"
 #include "OdometryProvider.h"
@@ -28,7 +27,7 @@
 class RGBDOdometry {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  RGBDOdometry(int width, int height, float cx, float cy, float fx, float fy, unsigned char maskID = 0,
+  RGBDOdometry(int width, int height, float cx, float cy, float fx, float fy, 
                float distThresh = 0.10f,  // TODO Check, hardcoded scale?
                float angleThresh = sin(20.f * 3.14159254f / 180.f));
 
@@ -36,12 +35,12 @@ class RGBDOdometry {
 
   // Prepare current frame data for CUDA ICP execution
   // void initICP(GPUTexture * filteredDepth, const float depthCutoff, GPUTexture * mask); // frame to model
-  void initICP(const std::vector<DeviceArray2D<float> >& depthPyramid, const std::vector<DeviceArray2D<unsigned char> >& maskPyramid,
-               const float depthCutoff);                                                               // frame to model
+  void initICP(const std::vector<DeviceArray2D<float> >& depthPyramid, const float depthCutoff);
+                                                                 // frame to model
   void initICP(DeviceArray<float>& vmaps_tmp, DeviceArray<float>& nmaps_tmp, const float depthCutoff);  // model to model
 
   // Prepare model data for CUDA ICP execution. Information from the last frame.
-  void initICPModel(DeviceArray<float>& vmaps_tmp, DeviceArray<float>& nmaps_tmp, const float depthCutoff, const Eigen::Matrix4f& modelPose);
+  void initICPModel(DeviceArray2D<float>& vmaps_tmp, DeviceArray2D<float>& nmaps_tmp, const float depthCutoff, const Eigen::Matrix4f& modelPose);
 
   void initRGB(DeviceArray<float>& rgb,  DeviceArray<float>& vmaps_tmp);
 
@@ -106,9 +105,6 @@ class RGBDOdometry {
   DeviceArray2D<float> lastDepth[NUM_PYRS];
   DeviceArray2D<float> nextDepth[NUM_PYRS];
 
-  DeviceArray2D<unsigned char> lastMask[NUM_PYRS];
-  DeviceArray2D<unsigned char> nextMask[NUM_PYRS];
-
   DeviceArray2D<unsigned char> lastImage[NUM_PYRS];
   DeviceArray2D<unsigned char> nextImage[NUM_PYRS];
   DeviceArray2D<unsigned char> lastNextImage[NUM_PYRS];
@@ -129,6 +125,5 @@ class RGBDOdometry {
   const int height;
   const float cx, cy, fx, fy;
 
-  unsigned char maskID;
 };
 

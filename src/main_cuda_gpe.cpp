@@ -16,6 +16,7 @@ class BGR8
 	~BGR8(){}
 };
 
+
 int main(int argc, char  *argv[])
 {
 	int width = 320;
@@ -38,20 +39,16 @@ int main(int argc, char  *argv[])
 
 	rgbd_odom = new RGBDOdometry(width, height, (float)cam_model.cx, (float)cam_model.cy, (float)cam_model.fx, (float)cam_model.fy);
 
-	DeviceArray<float> rgb;
-	DeviceArray2D<unsigned char> intesity_map;
+	DeviceArray<float> rgb, vmaps_tmp, nmaps_tmp;
 	DeviceArray2D<float> depth;
-	
 	DeviceArray2D<float> vmap, nmap, vmap_dst, nmap_dst;
 
 	rgb.create(height*3*width);
-	intesity_map.create(height, width);
 	depth.create(height, width);
 
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
 
-	float vmap_host[width*height*3];
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -64,13 +61,14 @@ int main(int argc, char  *argv[])
 		}
 
 		rgb.upload((float*)img.data, height*3*width);
-		// imageBGRToIntensityDM(rgb, intesity_map);
-		depth.upload(dimg.data, width*sizeof(float), height, width);
+		rgbd_odom->initFirstRGB(rgb);
 		createVMap(intr, depth, vmap, 100);
 		createNMap(vmap, nmap);
 		splatDepthPredict(intr, height, width, pose.data(), vmap, vmap_dst, nmap, nmap_dst);
-
-		// vmap.download(&vmap_host[0], width*sizeof(float));
+		rgbd_odom->initICPModel(vmap_dst, nmap_dst, 100, pose);
+		copyMaps(vmap, nmap, vmaps_tmp, nmaps_tmp);
+		rgbd_odom->initRGBModel(rgb, vmaps_tmp);
+		rgbd_odom->initICP(vmaps_tmp, nmaps_tmp, 100);
 
 	}
 

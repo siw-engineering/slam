@@ -329,6 +329,131 @@ void copyMaps(const DeviceArray<float>& vmap_src,
     cudaSafeCall(cudaGetLastError());
 }
 
+
+
+__global__ void copyMapsKernel2D_2_2D(int rows, int cols, PtrStepSz<float> vmap_src, PtrStep<float> nmap_src,
+                               PtrStepSz<float> vmap_dst, PtrStep<float> nmap_dst)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (x < cols && y < rows)
+    {
+        // vertexes
+        float3 vsrc, vdst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+        vsrc.x = vmap_src.ptr(y)[x];
+        vsrc.y = vmap_src.ptr(y+rows)[x];
+        vsrc.z = vmap_src.ptr(y+2*rows)[x];
+
+        if(!(vsrc.z == 0))
+        {
+            vdst = vsrc;
+        }
+
+        vmap_dst.ptr (y)[x] = vdst.x;
+        vmap_dst.ptr (y + rows)[x] = vdst.y;
+        vmap_dst.ptr (y + 2 * rows)[x] = vdst.z;
+
+        //normals
+        float3 nsrc, ndst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+        nsrc.x = nmap_src.ptr(y)[x];
+        nsrc.y = nmap_src.ptr(y+rows)[x];
+        nsrc.z = nmap_src.ptr(y+2*rows)[x];
+
+        if(!(vsrc.z == 0))
+        {
+            ndst = nsrc;
+        }
+        nmap_dst.ptr (y)[x] = ndst.x;
+        nmap_dst.ptr (y + rows)[x] = ndst.y;
+        nmap_dst.ptr (y + 2 * rows)[x] = ndst.z;
+    }
+}
+
+void copyMaps(const DeviceArray2D<float>& vmap_src,
+              const DeviceArray2D<float>& nmap_src,
+              DeviceArray2D<float>& vmap_dst,
+              DeviceArray2D<float>& nmap_dst)
+{
+    int cols = vmap_dst.cols();
+    int rows = vmap_dst.rows() / 3;
+
+    vmap_dst.create(rows * 3, cols);
+    nmap_dst.create(rows * 3, cols);
+
+    dim3 block(32, 8);
+    dim3 grid(1, 1, 1);
+    grid.x = getGridDim(cols, block.x);
+    grid.y = getGridDim(rows, block.y);
+
+    copyMapsKernel2D_2_2D<<<grid, block>>>(rows, cols, vmap_src, nmap_src, vmap_dst, nmap_dst);
+    cudaSafeCall(cudaGetLastError());
+}
+
+__global__ void copyMapsKernel2D_2_1D(int rows, int cols, PtrStepSz<float> vmap_src, PtrStep<float> nmap_src,
+                                 float * vmap_dst,   float * nmap_dst)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (x < cols && y < rows)
+    {
+        //vertexes
+        float3 vsrc, vdst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+        vsrc.x = vmap_src.ptr (y)[x];
+        vsrc.y = vmap_src.ptr (y + rows)[x];
+        vsrc.z = vmap_src.ptr (y + 2 * rows)[x];
+
+        if(!(vsrc.z == 0))
+        {
+            vdst = vsrc;
+        }
+
+        vmap_dst[y * cols * 4 + (x * 4) + 0] = vdst.x;
+        vmap_dst[y * cols * 4 + (x * 4) + 1] = vdst.y;
+        vmap_dst[y * cols * 4 + (x * 4) + 2] = vdst.z;
+
+        //normals
+        float3 nsrc, ndst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+        nsrc.x = nmap_src.ptr (y)[x] ;
+        nsrc.y = nmap_src.ptr (y + rows)[x] ;
+        nsrc.z = nmap_src.ptr (y + 2 * rows)[x] ;
+
+        if(!(vsrc.z == 0))
+        {
+            ndst = nsrc;
+        }
+
+        nmap_dst[y * cols * 4 + (x * 4) + 0]= ndst.x;
+        nmap_dst[y * cols * 4 + (x * 4) + 1]= ndst.y;
+        nmap_dst[y * cols * 4 + (x * 4) + 2]= ndst.z;
+    }
+}
+
+void copyMaps(const DeviceArray2D<float>& vmap_src,
+              const DeviceArray2D<float>& nmap_src,
+              DeviceArray<float>& vmap_dst,
+              DeviceArray<float>& nmap_dst)
+{
+    int cols = vmap_src.cols();
+    int rows = vmap_src.rows() / 3;
+
+    vmap_dst.create(rows * 3 * cols);
+    nmap_dst.create(rows * 3 * cols);
+
+    dim3 block(32, 8);
+    dim3 grid(1, 1, 1);
+    grid.x = getGridDim(cols, block.x);
+    grid.y = getGridDim(rows, block.y);
+
+    copyMapsKernel2D_2_1D<<<grid, block>>>(rows, cols, vmap_src, nmap_src, vmap_dst, nmap_dst);
+    cudaSafeCall(cudaGetLastError());
+}
+
 __global__ void pyrDownKernelGaussF(const PtrStepSz<float> src, PtrStepSz<float> dst, float * gaussKernel)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;

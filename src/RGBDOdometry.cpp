@@ -18,7 +18,7 @@
 
 #include "RGBDOdometry.h"
 
-RGBDOdometry::RGBDOdometry(int width, int height, float cx, float cy, float fx, float fy, unsigned char mask, float distThresh,
+RGBDOdometry::RGBDOdometry(int width, int height, float cx, float cy, float fx, float fy, float distThresh,
                            float angleThresh)
     : lastICPError(0),
       lastICPCount(width * height),
@@ -39,8 +39,7 @@ RGBDOdometry::RGBDOdometry(int width, int height, float cx, float cy, float fx, 
       cx(cx),
       cy(cy),
       fx(fx),
-      fy(fy),
-      maskID(mask) {
+      fy(fy) {
   sumDataSE3.create(MAX_THREADS);
   outDataSE3.create(1);
   sumResidualRGB.create(MAX_THREADS);
@@ -104,8 +103,7 @@ RGBDOdometry::RGBDOdometry(int width, int height, float cx, float cy, float fx, 
 
 RGBDOdometry::~RGBDOdometry() {}
 
-void RGBDOdometry::initICP(const std::vector<DeviceArray2D<float> >& depthPyramid,
-                           const std::vector<DeviceArray2D<unsigned char> >& maskPyramid, const float depthCutoff) {
+void RGBDOdometry::initICP(const std::vector<DeviceArray2D<float> >& depthPyramid, const float depthCutoff) {
   for (int i = 0; i < RGBDOdometry::NUM_PYRS; ++i) {
     createVMap(intr(i), depthPyramid[i], vmaps_curr_[i], depthCutoff);
     createNMap(vmaps_curr_[i], nmaps_curr_[i]);
@@ -126,7 +124,7 @@ void RGBDOdometry::initICP(DeviceArray<float>& vmaps_tmp, DeviceArray<float>& nm
   cudaDeviceSynchronize();
 }
 
-void RGBDOdometry::initICPModel(DeviceArray<float>& vmaps_tmp, DeviceArray<float>& nmaps_tmp, const float depthCutoff,
+void RGBDOdometry::initICPModel(DeviceArray2D<float>& vmaps_tmp, DeviceArray2D<float>& nmaps_tmp, const float depthCutoff,
                                 const Eigen::Matrix4f& modelPose) {
 
   copyMaps(vmaps_tmp, nmaps_tmp, vmaps_g_prev_[0], nmaps_g_prev_[0]);
@@ -161,7 +159,6 @@ void RGBDOdometry::populateRGBDData(DeviceArray<float>& rgb, DeviceArray<float>&
 
   for (int i = 0; i + 1 < NUM_PYRS; i++) {
     pyrDownUcharGauss(destImages[i], destImages[i + 1]);
-    // pyrDownUcharGauss(destMasks[i], destMasks[i + 1]);
   }
 
   // cudaDeviceSynchronize();
