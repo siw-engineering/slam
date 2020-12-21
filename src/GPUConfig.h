@@ -63,6 +63,11 @@ class GPUConfig {
     std::string dev(prop.name);
 
     // Pairs: First is numThreads, second is numBlocks
+    icpStepMap["GeForce RTX 2070"] = std::pair<int, int>(128, 96);
+    rgbStepMap["GeForce RTX 2070"] = std::pair<int, int>(112, 96);
+    rgbResMap["GeForce RTX 2070"] = std::pair<int, int>(256, 416);
+    so3StepMap["GeForce RTX 2070"] = std::pair<int, int>(128, 64);
+
     icpStepMap["GeForce GTX TITAN"] = std::pair<int, int>(128, 96);
     rgbStepMap["GeForce GTX TITAN"] = std::pair<int, int>(112, 96);
     rgbResMap["GeForce GTX TITAN"] = std::pair<int, int>(256, 416);
