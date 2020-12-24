@@ -9,18 +9,14 @@
 
 using namespace std;
 
-class BGR8
-{
-	uint8_t r,g,b;
-	BGR8(){}
-	~BGR8(){}
-};
 
 int main(int argc, char  *argv[])
 {
 	int width = 320;
 	int height = 240;
 	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+	Eigen::Matrix4f tinv;
+
 	Eigen::Vector3f transObject = pose.topRightCorner(3, 1);
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rotObject = pose.topLeftCorner(3, 3);
 
@@ -65,14 +61,21 @@ int main(int argc, char  *argv[])
 		rgbd_odom->initFirstRGB(rgb);
 		createVMap(intr, depth, vmap, 100);
 		createNMap(vmap, nmap);
-		splatDepthPredict(intr, height, width, pose.data(), vmap, vmap_dst, nmap, nmap_dst);
+		tinv  = pose.inverse();
+		splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_dst, nmap, nmap_dst);
 		rgbd_odom->initICPModel(vmap_dst, nmap_dst, 100, pose);
 		copyMaps(vmap, nmap, vmaps_tmp, nmaps_tmp);
 		rgbd_odom->initRGBModel(rgb, vmaps_tmp);
 		rgbd_odom->initICP(vmaps_tmp, nmaps_tmp, 100);
 		rgbd_odom->initRGB(rgb, vmaps_tmp);
+
+		transObject = pose.topRightCorner(3, 1);
+		rotObject = pose.topLeftCorner(3, 3);
 		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0, true, false, true, 0, 0);
-		std::cout<<"trans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		pose.topRightCorner(3, 1) = transObject;
+		pose.topLeftCorner(3, 3) = rotObject;
+
+		// std::cout<<"trans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 	}
 
 	return 0;
