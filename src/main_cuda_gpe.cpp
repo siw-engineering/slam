@@ -16,12 +16,13 @@ class BGR8
 	~BGR8(){}
 };
 
-
 int main(int argc, char  *argv[])
 {
 	int width = 320;
 	int height = 240;
 	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+	Eigen::Vector3f transObject = pose.topRightCorner(3, 1);
+	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rotObject = pose.topLeftCorner(3, 3);
 
 	ros::init(argc, argv, "test_node");
 	ros::NodeHandle nh;
@@ -69,7 +70,9 @@ int main(int argc, char  *argv[])
 		copyMaps(vmap, nmap, vmaps_tmp, nmaps_tmp);
 		rgbd_odom->initRGBModel(rgb, vmaps_tmp);
 		rgbd_odom->initICP(vmaps_tmp, nmaps_tmp, 100);
-
+		rgbd_odom->initRGB(rgb, vmaps_tmp);
+		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0, true, false, true, 0, 0);
+		std::cout<<"trans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 	}
 
 	return 0;
