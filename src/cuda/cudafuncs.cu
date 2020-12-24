@@ -916,14 +916,6 @@ __global__ void splatDepthPredictKernel(float rows, float cols, float cx, float 
     float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     float3 nsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
      
-    // vsrc.x = vmap[y * cols * 4 + (x * 4) + 0];
-    // vsrc.y = vmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
-    // vsrc.z = vmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
-
-    // nsrc.x = nmap[y * cols * 4 + (x * 4) + 0];
-    // nsrc.y = nmap[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
-    // nsrc.z = nmap[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
-
     vsrc.x = vmap.ptr (y           )[x];
     vsrc.y = vmap.ptr (y + rows    )[x];
     vsrc.z = vmap.ptr (y + rows * 2)[x];
@@ -947,10 +939,7 @@ __global__ void splatDepthPredictKernel(float rows, float cols, float cx, float 
     n_.x = tinv[0]*nsrc.x + tinv[1]*nsrc.y + tinv[2]*nsrc.z;
     n_.y = tinv[4]*nsrc.x + tinv[5]*nsrc.y + tinv[6]*nsrc.z;
     n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
-
-    n_.x = n_.x/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
-    n_.y = n_.y/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
-    n_.z = n_.z/sqrt(n_.x*n_.x + n_.y*n_.y + n_.z*n_.z);
+    n_ = normalized(n_);
 
     float3 l = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     float3 cp = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -958,14 +947,11 @@ __global__ void splatDepthPredictKernel(float rows, float cols, float cx, float 
     l.x = (x - cx)/fx;
     l.y = (y - cy)/fy;
     l.z = 1;
+    l = normalized(l);
 
-    l.x = l.x/sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
-    l.y = l.y/sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
-    l.z = l.z/sqrt(l.x*l.x + l.y*l.y + l.z*l.z);
 
     float coeff;
-    coeff = (v_.x*n_.x + v_.y+n_.y + v_.z*n_.z)/(l.x*n_.x + l.y+n_.y + l.z*n_.z); 
-
+    coeff = dot(v_, n_) / dot(l, n_);
     cp.x = l.x * coeff;
     cp.y = l.y * coeff;
     cp.z = l.z * coeff;
