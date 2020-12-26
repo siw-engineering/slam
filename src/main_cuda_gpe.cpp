@@ -46,21 +46,26 @@ int main(int argc, char  *argv[])
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
 
+	int i = 0;
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
-		img.convertTo(img, CV_32FC3);
 		dimg = depthsub->read();
 		if (dimg.empty() || img.empty())
 		{
 			ros::spinOnce();
 			continue;	
 		}
-
+		img.convertTo(img, CV_32FC3);
+		dimg.convertTo(img, CV_32FC1);
 		rgb.upload((float*)img.data, height*3*width);
-		rgbd_odom->initFirstRGB(rgb);
-		createVMap(intr, depth, vmap, 100);
-		createNMap(vmap, nmap);
+		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
+		if (!i)
+		{
+			rgbd_odom->initFirstRGB(rgb);
+			createVMap(intr, depth, vmap, 100);
+			createNMap(vmap, nmap);
+		}
 		tinv  = pose.inverse();
 		splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_dst, nmap, nmap_dst);
 		rgbd_odom->initICPModel(vmap_dst, nmap_dst, 100, pose);
@@ -68,14 +73,15 @@ int main(int argc, char  *argv[])
 		rgbd_odom->initRGBModel(rgb, vmaps_tmp);
 		rgbd_odom->initICP(vmaps_tmp, nmaps_tmp, 100);
 		rgbd_odom->initRGB(rgb, vmaps_tmp);
-
 		transObject = pose.topRightCorner(3, 1);
 		rotObject = pose.topLeftCorner(3, 3);
-		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0, true, false, true, 0, 0);
+		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 10, true, false, true, 0, 0);
 		pose.topRightCorner(3, 1) = transObject;
 		pose.topLeftCorner(3, 3) = rotObject;
+		// std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		std::cout<<"i :"<< i<< "\npose :"<<pose<<std::endl;
 
-		// std::cout<<"trans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		i ++;
 	}
 
 	return 0;
