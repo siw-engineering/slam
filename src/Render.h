@@ -90,7 +90,7 @@ public:
 
 	void drawPrimitive(GLenum primitive, int count)
 	{	
-		glDrawArrays(GL_TRIANGLES, 0, count);
+		glDrawArrays(primitive, 0, count);
 	}
 	void draw(std::string vert, std::string frag, GLenum primitive, int count)
 	{
@@ -106,7 +106,7 @@ public:
 
 		    program->Bind();
 		    program->setUniform(Uniform("MVP", mvp));
-		    drawPrimitive(count);
+		    drawPrimitive(primitive, count);
 		 	program->Unbind();
 		 	pangolin::FinishFrame();
 
