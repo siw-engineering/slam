@@ -88,12 +88,11 @@ public:
 		vboUnbind();
 	}
 
-	void drawPrimitive(int count)
+	void drawPrimitive(GLenum primitive, int count)
 	{	
-		// primitive type need to be parameterize (need fix) 
 		glDrawArrays(GL_TRIANGLES, 0, count);
 	}
-	void draw(std::string vert, std::string frag, int count)
+	void draw(std::string vert, std::string frag, GLenum primitive, int count)
 	{
 
 	    std::shared_ptr<Shader> program;
@@ -106,7 +105,7 @@ public:
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		    program->Bind();
-		    // program->setUniform(Uniform("MVP", mvp));
+		    program->setUniform(Uniform("MVP", mvp));
 		    drawPrimitive(count);
 		 	program->Unbind();
 		 	pangolin::FinishFrame();
