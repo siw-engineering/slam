@@ -1,1 +1,0 @@
-from slam.feature_extractor.superpoint.model import SuperPoint
