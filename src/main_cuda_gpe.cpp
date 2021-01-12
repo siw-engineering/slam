@@ -36,11 +36,22 @@ int main(int argc, char  *argv[])
 
 	rgbd_odom = new RGBDOdometry(width, height, (float)cam_model.cx, (float)cam_model.cy, (float)cam_model.fx, (float)cam_model.fy);
 
-	DeviceArray<float> rgb, vmaps_tmp, nmaps_tmp;
+	DeviceArray<float> rgb, rgb_prev, vmaps_tmp, nmaps_tmp;
 	DeviceArray2D<float> depth;
-	DeviceArray2D<float> vmap, nmap, vmap_dst, nmap_dst;
+	DeviceArray2D<float> vmap, nmap, vmap_splat, nmap_splat, vmap_splat_prev, nmap_splat_prev;
+	std::vector<DeviceArray2D<float>> depthPyr;
+
+	depthPyr.resize(3);
+	for (int i = 0; i < 3; ++i) 
+	{
+		int pyr_rows = height >> i;
+		int pyr_cols = width >> i;
+		depthPyr[i].create(pyr_rows, pyr_cols);
+	}
 
 	rgb.create(height*3*width);
+	rgb_prev.create(height*3*width);
+
 	depth.create(height, width);
 
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
@@ -60,28 +71,44 @@ int main(int argc, char  *argv[])
 		dimg.convertTo(img, CV_32FC1);
 		rgb.upload((float*)img.data, height*3*width);
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
-		if (!i)
+		if (i==0)
 		{
 			rgbd_odom->initFirstRGB(rgb);
 			createVMap(intr, depth, vmap, 100);
 			createNMap(vmap, nmap);
+			rgb_prev.upload((float*)img.data, height*3*width);
+			tinv  = pose.inverse();
+			splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
+			ros::spinOnce();
+			i++;
+			continue;
+
 		}
+		copyDMaps(depth, depthPyr[0]);
+		for (int i = 1; i < 3; ++i) 
+			pyrDownGaussF(depthPyr[i - 1], depthPyr[i]);
+		cudaDeviceSynchronize();
+		cudaCheckError();
 		tinv  = pose.inverse();
-		splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_dst, nmap, nmap_dst);
-		rgbd_odom->initICPModel(vmap_dst, nmap_dst, 100, pose);
-		copyMaps(vmap, nmap, vmaps_tmp, nmaps_tmp);
-		rgbd_odom->initRGBModel(rgb, vmaps_tmp);
-		rgbd_odom->initICP(vmaps_tmp, nmaps_tmp, 100);
+		rgbd_odom->initICPModel(vmap_splat_prev, nmap_splat_prev, 100, pose);
+		copyMaps(vmap_splat_prev, nmap_splat_prev, vmaps_tmp, nmaps_tmp);
+		rgbd_odom->initRGBModel(rgb_prev, vmaps_tmp);
+		rgbd_odom->initICP(depthPyr, 100);
 		rgbd_odom->initRGB(rgb, vmaps_tmp);
 		transObject = pose.topRightCorner(3, 1);
 		rotObject = pose.topLeftCorner(3, 3);
 		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 10, true, false, true, 0, 0);
 		pose.topRightCorner(3, 1) = transObject;
 		pose.topLeftCorner(3, 3) = rotObject;
-		// std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
-		std::cout<<"i :"<< i<< "\npose :"<<pose<<std::endl;
-
-		i ++;
+		createVMap(intr, depth, vmap, 100);
+		createNMap(vmap, nmap);
+		std::swap(rgb, rgb_prev);
+		splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
+		std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		// std::cout<<"i :"<< i<< "\npose :"<<pose<<std::endl;
+		ros::spinOnce();
+		i++;
+		
 	}
 
 	return 0;

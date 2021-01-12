@@ -159,6 +159,9 @@ void copyMaps(const DeviceArray2D<float>& vmap_src,
               DeviceArray<float>& vmap_dst,
               DeviceArray<float>& nmap_dst);
 
+void copyDMaps(const DeviceArray2D<float>& dmap_src,
+              DeviceArray2D<float>& dmap_dst);
+
 void resizeVMap(const DeviceArray2D<float>& input,
                 DeviceArray2D<float>& output);
 

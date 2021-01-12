@@ -454,6 +454,33 @@ void copyMaps(const DeviceArray2D<float>& vmap_src,
     cudaSafeCall(cudaGetLastError());
 }
 
+__global__ void copyDMapsKernel2D_2_2D(int rows, int cols, PtrStepSz<float> dmap_src, PtrStepSz<float> dmap_dst)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (x < cols && y < rows)
+    {
+        dmap_dst.ptr(y)[x] = dmap_src.ptr(y)[x];
+    }
+}
+
+void copyDMaps(const DeviceArray2D<float>& dmap_src,
+              DeviceArray2D<float>& dmap_dst)
+{
+    int cols = dmap_src.cols();
+    int rows = dmap_src.rows();
+
+
+    dim3 block(32, 8);
+    dim3 grid(1, 1, 1);
+    grid.x = getGridDim(cols, block.x);
+    grid.y = getGridDim(rows, block.y);
+
+    copyDMapsKernel2D_2_2D<<<grid, block>>>(rows, cols, dmap_src, dmap_dst);
+    cudaSafeCall(cudaGetLastError());
+}
+
 __global__ void pyrDownKernelGaussF(const PtrStepSz<float> src, PtrStepSz<float> dst, float * gaussKernel)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
