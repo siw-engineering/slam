@@ -9,7 +9,6 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
-devel/
 develop-eggs/
 dist/
 downloads/
@@ -135,4 +134,3 @@ deps/*
 
 *.pth
 
-.catkin_workspace
