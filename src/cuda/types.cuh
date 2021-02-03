@@ -58,6 +58,12 @@
 #include <Eigen/Core>
 #endif
 
+// struct vec3
+// {
+//     float x,y,z;
+//     vec3(float x, float y, float z) {}
+// };
+
 struct mat33
 {
     mat33() {}

@@ -145,7 +145,51 @@ void createVMap(const CameraModel& intr, const DeviceArray2D<float> & depth, Dev
     float fy = intr.fy, cy = intr.cy;
 
     computeVmapKernel<<<grid, block>>>(depth, vmap, 1.f / fx, 1.f / fy, cx, cy, depthCutoff);
-    cudaSafeCall (cudaGetLastError ());
+    cudaSafeCall(cudaGetLastError());
+}
+
+__global__ void encodeColor(float3 c)
+{
+    int rgb;
+    rgb = int(round(c.x * 255.0f));
+    rgb = (rgb << 8) + int(round(c.y * 255.0f));
+    rgb = (rgb << 8) + int(round(c.z * 255.0f));
+}
+
+__global__ void initModelBufferKernel(const PtrStepSz<float> vmap, const PtrStepSz<float> nmap, const float* rgb, float* model_buffer, int rows, int cols)
+{
+    int u = threadIdx.x + blockIdx.x * blockDim.x;
+    int v = threadIdx.y + blockIdx.y * blockDim.y;
+    rows = rows/3;
+    int i = rows*v + u;
+    model_buffer[i] = vmap.ptr(v)[u];
+    model_buffer[i+1] = vmap.ptr(v + rows)[u];
+    model_buffer[i+2] = vmap.ptr(v + rows*2)[u];
+
+    float3 c;
+    c.x = rgb[i];
+    c.y = rgb[i + rows*cols];
+    c.z = rgb[i + 2*rows*cols];
+    float ec;
+    encodeColor(c);
+
+
+
+
+}
+
+void initModelBuffer(const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb, DeviceArray<float> & model_buffer)
+{
+    int cols, rows;
+    cols = vmap.cols();
+    rows = vmap.rows();
+    dim3 block(32, 8);
+    dim3 grid(1, 1, 1);
+
+    grid.x = getGridDim(cols, block.x);
+    grid.y = getGridDim(rows, block.y);
+    initModelBufferKernel<<<grid, block>>>(vmap, nmap, rgb, model_buffer, rows, cols);
+
 }
 
 __global__ void computeNmapKernel(int rows, int cols, const PtrStep<float> vmap, PtrStep<float> nmap)
@@ -1013,3 +1057,15 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* pose
     cudaCheckError();
 
 }
+
+
+
+// __global__
+// void decodeColor(float c)
+// {
+//     float3 col;
+//     col.x = float(int(c) >> 16 & 0xFF) / 255.0f;
+//     col.y = float(int(c) >> 8 & 0xFF) / 255.0f;
+//     col.z = float(int(c) & 0xFF) / 255.0f;
+//     return col;
+// }
