@@ -12,8 +12,9 @@ using namespace std;
 
 int main(int argc, char  *argv[])
 {
-	int width = 320;
-	int height = 240;
+	int width, height, rows, cols;
+	width = cols = 320;
+	height = rows = 240;
 	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f tinv;
 
@@ -97,11 +98,15 @@ int main(int argc, char  *argv[])
 			rgb_prev.upload((float*)img.data, height*3*width);
 			tinv  = pose.inverse();
 			//debug start
-			initModelBuffer(vmap, nmap, rgb, model_buffer);
+			initModelBuffer(intr, vmap, nmap, rgb, model_buffer);
+
+			//printing 
+			float* data = new float[bufferSize];
+			model_buffer.download(&data[0]);
+			for (int i=0; i<int(100);i++) std::cout<<data[i]<<"*"<<data[i+rows*cols]<<"*"<<data[i+2*rows*cols]<<"*"<<data[i+3*rows*cols]<<"*"<<data[i+4*rows*cols]<<"*"<<data[i+5*rows*cols]<<"*"<<data[i+6*rows*cols]<<"*"<<data[i+7*rows*cols]<<"*"<<data[i+8*rows*cols]<<"*"<<data[i+9*rows*cols]<<"*"<<data[i+10*rows*cols]<<"*"<<data[i+11*rows*cols]<<"*";
 			exit(0);
 			//debug end
 
-			
 			splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
 			ros::spinOnce();
 			i++;
@@ -137,8 +142,6 @@ int main(int argc, char  *argv[])
 		
 
 		//predict indicies
-
-
 		std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 		// std::cout<<"i :"<< i<< "\npose :"<<pose<<std::endl;
 		i++;

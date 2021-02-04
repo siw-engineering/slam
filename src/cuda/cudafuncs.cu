@@ -148,48 +148,100 @@ void createVMap(const CameraModel& intr, const DeviceArray2D<float> & depth, Dev
     cudaSafeCall(cudaGetLastError());
 }
 
-__global__ void encodeColor(float3 c)
+__device__ float getRadius(float fx, float fy, float depth, float norm_z)
 {
-    int rgb;
+    float meanFocal = ((1.0 / abs(fx)) + (1.0 / abs(fy))) / 2.0;
+    
+    const float sqrt2 = 1.41421356237f;
+    
+    float radius = (depth / meanFocal) * sqrt2;
+
+    float radius_n = radius;
+
+    radius_n = radius_n / abs(norm_z);
+
+    radius_n = min(2.0f * radius, radius_n);
+
+    return radius_n;
+}
+
+__device__ float encodeColor(float3 c)
+{
+    int rgb = 0;
     rgb = int(round(c.x * 255.0f));
     rgb = (rgb << 8) + int(round(c.y * 255.0f));
     rgb = (rgb << 8) + int(round(c.z * 255.0f));
+    return  (float)rgb;
 }
 
-__global__ void initModelBufferKernel(const PtrStepSz<float> vmap, const PtrStepSz<float> nmap, const float* rgb, float* model_buffer, int rows, int cols)
+__device__ float3 decodeColor(float c)
+{
+    float3 col;
+    col.x = float(int(c) >> 16 & 0xFF) / 255.0f;
+    col.y = float(int(c) >> 8 & 0xFF) / 255.0f;
+    col.z = float(int(c) & 0xFF) / 255.0f;
+    return col;
+}
+
+
+__device__ float confidence(float cx, float cy, float x, float y, float weighting)
+{
+    const float maxRadDist = 400; //sqrt((width * 0.5)^2 + (height * 0.5)^2)
+    const float twoSigmaSquared = 0.72; //2*(0.6^2) from paper
+    
+    float3 pixelPosCentered = make_float3(x-cx, y-cy, 0);
+    // vec2 pixelPosCentered = vec2(x, y) - cam.xy;
+    
+    float radialDist = sqrt(dot(pixelPosCentered, pixelPosCentered)) / maxRadDist;
+    
+    return exp((-(radialDist * radialDist) / twoSigmaSquared)) * weighting;
+}
+
+
+__global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, const PtrStepSz<float> vmap, const PtrStepSz<float> nmap, const float* rgb, float* model_buffer, int rows, int cols)
 {
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
-    rows = rows/3;
     int i = rows*v + u;
     model_buffer[i] = vmap.ptr(v)[u];
-    model_buffer[i+1] = vmap.ptr(v + rows)[u];
-    model_buffer[i+2] = vmap.ptr(v + rows*2)[u];
+    model_buffer[i+ rows*cols] = vmap.ptr(v + rows)[u];
+    model_buffer[i+2*rows*cols] = vmap.ptr(v + rows*2)[u];
+    model_buffer[i+3*rows*cols] = confidence(cx, cy, u, v, 1);
 
+    // color encoding
     float3 c;
+    float ec ;
     c.x = rgb[i];
     c.y = rgb[i + rows*cols];
     c.z = rgb[i + 2*rows*cols];
-    float ec;
-    encodeColor(c);
+    ec = encodeColor(c);
 
+    model_buffer[i+4*rows*cols] = ec; //x
+    model_buffer[i+5*rows*cols] = 0;//y
+    model_buffer[i+6*rows*cols] = 1;//z
+    model_buffer[i+7*rows*cols] = 1;//w time
+
+    //writing normals
+    model_buffer[i+8*rows*cols] = nmap.ptr(v)[u];
+    model_buffer[i+9*rows*cols] = nmap.ptr(v + rows)[u];
+    model_buffer[i+10*rows*cols] = nmap.ptr(v + rows*2)[u];
+    model_buffer[i+11*rows*cols] = getRadius(fx, fy, vmap.ptr(v + rows*2)[u], nmap.ptr(v + rows*2)[u]);
 
 
 
 }
 
-void initModelBuffer(const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb, DeviceArray<float> & model_buffer)
+void initModelBuffer(const CameraModel& intr, const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb, DeviceArray<float> & model_buffer)
 {
     int cols, rows;
+    rows = vmap.rows() / 3;
     cols = vmap.cols();
-    rows = vmap.rows();
     dim3 block(32, 8);
     dim3 grid(1, 1, 1);
 
     grid.x = getGridDim(cols, block.x);
     grid.y = getGridDim(rows, block.y);
-    initModelBufferKernel<<<grid, block>>>(vmap, nmap, rgb, model_buffer, rows, cols);
-
+    initModelBufferKernel<<<grid, block>>>(intr.cx, intr.cy, intr.fx, intr.fy, vmap, nmap, rgb, model_buffer, rows, cols);
 }
 
 __global__ void computeNmapKernel(int rows, int cols, const PtrStep<float> vmap, PtrStep<float> nmap)
@@ -1058,14 +1110,3 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* pose
 
 }
 
-
-
-// __global__
-// void decodeColor(float c)
-// {
-//     float3 col;
-//     col.x = float(int(c) >> 16 & 0xFF) / 255.0f;
-//     col.y = float(int(c) >> 8 & 0xFF) / 255.0f;
-//     col.z = float(int(c) & 0xFF) / 255.0f;
-//     return col;
-// }

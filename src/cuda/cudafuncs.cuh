@@ -206,7 +206,7 @@ void computeDerivativeImages(DeviceArray2D<unsigned char>& src,
 
 void splatDepthPredict(const CameraModel& intr, int rows, int cols, float* tinv, DeviceArray2D<float>& vmap, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap, DeviceArray2D<float>& nmap_dst);
 
-void initModelBuffer(const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb, DeviceArray<float> & model_buffer);
+void initModelBuffer(const CameraModel& intr, const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb, DeviceArray<float> & model_buffer);
 
 
 
