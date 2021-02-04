@@ -52,7 +52,6 @@
 #include "cudafuncs.cuh"
 #include "convenience.cuh"
 #include "operators.cuh"
-#include <bits/stdc++.h>
 
 __global__ void pyrDownGaussKernel (const PtrStepSz<float> src, PtrStepSz<float> dst, float sigma_color)
 {
@@ -114,7 +113,6 @@ __global__ void computeVmapKernel(const PtrStepSz<float> depth, PtrStep<float> v
 
     if(u < depth.cols && v < depth.rows)
     {
-
         float z = depth.ptr(v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
 
         if(z != 0 && z < depthCutoff /*&& m == maskID*/) //FIXME
@@ -205,77 +203,6 @@ void createNMap(const DeviceArray2D<float>& vmap, DeviceArray2D<float>& nmap)
     cudaSafeCall (cudaGetLastError ());
 }
 
-__global__ void computeBilateralFilterKernel(const PtrStepSz<float> depth, PtrStepSz<float> filtered, const float depthCutoff)
-{
-
-    float sum1 = 0;
-    float sum2 = 0;
-
-    float out;
-    int x = threadIdx.x + blockIdx.x * blockDim.x;
-    int y = threadIdx.y + blockIdx.y * blockDim.y;
-
-    if(x > depth.cols && y >depth.rows)
-        return;
-
-    float value = depth.ptr(y)[x];
-
-
-    if(value > depthCutoff || value < 0.3)
-    {
-        out = 0;
-    }
-
-    else
-    {
-
-        const float sigma_space2_inv_half = 0.024691358; // 0.5 / (sigma_space * sigma_space)
-        const float sigma_color2_inv_half = 555.556; // 0.5 / (sigma_color * sigma_color)
-                
-        const int R = 6;
-        const int D = R * 2 + 1;
-
-        int tx = min(x - D / 2 + D, int(depth.cols));
-        int ty = min(y - D / 2 + D, int(depth.rows));
-
-
-        for(int cy = max(y - D / 2, 0); cy < ty; ++cy)
-        {
-            for(int cx = max(x - D / 2, 0); cx < tx; ++cx)
-            {
-                float tmp = depth.ptr(cy)[cx];
-                
-                
-                float space2 = (float(x) - float(cx)) * (float(x) - float(cx)) + (float(y) - float(cy)) * (float(y) - float(cy));
-                float color2 = (float(value) - float(tmp)) * (float(value) - float(tmp));
-
-                float weight = exp(-(space2 * sigma_space2_inv_half + color2 * sigma_color2_inv_half));
-
-                sum1 += float(tmp) * weight;
-                sum2 += weight;
-            }
-        }
-
-    }
-    out = sum1/sum2;
-    filtered.ptr(y)[x] = out;
-
-}
-
-
-void computeBilateralFilter(const DeviceArray2D<float>& depth, DeviceArray2D<float> & filtered, const float depthCutoff)
-{
-    filtered.create (depth.rows (), depth.cols ());
-    dim3 block (32, 8);
-    dim3 grid (1, 1, 1);
-    grid.x = getGridDim (depth.cols (), block.x);
-    grid.y = getGridDim (depth.rows (), block.y);
-
-    computeBilateralFilterKernel<<<grid, block>>>(depth, filtered, depthCutoff);
-    cudaSafeCall (cudaGetLastError ());
-
-
-}
 __global__ void tranformMapsKernel(int rows, int cols, const PtrStep<float> vmap_src, const PtrStep<float> nmap_src,
                                    const mat33 Rmat, const float3 tvec, PtrStepSz<float> vmap_dst, PtrStep<float> nmap_dst)
 {

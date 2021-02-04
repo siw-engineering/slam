@@ -137,10 +137,6 @@ void createVMap(const CameraModel& intr,
 void createNMap(const DeviceArray2D<float>& vmap,
                 DeviceArray2D<float>& nmap);
 
-void computeBilateralFilter(const DeviceArray2D<float>& depth,
-                DeviceArray2D<float> & filtered,
-                const float depthCutoff);
-
 void tranformMaps(const DeviceArray2D<float>& vmap_src,
                   const DeviceArray2D<float>& nmap_src,
                   const mat33& Rmat,
