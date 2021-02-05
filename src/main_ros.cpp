@@ -24,7 +24,7 @@ int main(int argc, char **argv)
      int inWidtih = 640, inHeight = 480, inFps = 30;
 	 rs2::pipeline pipe;
      rs2::config cfg;
-     cfg.enable_device_from_file("/home/sathish/Documents/20201113_111309.bag");
+     //cfg.enable_device_from_file("/home/sathish/Documents/20201113_111309.bag");
      cfg.enable_stream(RS2_STREAM_COLOR, inWidth, inHeight, RS2_FORMAT_RGB8,inFps);
      cfg.enable_stream(RS2_STREAM_DEPTH, inWidth, inHeight, RS2_FORMAT_Z16, inFps);
      cfg.enable_stream(RS2_STREAM_INFRARED, 1, inWidth, inHeight, RS2_FORMAT_Y8, inFps);
