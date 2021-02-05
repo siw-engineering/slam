@@ -13,9 +13,12 @@ catkin_package()
 
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(RealSense2 REQUIRED)
+
 
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
+include_directories(${REALSENSE2_INCLUDE_DIR})
 
 
 
@@ -83,6 +86,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 
 target_link_libraries(${PROJECT_NAME}
     ${Eigen_LIBRARIES}
+    ${REALSENSE2_LIBRARY}
     ${cv_bridge_LIBRARIES}
 	  ${catkin_LIBRARIES}
     ${CUDA_LIBRARIES}
