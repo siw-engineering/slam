@@ -17,12 +17,15 @@ int main(int argc, char  *argv[])
 	height = rows = 240;
 	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f tinv;
+	int count = 0;
+	float depthCutOff = 5;
 
 	const int TEXTURE_DIMENSION = 3072;
 	const int MAX_VERTICES = TEXTURE_DIMENSION * TEXTURE_DIMENSION;
 	const int NODE_TEXTURE_DIMENSION = 16384;
 	const int MAX_NODES = NODE_TEXTURE_DIMENSION / 16;  // 16 floats per node
-	int VSIZE = sizeof(Eigen::Vector4f) ;
+	// int VSIZE = sizeof(Eigen::Vector4f) ;
+	int VSIZE = 4;
 	const int bufferSize = MAX_VERTICES * VSIZE * 3;
 	// int d2d_w, d2d_h;
 	// d2d_w = sqrt(MAX_VERTICES);
@@ -50,8 +53,9 @@ int main(int argc, char  *argv[])
 
 	DeviceArray<float> rgb, rgb_prev, vmaps_tmp, nmaps_tmp;
 	DeviceArray2D<float> depth;
-	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev;
-	DeviceArray<float> model_buffer;
+	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev, color_splat;
+	DeviceArray2D<unsigned int> time_splat;
+	DeviceArray<float> model_buffer, unstable_buffer;
 	std::vector<DeviceArray2D<float>> depthPyr;
 
 	depthPyr.resize(3);
@@ -65,7 +69,9 @@ int main(int argc, char  *argv[])
 	rgb.create(height*3*width);
 	rgb_prev.create(height*3*width);
 	depth.create(height, width);
+
 	model_buffer.create(bufferSize);
+	unstable_buffer.create(width*height*VSIZE);
 
 	// initialize model buffers
 	float* vertices = new float[bufferSize];
@@ -93,23 +99,28 @@ int main(int argc, char  *argv[])
 		if (i==0)
 		{
 			rgbd_odom->initFirstRGB(rgb);
-			createVMap(intr, depth, vmap, 100);
+			createVMap(intr, depth, vmap, depthCutOff);
 			createNMap(vmap, nmap);
 			rgb_prev.upload((float*)img.data, height*3*width);
 			tinv  = pose.inverse();
+			initModelBuffer(intr, depthCutOff, vmap, nmap, rgb, model_buffer, &count);
 			//debug start
-			initModelBuffer(intr, vmap, nmap, rgb, model_buffer);
-
 			//printing 
-			float* data = new float[bufferSize];
-			model_buffer.download(&data[0]);
-			for (int i=0; i<int(100);i++) std::cout<<data[i]<<"*"<<data[i+rows*cols]<<"*"<<data[i+2*rows*cols]<<"*"<<data[i+3*rows*cols]<<"*"<<data[i+4*rows*cols]<<"*"<<data[i+5*rows*cols]<<"*"<<data[i+6*rows*cols]<<"*"<<data[i+7*rows*cols]<<"*"<<data[i+8*rows*cols]<<"*"<<data[i+9*rows*cols]<<"*"<<data[i+10*rows*cols]<<"*"<<data[i+11*rows*cols]<<"*";
-			exit(0);
+			// float* data = new float[bufferSize];
+			// model_buffer.download(&data[0]);
+			// for (int i=0; i<int(100);i++) std::cout<<data[i]<<"*"<<data[i+TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+2*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+3*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+4*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+5*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+6*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+7*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+8*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+9*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+10*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+11*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*";
+			// for (int i=0; i<int(MAX_VERTICES);i++) std::cout<<data[i]<<"*";
+			// splatDepthPredict(intr, height, width, tinv.data(), model_buffer, /*vmap,*/ vmap_splat_prev, /*nmap,*/ nmap_splat_prev);
+			// float* sdata = new float[width*height*3];
+			// vmap_splat_prev.download(&sdata[0], width*sizeof(float));
+			// for (int i=0; i<int(100);i++) std::cout<<sdata[i]<<"*";
+			// kernelCode();
 			//debug end
-
-			splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
+			splatDepthPredict(intr, height, width, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 			ros::spinOnce();
 			i++;
+			exit(0);
+
 			continue;
 		}
 
@@ -133,13 +144,11 @@ int main(int argc, char  *argv[])
 		pose.topRightCorner(3, 1) = transObject;
 		pose.topLeftCorner(3, 3) = rotObject;
 
-
 		//splat predict
 		createVMap(intr, depth, vmap, 100);
 		createNMap(vmap, nmap);
 		std::swap(rgb, rgb_prev);
-		splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
-		
+		// splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
 
 		//predict indicies
 		std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
