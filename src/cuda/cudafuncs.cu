@@ -1068,19 +1068,30 @@ void projectToPointCloud(const DeviceArray2D<float> & depth,
     cudaSafeCall (cudaDeviceSynchronize ());
 }
 
-
-__global__ void splatDepthPredictKernel(int rows, int cols, float cx, float cy, float fx, float fy, float* tinv, float* model_buffer, PtrStepSz<float> color_dst, PtrStepSz<float> vmap_dst, PtrStepSz<float> nmap_dst, PtrStepSz<unsigned int> time_dst)
+__device__ float3 projectPoint(float3 p, int rows, int cols, float cx, float cy, float fx, float fy, float maxDepth)
 {
-    int x = threadIdx.x + blockIdx.x * blockDim.x;
-    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    float3 pt = make_float3(((((fx * p.x) / p.z) + cx) - (cols * 0.5)) / (cols * 0.5),
+                ((((fy * p.y) / p.z) + cy) - (rows * 0.5)) / (rows * 0.5),
+                p.z / maxDepth);
+    return pt;
+}
+
+__global__ void splatDepthPredictKernel(int rows, int cols, float cx, float cy, float fx, float fy, float maxDepth, float* tinv, float* model_buffer, PtrStepSz<float> color_dst, PtrStepSz<float> vmap_dst, PtrStepSz<float> nmap_dst, PtrStepSz<unsigned int> time_dst)
+{
+    // int x = threadIdx.x + blockIdx.x * blockDim.x;
+    // int y = threadIdx.y + blockIdx.y * blockDim.y;
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
     int rows_mb, cols_mb;
     rows_mb = cols_mb = 3072;
+    int vp_w, vp_h;
+    vp_w = cols;
+    vp_h = rows;
     
-    int i = x*y; //indexing wrong (solved when run 1d kernel)
+    // int i = x*y; //indexing wrong (solved when run 1d kernel)
 
-    if (x >= cols_mb || y >= rows_mb)
+    if (i >= cols_mb * rows_mb)
         return;
-    if (model_buffer[i] == 0 || model_buffer[i + rows_mb*cols_mb] == 0) //fix this
+    if (model_buffer[i] == 0 || model_buffer[i + rows_mb*cols_mb] == 0 || model_buffer[i + 2*rows_mb*cols_mb] == 0) 
         return;
 
     float4 vsrc = make_float4(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -1124,11 +1135,27 @@ __global__ void splatDepthPredictKernel(int rows, int cols, float cx, float cy, 
     n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
     n_ = normalized(n_);
 
+    //to compute x,y cords (gl_fragcords)
+    //TO DO need to normalize v_ 
+    float3 fc;
+    fc = projectPoint(v_, cx, cy, fx, fy, rows, cols, maxDepth);
+    fc.x = fc.x * 0.5f + 0.5f; 
+    fc.y = fc.y * 0.5f + 0.5f; 
+    fc.x = fc.x * vp_w/2; // TO DO undo dividing by 2 when normlzing is fixed
+    fc.y = fc.y * vp_h/2;
+
+    int x, y;
+    x = (int)fc.x;
+    y = (int)fc.y;
+
+    // printf("cords :%f\t%f\n", fc.x, fc.y);
+
+
     float3 l = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     float3 cp = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
 
-    l.x = (x - cx)/fx;
-    l.y = (y - cy)/fy;
+    l.x = (fc.x - cx)/fx;
+    l.y = (fc.y - cy)/fy;
     l.z = 1;
     l = normalized(l);
 
@@ -1164,19 +1191,23 @@ __global__ void splatDepthPredictKernel(int rows, int cols, float cx, float cy, 
     //writing time
     time_dst.ptr(y)[x] = t;
 
-
 }
-void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* pose_inv, DeviceArray<float>& model_buffer, int count,DeviceArray2D<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
-{
-    dim3 block (32, 8);
-    // dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y));
-    dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y)); //change threads to count TO DO
 
+void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int count, DeviceArray2D<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
+{
+    // dim3 block (32, 8);
+    // dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y));
+    // dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y)); //change threads to count TO DO
+    int blocksize = 32*8;
+    int numblocks = (count + blocksize - 1)/ blocksize;
+
+    //TO DO initialize device arrays with 0s
     color_dst.create(rows*4, cols);
     vmap_dst.create(rows*4, cols);
     nmap_dst.create(rows*4, cols);
     time_dst.create(rows, cols);
-    
+
+
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
@@ -1184,40 +1215,42 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float* pose
     cudaSafeCall(cudaMalloc((void**) &tinv, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(tinv, pose_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-    splatDepthPredictKernel<<<grid, block>>>(rows, cols, cx, cy , fx, fy, tinv, model_buffer, color_dst, vmap_dst, nmap_dst, time_dst);
+    splatDepthPredictKernel<<<numblocks, blocksize>>>(rows, cols, cx, cy , fx, fy, maxDepth, tinv, model_buffer, color_dst, vmap_dst, nmap_dst, time_dst);
     cudaCheckError();
 
 }
-__global__ void predictIndiciesKernel(float* model_buffer, int rows, int cols, float* tinv, float cx, float cy, float fx, float fy, float maxDepth, int time, int timeDelta)
-{
 
+__global__ void predictIndiciesKernel(float* model_buffer, int rows, int cols, float* tinv, float cx, float cy, float fx, float fy, float maxDepth, int time, int timeDelta, PtrStepSz<float> color_dst, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
+{
     /* 
     solve modelbuffer threads problem
     */
-    int x = threadIdx.x + blockIdx.x * blockDim.x;
-    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    // int x = threadIdx.x + blockIdx.x * blockDim.x;
+    // int y = threadIdx.y + blockIdx.y * blockDim.y;
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+
     int rows_mb, cols_mb;
     rows_mb = cols_mb = 3072;
-    int i = y* rows + x;
+    // int i = y* rows + x;
     float xu = 0;
     float yv = 0;
 
-    if (x >= cols_mb || y >= rows_mb)
+    if (i >= rows_mb*cols_mb)
         return;
 
     int vz = model_buffer[i + 2*rows_mb*cols_mb];
     int cw = model_buffer[i+7*rows_mb*cols_mb];
     int vertexId;
+    float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
 
     if ((vz < 0 ) || (vz > maxDepth) || (time - cw > timeDelta))
     {
-        x = -10;
-        y = -10;
+        vsrc.x = -10;
+        vsrc.y = -10;
         vertexId = 0;
     }
     else
     {
-        float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
         float3 v_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
         float3 nsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
         float3 n_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -1237,7 +1270,7 @@ __global__ void predictIndiciesKernel(float* model_buffer, int rows, int cols, f
         xu = ((((fx* v_.x) / v_.z) + cx) - (cols * 0.5)) / (cols * 0.5);
         yv = ((((fy * v_.y) / v_.z) + cy) - (rows * 0.5)) / (rows * 0.5);
         // vertexId = gl_VertexID;
-        // vertexId = i;
+        vertexId = i;
 
         n_.x = tinv[0]*nsrc.x + tinv[1]*nsrc.y + tinv[2]*nsrc.z;
         n_.y = tinv[4]*nsrc.x + tinv[5]*nsrc.y + tinv[6]*nsrc.z;
@@ -1245,29 +1278,46 @@ __global__ void predictIndiciesKernel(float* model_buffer, int rows, int cols, f
         n_ = normalized(n_);
 
         /*
-            TO DO
-            write outputs 
+        TO DO
+        write outputs 
         gl_Position = vec4(x, y, vPosHome.z / maxDepth, 1.0);
         vPosition0 = vec4(vPosHome.xyz, vPosition.w);
         vColorTime0 = vColorTime;
         vNormRad0 = vec4(normalize(mat3(t_inv) * vNormRad.xyz), vNormRad.w);
         */
+        vmap_pi.ptr(y)[x] = v_.x;
+        vmap_pi.ptr(y + rows)[x] = v_.y;
+        vmap_pi.ptr(y + rows * 2)[x] = v_.z;
+        vmap_pi.ptr(y + rows * 3)[x] = model_buffer[i + 3*rows_mb*cols_mb];
+
+        ct_pi.ptr(y)[x] = model_buffer[i+4*rows_mb*cols_mb];
+        ct_pi.ptr(y + rows)[x] = model_buffer[i+5*rows_mb*cols_mb];
+        ct_pi.ptr(y + rows * 2)[x] = model_buffer[i+6*rows_mb*cols_mb];
+        ct_pi.ptr(y + rows * 3)[x] = model_buffer[i+7*rows_mb*cols_mb];
+
+        nmap_pi.ptr(y)[x] = n_.x;
+        nmap_pi.ptr(y + rows)[x] = n_.y;
+        nmap_pi.ptr(y + rows * 2)[x] = n_.z;
+        nmap_pi.ptr(y + rows * 3)[x] = model_buffer[i + 11*rows_mb*cols_mb];
+
+        index_pi.ptr(y)[x] = i;
+
     }
 }
 
-void predictIndicies(const CameraModel& intr, int rows, int cols,  float* pose_inv, DeviceArray<float>& model_buffer, /*DeviceArray2D<float>& vmap,*/ DeviceArray2D<float>& vmap_dst, /*DeviceArray2D<float>& nmap,*/ DeviceArray2D<float>& nmap_dst)
+void predictIndicies(const CameraModel& intr, int rows, int cols,  float* pose_inv, DeviceArray<float>& model_buffer, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst)
 {
 
 }
 
-// __global__ void fuseKernel()
-// {
+__global__ void fuseKernel()
+{
     
-// }
+}
 
-// void fuse()
-// {
+void fuse()
+{
 
-// }
+}
 
 

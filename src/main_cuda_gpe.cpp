@@ -18,7 +18,8 @@ int main(int argc, char  *argv[])
 	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f tinv;
 	int count = 0;
-	float depthCutOff = 5;
+	float depthCutOff, maxDepth;
+	maxDepth = depthCutOff = 5;
 
 	const int TEXTURE_DIMENSION = 3072;
 	const int MAX_VERTICES = TEXTURE_DIMENSION * TEXTURE_DIMENSION;
@@ -77,6 +78,7 @@ int main(int argc, char  *argv[])
 	float* vertices = new float[bufferSize];
 	memset(&vertices[0], 0, bufferSize);
 	model_buffer.upload(&vertices[0], bufferSize);
+	delete[] vertices;
 
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
@@ -116,7 +118,7 @@ int main(int argc, char  *argv[])
 			// for (int i=0; i<int(100);i++) std::cout<<sdata[i]<<"*";
 			// kernelCode();
 			//debug end
-			splatDepthPredict(intr, height, width, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+			splatDepthPredict(intr, height, width, maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 			ros::spinOnce();
 			i++;
 			exit(0);
