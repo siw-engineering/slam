@@ -1305,19 +1305,76 @@ __global__ void predictIndiciesKernel(float* model_buffer, int rows, int cols, f
     }
 }
 
-void predictIndicies(const CameraModel& intr, int rows, int cols,  float* pose_inv, DeviceArray<float>& model_buffer, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst)
-{
+// void predictIndicies(const CameraModel& intr, int rows, int cols,  float* pose_inv, DeviceArray<float>& model_buffer, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst)
+// {
 
-}
+// }
 
 __global__ void fuseKernel()
 {
+
+    //Hack: Here, texDim*texDim is the max number of surfels in the VBO
+    // int intY = gl_VertexID / int(texDim);
+    // int intX = gl_VertexID - (intY * int(texDim));
+
+    // float halfPixel = 0.5 * (1.0f / texDim);
+    // float y = (float(intY) / texDim) + halfPixel;
+    // float x = (float(intX) / texDim) + halfPixel;
+
+    // vec4 newColor = textureLod(colorSamp, vec2(x, y), 0);
+
+    // if(newColor.w == 0){
+
+    //     //This point isn't being updated, so just transfer it
+
+    //     vPosition0 = vPosition;
+    //     vColor0 = vColor;
+    //     vNormRad0 = vNormRad;
+    // } else if(newColor.w == -1) {
+
+    //     //Do averaging here
+
+    //     vec4 newPos = textureLod(vertSamp, vec2(x, y), 0);
+    //     vec4 newNorm = textureLod(normSamp, vec2(x, y), 0);
+
+    //     float c_k = vPosition.w;
+    //     vec3 v_k = vPosition.xyz;
+
+    //     float a = newPos.w;
+    //     vec3 v_g = newPos.xyz;
+
+    //     if(newNorm.w < (1.0 + 0.5) * vNormRad.w)
+    //     {
+    //         vPosition0 = vec4(((c_k * v_k) + (a * v_g)) / (c_k + a),
+    //                           c_k + a); // Add up confidence, weighted position
+
+    //         vec3 oldCol = decodeColor(vColor.x);
+    //         vec3 newCol = decodeColor(newColor.x);
+
+    //         vec3 avgColor = ((c_k * oldCol.xyz) + (a * newCol.xyz)) / (c_k + a);
+
+    //         vColor0 = vec4(encodeColor(avgColor), vColor.y, vColor.z, time);
+
+    //         vNormRad0 = ((c_k * vNormRad) + (a * newNorm)) / (c_k + a);
+
+    //         vNormRad0.xyz = normalize(vNormRad0.xyz);
+    //     }
+    //     else
+    //     {
+    //         vPosition0 = vPosition;
+    //         vColor0 = vColor;
+    //         vNormRad0 = vNormRad;
+
+    //         vPosition0.w = c_k + a;
+    //         vColor0.w = time;
+    //     }
+    // }
     
 }
 
-void fuse()
-{
+// void fuse()
+// {
 
-}
+// }
 
 
