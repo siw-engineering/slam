@@ -181,6 +181,32 @@ __device__ float getRadius(float fx, float fy, float depth, float norm_z)
     return radius_n;
 }
 
+__device__ float3 getNormal(const PtrStepSz<float> depth, float3 vpos, float cx, float cy, float fx, float fy, int u, int v, int rows, int cols)
+{
+    // if (!isnan (v00.x) && !isnan (v01.x) && !isnan (v10.x)) TO DO check for nan
+
+    float z1 = depth.ptr(v)[u + 1];
+    float z2 = depth.ptr(v)[u - 1];
+    float z3 = depth.ptr(v + 1)[u];
+    float z4 = depth.ptr(v - 1)[u];
+
+    float3 v1 = make_float3(z1 * (u + 1 - cx) / fx,  z1 * (v - cy) / fy,  z1); 
+    float3 v2 = make_float3(z2 * (u - 1 - cx) / fx,  z2 * (v - cy) / fy,  z2); 
+    float3 v3 = make_float3(z3 * (u - cx) / fx,  z3 * (v + 1 - cy) / fy,  z3); 
+    float3 v4 = make_float3(z4 * (u - cx) / fx,  z4 * (v - 1- cy) / fy,  z4); 
+
+    // float3 del_x = make_float3((vpos + v2)/2 - (vpos + v1)/2);
+    // float3 del_y = make_float3((vpos + v4)/2 - (vpos + v3)/2);
+    
+    float3 del_x = make_float3(((vpos.x + v2.x)/2 - (vpos.x + v1.x)/2), ((vpos.y + v2.y)/2 - (vpos.y + v1.y)/2), ((vpos.z + v2.z)/2 - (vpos.z + v1.z)/2));
+    float3 del_y = make_float3(((vpos.x + v4.x)/2 - (vpos.x + v3.x)/2), ((vpos.y + v4.y)/2 - (vpos.y + v3.y)/2), ((vpos.z + v4.z)/2 - (vpos.z + v3.z)/2));
+
+    return normalized(cross(del_x, del_y));    
+    // else
+    //     float3 r = __int_as_float(0x7fffffff); /*CUDART_NAN_F*/
+}
+
+
 __device__ float encodeColor(float3 c)
 {
     int rgb = 0;
@@ -240,14 +266,6 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
     model_buffer[i+2*rows_mb*cols_mb] = vz;
     model_buffer[i+3*rows_mb*cols_mb] = confidence(cx, cy, u, v, 1);
 
-
-    // printf("%d\n", i);
-    // printf("%f\n", vz);
-       // printf("%f\n", model_buffer[i + rows_mb*cols_mb]);
-
-    // float3 p = make_float3(vmap.ptr(v)[u], vmap.ptr(v + rows)[u], vz);
-    // p = projectPoint(p, rows, cols, cx, cy, fx, fy, max_depth);
-    // printf(" p.x = %f\n", p.x);
     // color encoding
     float3 c;
     float ec ;
@@ -1251,7 +1269,7 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDep
 
 }
 
-__global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, float* tinv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, float* index_pi)
+__global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, float* tinv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
 {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1328,94 +1346,220 @@ __global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  i
         nmap_pi.ptr(y + rows * 2)[x] = n_.z;
         nmap_pi.ptr(y + rows * 3)[x] = model_buffer[i + 11*rows_mb*cols_mb];
 
-        // index_pi.ptr(y)[x] = i;
+        index_pi.ptr(y)[x] = i;
     }
 }
 
-void predictIndicies(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray<float>& index_pi, int count)
+void predictIndicies(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, int count)
 {
     int blocksize = 32*8;
     int numblocks = (count + blocksize - 1)/ blocksize;
     int timeDelta = 200;
 
-    vmap_pi.create(rows*4, cols);
+    vmap_pi.create(rows*4, cols); //TO DO init device arrays with 0s
     ct_pi.create(rows*4, cols);
     nmap_pi.create(rows*4, cols);
-    index_pi.create(rows*cols);
+    index_pi.create(rows,cols);
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
-    // predictIndiciesKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, pose_inv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
+    predictIndiciesKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, pose_inv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
 
 
 }
 
-__global__ void fuseKernel()
+__device__ bool checkNeighbours(const PtrStepSz<float> depth, int u ,int v)
+{
+    float z = depth.ptr(v)[u + 1];
+    if(z == 0)
+        return false;
+
+    z = depth.ptr(v)[u - 1];
+    if(z == 0)
+        return false;
+
+    z = depth.ptr(v - 1)[u];
+        return false;
+
+    z = depth.ptr(v + 1)[u];
+    if(z == 0)
+        return false;
+
+    return true;
+}
+
+__device__ float angleBetween(float3 a, float3 b)
+{
+    return acos(dot(a, b) / (sqrt(pow(a.x,2)+pow(a.y,2)+pow(a.z,2)) * sqrt(pow(b.x,2)+pow(b.y,2)+pow(b.z,2))));
+}
+
+__global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, int time, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, int count, float weighting)
 {
 
-    //Hack: Here, texDim*texDim is the max number of surfels in the VBO
-    // int intY = gl_VertexID / int(texDim);
-    // int intX = gl_VertexID - (intY * int(texDim));
+    int u = threadIdx.x + blockIdx.x * blockDim.x;
+    int v = threadIdx.y + blockIdx.y * blockDim.y;
 
-    // float halfPixel = 0.5 * (1.0f / texDim);
-    // float y = (float(intY) / texDim) + halfPixel;
-    // float x = (float(intX) / texDim) + halfPixel;
+    int i = v*cols + u;
 
-    // vec4 newColor = textureLod(colorSamp, vec2(x, y), 0);
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
 
-    // if(newColor.w == 0){
+    if(u < depth.cols && v < depth.rows)
+    {
+        float z = depth.ptr(v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
 
-    //     //This point isn't being updated, so just transfer it
+        if(z != 0 && z < maxDepth /*&& m == maskID*/) //FIXME
+        {
+            float3 vsrc_new = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z); //depth filtering look up
+            float3 vnew_;
+            vnew_.x = pose[0]*vsrc_new.x + pose[1]*vsrc_new.y + pose[2]*vsrc_new.z + pose[3]*1;
+            vnew_.y = pose[4]*vsrc_new.x + pose[5]*vsrc_new.y + pose[6]*vsrc_new.z + pose[7]*1;
+            vnew_.z = pose[8]*vsrc_new.x + pose[9]*vsrc_new.y + pose[10]*vsrc_new.z + pose[11]*1;
 
-    //     vPosition0 = vPosition;
-    //     vColor0 = vColor;
-    //     vNormRad0 = vNormRad;
-    // } else if(newColor.w == -1) {
 
-    //     //Do averaging here
+            float3 cnew;
+            float cvw = 0;
+            float ec_new ;
+            cnew.x = rgb[i];
+            cnew.y = rgb[i + rows*cols];
+            cnew.z = rgb[i + 2*rows*cols];
+            ec_new = encodeColor(cnew);
+            
+            float3 nsrc_new;
+            float4 nnew_;
+            float rnew;
+            nsrc_new = getNormal(depth, vsrc_new, cx, cy ,fx ,fy, u, v, rows, cols); // TO change vsrc_new  to vsrc_new_f
+            nnew_.x = pose[0]*nsrc_new.x + pose[1]*nsrc_new.y + pose[2]*nsrc_new.z;
+            nnew_.y = pose[4]*nsrc_new.x + pose[5]*nsrc_new.y + pose[6]*nsrc_new.z;
+            nnew_.z = pose[8]*nsrc_new.x + pose[9]*nsrc_new.y + pose[10]*nsrc_new.z;
+            nnew_.w =  getRadius(fx, fy, vsrc_new.z, nsrc_new.z); // TO DO change vsrc_new.z to vsrc_new_f.z
 
-    //     vec4 newPos = textureLod(vertSamp, vec2(x, y), 0);
-    //     vec4 newNorm = textureLod(normSamp, vec2(x, y), 0);
+            // //Confidence
+            // vPosition.w = confidence(x, y, weighting);
 
-    //     float c_k = vPosition.w;
-    //     vec3 v_k = vPosition.xyz;
+            float confnew = confidence(cx, cy, u, v, weighting);
 
-    //     float a = newPos.w;
-    //     vec3 v_g = newPos.xyz;
+            int updateId  = 0;
+            int scale = 1;
+            unsigned int best = 0U;
 
-    //     if(newNorm.w < (1.0 + 0.5) * vNormRad.w)
-    //     {
-    //         vPosition0 = vec4(((c_k * v_k) + (a * v_g)) / (c_k + a),
-    //                           c_k + a); // Add up confidence, weighted position
+            if(int(u) % 2 == int(time) % 2 && int(v) % 2 == int(time) % 2 && checkNeighbours(depth, u, v) && vsrc_new.z > 0 && vsrc_new.z <= maxDepth)
+            {
 
-    //         vec3 oldCol = decodeColor(vColor.x);
-    //         vec3 newCol = decodeColor(newColor.x);
+                int operation = 0; // 0 => new point, 1 => merge, ~~3 => penalise~~
 
-    //         vec3 avgColor = ((c_k * oldCol.xyz) + (a * newCol.xyz)) / (c_k + a);
+                float bestDist = 1000;
 
-    //         vColor0 = vec4(encodeColor(avgColor), vColor.y, vColor.z, time);
+                float windowMultiplier = 2;
 
-    //         vNormRad0 = ((c_k * vNormRad) + (a * newNorm)) / (c_k + a);
+                float xl = (u - cx) * fx;
+                float yl = (v - cy) * fy;
 
-    //         vNormRad0.xyz = normalize(vNormRad0.xyz);
-    //     }
-    //     else
-    //     {
-    //         vPosition0 = vPosition;
-    //         vColor0 = vColor;
-    //         vNormRad0 = vNormRad;
+                float lambda = sqrt(xl * xl + yl * yl + 1);
 
-    //         vPosition0.w = c_k + a;
-    //         vColor0.w = time;
-    //     }
-    // }
-    
+                float3 ray = make_float3(xl, yl, 1);
+
+
+                for (int ui = u - 1; ui < u + 1; ui++)
+                {
+                    for (int vj = v - 1; vj < v + 1; vj++)
+                    {
+                        
+                        unsigned int current = index_pi.ptr(vj)[ui];
+                        if(current > 0U)
+                        {
+                            float4 vertConf;
+                            vertConf.x = vmap_pi.ptr(vj)[ui];
+                            vertConf.y = vmap_pi.ptr(vj + rows)[ui];
+                            vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
+                            vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+
+                            float zdiff = vertConf.z - vsrc_new.z;
+                            if (abs(zdiff * lambda) < 0.05)
+                            {
+                                float3 ray_v_cross = cross(ray, make_float3(vertConf.x,vertConf.y,vertConf.z));
+                                float dist = sqrt(pow(ray_v_cross.x,2) + pow(ray_v_cross.y,2) + pow(ray_v_cross.z,2));
+                                float4 normRad;
+                                normRad.x = nmap_pi.ptr(vj)[ui];
+                                normRad.y = nmap_pi.ptr(vj + rows)[ui];
+                                normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
+                                normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
+                                if(dist < bestDist && (abs(normRad.z) < 0.75f || abs(angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(nnew_.x, nnew_.y, nnew_.z))) < 0.5f))
+                                {
+
+                                    float4 vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
+                                    float4 vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
+                                    float4 vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
+
+                                    float c_k = vPosition.w;
+                                    float3 v_k = make_float3(vPosition.x, vPosition.y, vPosition.z);
+
+                                    float a = confnew;
+                                    float3 v_g = vnew_;
+
+                                    float4 vPosition0, vColor0;
+                                    float4 vNormRad0;
+
+                                    if(nnew_.w < (1.0 + 0.5) * vNormRad.w)
+                                    {
+                                        vPosition0 = make_float4((c_k * v_k.x + a * v_g.x) / (c_k + a),(c_k * v_k.y + a * v_g.y) / (c_k + a),(c_k * v_k.z + a * v_g.z) / (c_k + a),
+                                                          c_k + a); // Add up confidence, weighted position
+                                        float3 oldCol = decodeColor(vColor.x);
+                                        float3 newCol = decodeColor(ec_new);
+                                        float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
+                                        vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
+                                        vNormRad0 = make_float4((c_k * vNormRad.x+ a * nnew_.x)/ (c_k + a), (c_k * vNormRad.y+ a * nnew_.y)/ (c_k + a), (c_k * vNormRad.z+ a * nnew_.z)/ (c_k + a), (c_k * vNormRad.w+ a * nnew_.w)/ (c_k + a));
+                                        float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
+                                        vNormRad0.x = normnrad.x;
+                                        vNormRad0.y = normnrad.y;
+                                        vNormRad0.z = normnrad.z;
+
+                                    }
+                                    else
+                                    {
+                                        vPosition0 = vPosition;
+                                        vColor0 = vColor;
+                                        vNormRad0 = vNormRad;
+                                        vPosition0.w = c_k + a;
+                                        vColor0.w = time;
+                                    }
+
+                                    //writing vertex and confidence
+                                    model_buffer[current] = vPosition0.x;
+                                    model_buffer[current + rows_mb*cols_mb] = vPosition0.y;
+                                    model_buffer[current + 2*rows_mb*cols_mb] = vPosition0.z;
+                                    model_buffer[current + 3*rows_mb*cols_mb] = vPosition0.w;
+
+                                    //writing color and time
+                                    model_buffer[current + 4*rows_mb*cols_mb] = vColor0.x; //x
+                                    model_buffer[current + 5*rows_mb*cols_mb] = vColor0.y;//y
+                                    model_buffer[current + 6*rows_mb*cols_mb] = vColor0.z;//z
+                                    model_buffer[current + 7*rows_mb*cols_mb] = vColor0.w;//w time
+
+                                    //writing normals
+                                    model_buffer[current + 8*rows_mb*cols_mb] = vNormRad0.x;
+                                    model_buffer[current + 9*rows_mb*cols_mb] = vNormRad0.y;
+                                    model_buffer[current + 10*rows_mb*cols_mb] = vNormRad0.z;
+                                    model_buffer[current + 11*rows_mb*cols_mb] = vNormRad0.w;
+
+
+
+                                }
+                            }
+
+                        }
+                    }
+
+                }
+                
+            }
+
+        }
+ 
+    }
+
 }
 
-// void fuse()
-// {
-
-// }
 
 

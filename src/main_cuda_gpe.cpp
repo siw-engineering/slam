@@ -10,12 +10,74 @@
 using namespace std;
 
 
+Eigen::Vector3f rodrigues2(const Eigen::Matrix3f& matrix) 
+{
+  Eigen::JacobiSVD<Eigen::Matrix3f> svd(matrix, Eigen::ComputeFullV | Eigen::ComputeFullU);
+  Eigen::Matrix3f R = svd.matrixU() * svd.matrixV().transpose();
+
+  double rx = R(2, 1) - R(1, 2);
+  double ry = R(0, 2) - R(2, 0);
+  double rz = R(1, 0) - R(0, 1);
+
+  double s = sqrt((rx * rx + ry * ry + rz * rz) * 0.25);
+  double c = (R.trace() - 1) * 0.5;
+  c = c > 1. ? 1. : c < -1. ? -1. : c;
+
+  double theta = acos(c);
+
+  if (s < 1e-5) {
+    double t;
+
+    if (c > 0)
+      rx = ry = rz = 0;
+    else {
+      t = (R(0, 0) + 1) * 0.5;
+      rx = sqrt(std::max(t, 0.0));
+      t = (R(1, 1) + 1) * 0.5;
+      ry = sqrt(std::max(t, 0.0)) * (R(0, 1) < 0 ? -1.0 : 1.0);
+      t = (R(2, 2) + 1) * 0.5;
+      rz = sqrt(std::max(t, 0.0)) * (R(0, 2) < 0 ? -1.0 : 1.0);
+
+      if (fabs(rx) < fabs(ry) && fabs(rx) < fabs(rz) && (R(1, 2) > 0) != (ry * rz > 0)) rz = -rz;
+      theta /= sqrt(rx * rx + ry * ry + rz * rz);
+      rx *= theta;
+      ry *= theta;
+      rz *= theta;
+    }
+  } else {
+    double vth = 1 / (2 * s);
+    vth *= theta;
+    rx *= vth;
+    ry *= vth;
+    rz *= vth;
+  }
+  return Eigen::Vector3d(rx, ry, rz).cast<float>();
+}
+
+float computeFusionWeight(float weightMultiplier, Eigen::Matrix4f diff) 
+{
+
+  Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
+  Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
+
+  float weighting = std::max(diffTrans.norm(), rodrigues2(diffRot).norm());
+
+  const float largest = 0.01;
+  const float minWeight = 0.5;
+
+  if (weighting > largest) weighting = largest;
+
+  weighting = std::max(1.0f - (weighting / largest), minWeight) * weightMultiplier;
+
+  return weighting;
+}
+
 int main(int argc, char  *argv[])
 {
 	int width, height, rows, cols;
 	width = cols = 320;
 	height = rows = 240;
-	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity();
+	Eigen::Matrix4f pose = Eigen::Matrix4f::Identity(), lastpose = Eigen::Matrix4f::Identity();
 	Eigen::Matrix4f tinv;
 	int count = 0;
 	float depthCutOff, maxDepth;
@@ -32,6 +94,8 @@ int main(int argc, char  *argv[])
 	// d2d_w = sqrt(MAX_VERTICES);
 	// d2d_h = d2d_w;
 
+
+	int weightMultiplier = 1;
 
 	Eigen::Vector3f transObject = pose.topRightCorner(3, 1);
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rotObject = pose.topLeftCorner(3, 3);
@@ -83,6 +147,8 @@ int main(int argc, char  *argv[])
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
 
+	float* dval = new float[width*height*3];
+
 	int i = 0;
 	while (ros::ok())
 	{
@@ -97,15 +163,31 @@ int main(int argc, char  *argv[])
 		dimg.convertTo(img, CV_32FC1);
 		rgb.upload((float*)img.data, height*3*width);
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
-
 		if (i==0)
 		{
 			rgbd_odom->initFirstRGB(rgb);
 			createVMap(intr, depth, vmap, depthCutOff);
 			createNMap(vmap, nmap);
+			//debug on
+			// vmap.download(&dval[0], width*sizeof(float));
+			// float max,min;
+			// max = 0;
+			// min = 2;
+			// for (int i = width*height; i< 2*width*height; i++)
+			// {		
+			// 	if ((dval[i] > max) && !isinf(dval[i]))
+			// 	max = dval[i];
+			// 	if (dval[i] < min)
+			// 	min = dval[i];
+			// 	// std::cout<<"z = "<<dval[i]<<"*";
+			// }
+			// std::cout<<"max = "<<max<<": min = "<<min;
+			// exit(0);
+			//debug off
 			rgb_prev.upload((float*)img.data, height*3*width);
 			tinv  = pose.inverse();
-			initModelBuffer(intr, depthCutOff, vmap, nmap, rgb, model_buffer, &count);
+			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
+			// std::cout<<count<<std::endl;
 			//debug start
 			//printing 
 			// float* data = new float[bufferSize];
@@ -118,11 +200,11 @@ int main(int argc, char  *argv[])
 			// for (int i=0; i<int(100);i++) std::cout<<sdata[i]<<"*";
 			// kernelCode();
 			//debug end
-			splatDepthPredict(intr, height, width, maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+			splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 			ros::spinOnce();
-			i++;
-			exit(0);
-
+			// i++;
+			// exit(0);
+			count = 0;
 			continue;
 		}
 
@@ -143,6 +225,7 @@ int main(int argc, char  *argv[])
 		transObject = pose.topRightCorner(3, 1);
 		rotObject = pose.topLeftCorner(3, 3);
 		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
+		
 		pose.topRightCorner(3, 1) = transObject;
 		pose.topLeftCorner(3, 3) = rotObject;
 
@@ -155,7 +238,8 @@ int main(int argc, char  *argv[])
 		//predict indicies
 		std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 		// std::cout<<"i :"<< i<< "\npose :"<<pose<<std::endl;
-		i++;
+
+		i++;			// TO DO set lastpose
 		ros::spinOnce();
 	}
 

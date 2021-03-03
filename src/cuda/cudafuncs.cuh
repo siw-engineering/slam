@@ -208,6 +208,6 @@ void computeDerivativeImages(DeviceArray2D<unsigned char>& src,
 void splatDepthPredict(const CameraModel& intr, int rows, int cols,  float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int count, DeviceArray2D<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst);
 
 void initModelBuffer(const CameraModel& intr, const float depthCutOff, DeviceArray<float> & model_buffer, int* h_count, const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb );
-void predictIndicies(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray<float>& index_pi, int count);
+void predictIndicies(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, int count);
 #endif /* CUDA_CUDAFUNCS_CUH_ */
 
