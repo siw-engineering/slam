@@ -94,7 +94,6 @@ int main(int argc, char  *argv[])
 	// d2d_w = sqrt(MAX_VERTICES);
 	// d2d_h = d2d_w;
 
-
 	int weightMultiplier = 1;
 
 	Eigen::Vector3f transObject = pose.topRightCorner(3, 1);
@@ -119,6 +118,9 @@ int main(int argc, char  *argv[])
 	DeviceArray<float> rgb, rgb_prev, vmaps_tmp, nmaps_tmp;
 	DeviceArray2D<float> depth;
 	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev, color_splat;
+	DeviceArray2D<float> vmap_pi, nmap_pi, ct_pi;
+	DeviceArray2D<unsigned int> index_pi;
+
 	DeviceArray2D<unsigned int> time_splat;
 	DeviceArray<float> model_buffer, unstable_buffer;
 	std::vector<DeviceArray2D<float>> depthPyr;
@@ -147,9 +149,9 @@ int main(int argc, char  *argv[])
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
 
-	float* dval = new float[width*height*3];
+	// float* dval = new float[width*height*3];
 
-	int i = 0;
+	int frame = 0;
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -163,48 +165,18 @@ int main(int argc, char  *argv[])
 		dimg.convertTo(img, CV_32FC1);
 		rgb.upload((float*)img.data, height*3*width);
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
-		if (i==0)
+		if (frame==0)
 		{
 			rgbd_odom->initFirstRGB(rgb);
 			createVMap(intr, depth, vmap, depthCutOff);
 			createNMap(vmap, nmap);
-			//debug on
-			// vmap.download(&dval[0], width*sizeof(float));
-			// float max,min;
-			// max = 0;
-			// min = 2;
-			// for (int i = width*height; i< 2*width*height; i++)
-			// {		
-			// 	if ((dval[i] > max) && !isinf(dval[i]))
-			// 	max = dval[i];
-			// 	if (dval[i] < min)
-			// 	min = dval[i];
-			// 	// std::cout<<"z = "<<dval[i]<<"*";
-			// }
-			// std::cout<<"max = "<<max<<": min = "<<min;
-			// exit(0);
-			//debug off
 			rgb_prev.upload((float*)img.data, height*3*width);
 			tinv  = pose.inverse();
 			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
-			// std::cout<<count<<std::endl;
-			//debug start
-			//printing 
-			// float* data = new float[bufferSize];
-			// model_buffer.download(&data[0]);
-			// for (int i=0; i<int(100);i++) std::cout<<data[i]<<"*"<<data[i+TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+2*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+3*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+4*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+5*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+6*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+7*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+8*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+9*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+10*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*"<<data[i+11*TEXTURE_DIMENSION*TEXTURE_DIMENSION]<<"*";
-			// for (int i=0; i<int(MAX_VERTICES);i++) std::cout<<data[i]<<"*";
-			// splatDepthPredict(intr, height, width, tinv.data(), model_buffer, /*vmap,*/ vmap_splat_prev, /*nmap,*/ nmap_splat_prev);
-			// float* sdata = new float[width*height*3];
-			// vmap_splat_prev.download(&sdata[0], width*sizeof(float));
-			// for (int i=0; i<int(100);i++) std::cout<<sdata[i]<<"*";
-			// kernelCode();
-			//debug end
 			splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+
 			ros::spinOnce();
-			// i++;
-			// exit(0);
-			count = 0;
+			frame++;
 			continue;
 		}
 
@@ -217,29 +189,49 @@ int main(int argc, char  *argv[])
 		tinv  = pose.inverse();
 
 		// perfrom tracking
-		rgbd_odom->initICPModel(vmap_splat_prev, nmap_splat_prev, 100, pose);
+		rgbd_odom->initICPModel(vmap_splat_prev, nmap_splat_prev, maxDepth, pose);
 		copyMaps(vmap_splat_prev, nmap_splat_prev, vmaps_tmp, nmaps_tmp);
-		rgbd_odom->initRGBModel(rgb_prev, vmaps_tmp);
-		rgbd_odom->initICP(depthPyr, 100);
-		rgbd_odom->initRGB(rgb, vmaps_tmp);
-		transObject = pose.topRightCorner(3, 1);
-		rotObject = pose.topLeftCorner(3, 3);
-		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
+		cudaDeviceSynchronize();
+		cudaCheckError();
+		// rgbd_odom->initRGBModel(rgb_prev, vmaps_tmp);
+
+	
+			// float* dval = new float[width*height*3];
+			// vmaps_tmp.download(&dval[0]);
+			// for (int ii = 0; ii< width*height; ii++)
+			// {		
+			// 	std::cout<<"v = "<<dval[ii]<<"*";
+			// }
+			// std::cout<<frame<<std::endl;
+			// exit(0);		
+
+		// rgbd_odom->initICP(depthPyr, maxDepth);
+		// rgbd_odom->initRGB(rgb, vmaps_tmp);
+		// transObject = pose.topRightCorner(3, 1);
+		// rotObject = pose.topLeftCorner(3, 3);
+		// rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
 		
-		pose.topRightCorner(3, 1) = transObject;
-		pose.topLeftCorner(3, 3) = rotObject;
+		// pose.topRightCorner(3, 1) = transObject;
+		// pose.topLeftCorner(3, 3) = rotObject;
 
-		//splat predict
-		createVMap(intr, depth, vmap, 100);
-		createNMap(vmap, nmap);
-		std::swap(rgb, rgb_prev);
-		// splatDepthPredict(intr, height, width, tinv.data(), vmap, vmap_splat_prev, nmap, nmap_splat_prev);
 
-		//predict indicies
-		std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
-		// std::cout<<"i :"<< i<< "\npose :"<<pose<<std::endl;
+		// //predict indicies
+		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, i/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 
-		i++;			// TO DO set lastpose
+		// //fuse
+		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		// fuse(depth, rgb, intr, rows, cols, maxDepth, pose.data(), model_buffer, i/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count, w);
+
+
+		// std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+
+		// //splat predict
+		// createVMap(intr, depth, vmap, 100);
+		// createNMap(vmap, nmap);
+		// std::swap(rgb, rgb_prev);
+		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+
+		frame++;			// TO DO set lastpose
 		ros::spinOnce();
 	}
 

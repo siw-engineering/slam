@@ -1243,18 +1243,27 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
 
 void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int count,  DeviceArray2D<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
 {
-    // dim3 block (32, 8);
-    // dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y));
-    // dim3 grid (getGridDim (cols, block.x), getGridDim (rows, block.y)); //change threads to count TO DO
     int blocksize = 32*8;
     int numblocks = (count + blocksize - 1)/ blocksize;
 
-    //TO DO initialize device arrays with 0s
-    color_dst.create(rows*4, cols);
-    vmap_dst.create(rows*4, cols);
-    nmap_dst.create(rows*4, cols);
-    time_dst.create(rows, cols);
 
+    float* vertices = new float[rows*cols*4];
+    memset(&vertices[0], 0, rows*cols*4);
+
+    vmap_dst.create(rows*4, cols); // TO DO put it outside
+    vmap_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+
+
+    color_dst.create(rows*4, cols);
+    color_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+
+    nmap_dst.create(rows*4, cols);
+    nmap_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+    
+    time_dst.create(rows,cols);
+    time_dst.upload(&vertices[0], sizeof(float)*cols, rows, cols);
+
+    delete[] vertices;
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
@@ -1331,6 +1340,7 @@ __global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  i
         fc.y = fc.y * rows;
         int x = fc.x, y = fc.y;
 
+        // printf("x = %d y = %d\n", x, y);
         vmap_pi.ptr(y)[x] = v_.x;
         vmap_pi.ptr(y + rows)[x] = v_.y;
         vmap_pi.ptr(y + rows * 2)[x] = v_.z;
@@ -1356,16 +1366,32 @@ void predictIndicies(const CameraModel& intr, int rows, int cols, float maxDepth
     int numblocks = (count + blocksize - 1)/ blocksize;
     int timeDelta = 200;
 
-    vmap_pi.create(rows*4, cols); //TO DO init device arrays with 0s
+    float* vertices = new float[rows*cols*4];
+    memset(&vertices[0], 0, rows*cols*4);
+
+
+    vmap_pi.create(rows*4, cols); 
+    vmap_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+
     ct_pi.create(rows*4, cols);
+    ct_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+
     nmap_pi.create(rows*4, cols);
+    nmap_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+    
     index_pi.create(rows,cols);
+    index_pi.upload(&vertices[0], sizeof(float)*cols, rows, cols);
+
+    delete[] vertices;
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
-    predictIndiciesKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, pose_inv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
+    float * tinv;
+    cudaSafeCall(cudaMalloc((void**) &tinv, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(tinv, pose_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
+    predictIndiciesKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, tinv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
 
 }
 
@@ -1439,7 +1465,6 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, float
             // vPosition.w = confidence(x, y, weighting);
 
             float confnew = confidence(cx, cy, u, v, weighting);
-
             int updateId  = 0;
             int scale = 1;
             unsigned int best = 0U;
@@ -1448,18 +1473,14 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, float
             {
 
                 int operation = 0; // 0 => new point, 1 => merge, ~~3 => penalise~~
-
                 float bestDist = 1000;
-
                 float windowMultiplier = 2;
 
                 float xl = (u - cx) * fx;
                 float yl = (v - cy) * fy;
 
                 float lambda = sqrt(xl * xl + yl * yl + 1);
-
                 float3 ray = make_float3(xl, yl, 1);
-
 
                 for (int ui = u - 1; ui < u + 1; ui++)
                 {
@@ -1542,24 +1563,33 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, float
                                     model_buffer[current + 9*rows_mb*cols_mb] = vNormRad0.y;
                                     model_buffer[current + 10*rows_mb*cols_mb] = vNormRad0.z;
                                     model_buffer[current + 11*rows_mb*cols_mb] = vNormRad0.w;
-
-
-
                                 }
                             }
-
                         }
                     }
-
                 }
-                
             }
-
         }
- 
     }
-
 }
 
+void fuse(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, int count, float weighting)
+{
+    dim3 block (32, 8);
+    dim3 grid (1, 1, 1);
+    grid.x = getGridDim (depth.cols (), block.x);
+    grid.y = getGridDim (depth.rows (), block.y);
+
+    float fx = intr.fx, cx = intr.cx;
+    float fy = intr.fy, cy = intr.cy;
+
+
+    float * t;
+    cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
+
+    fuseKernel<<<grid, block>>>(depth, rgb, fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, time, vmap_pi, ct_pi, nmap_pi, index_pi, count, weighting);
+    cudaSafeCall(cudaGetLastError());
+}
 
 
