@@ -10,17 +10,14 @@ class FillIn {
  public:
   FillIn(int width, int height);
   virtual ~FillIn();
-  void image(DeviceArray<float>& existingRgb, DeviceArray<float>& rawRgb, bool passthrough);
+  DeviceArray<float> image(DeviceArray<float>& existingRgb, DeviceArray<float>& rawRgb, bool passthrough);
 
-  void vertex(const CameraModel& intr, DeviceArray2D<float>& existingVertex,
+  DeviceArray2D<float> vertex(const CameraModel& intr, DeviceArray2D<float>& existingVertex,
               DeviceArray2D<float>& rawDepth, bool passthrough);
 
-  void normal(const CameraModel& intr, DeviceArray2D<float>& existingNormal, DeviceArray2D<float>& rawDepth,
+  DeviceArray2D<float> normal(const CameraModel& intr, DeviceArray2D<float>& existingNormal, DeviceArray2D<float>& rawDepth,
               bool passthrough);
 
-  DeviceArray<float> imageTexture;
-  DeviceArray2D<float> vertexTexture;
-  DeviceArray2D<float> normalTexture;
   int width;
   int height;
 

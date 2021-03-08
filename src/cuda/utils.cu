@@ -91,7 +91,6 @@ void computeBilateralFilter(const DeviceArray2D<float>& depth, DeviceArray2D<flo
     dim3 grid (1, 1, 1);
     grid.x = getGridDim (depth.cols (), block.x);
     grid.y = getGridDim (depth.rows (), block.y);
-
     computeBilateralFilterKernel<<<grid, block>>>(depth, filtered, depthCutoff);
     cudaSafeCall (cudaGetLastError ());
 
