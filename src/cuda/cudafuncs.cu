@@ -600,6 +600,9 @@ __global__ void copyMapsKernel2D_2_1D(int rows, int cols, PtrStepSz<float> vmap_
         vmap_dst[y * cols * 4 + (x * 4) + 0] = vdst.x;
         vmap_dst[y * cols * 4 + (x * 4) + 1] = vdst.y;
         vmap_dst[y * cols * 4 + (x * 4) + 2] = vdst.z;
+        // vmap_dst[y * cols * 4 + (x * 4) + 3] = vdst.w;
+        // can do m/m optimization here
+
 
         //normals
         float3 nsrc, ndst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -625,15 +628,17 @@ void copyMaps(const DeviceArray2D<float>& vmap_src,
               DeviceArray<float>& nmap_dst)
 {
     int cols = vmap_src.cols();
-    int rows = vmap_src.rows() / 3;
+    int rows = vmap_src.rows() / 4;
 
-    vmap_dst.create(rows * 3 * cols);
-    nmap_dst.create(rows * 3 * cols);
+    vmap_dst.create(rows * 4 * cols);
+    nmap_dst.create(rows * 4 * cols);
 
     dim3 block(32, 8);
     dim3 grid(1, 1, 1);
     grid.x = getGridDim(cols, block.x);
     grid.y = getGridDim(rows, block.y);
+
+    std::cout<<"rows :"<<rows<<"cols :"<<cols;
 
     copyMapsKernel2D_2_1D<<<grid, block>>>(rows, cols, vmap_src, nmap_src, vmap_dst, nmap_dst);
     cudaSafeCall(cudaGetLastError());
@@ -997,9 +1002,9 @@ __global__ void bgr2IntensityKernelDM(int rows, int cols, float * rgb_src, PtrSt
     if (x < cols && y < rows)
     {
         float3 vsrc, vdst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
-        vsrc.x = rgb_src[y * cols * 4 + (x * 4) + 0];
-        vsrc.y = rgb_src[rows * cols * 4 + y * cols * 4 + (x * 4) + 1];
-        vsrc.z = rgb_src[2 * rows * cols * 4 + y * cols * 4 + (x * 4) + 2];
+        vsrc.x = rgb_src[y * cols * 3 + (x * 3) + 0];
+        vsrc.y = rgb_src[y * cols * 3 + (x * 3) + 1];
+        vsrc.z = rgb_src[y * cols * 3 + (x * 3) + 2];
         int value = (float)vsrc.x * 0.114f + (float)vsrc.y * 0.299f + (float)vsrc.z * 0.587f;
         rgb_dst.ptr(y)[x] = value;
 
@@ -1010,7 +1015,7 @@ void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, DeviceArray2D<unsigned c
 {
     dim3 block (32, 8);
     dim3 grid (getGridDim (rgb_dst.cols(), block.x), getGridDim (rgb_dst.rows(), block.y));
-    int rows = rgb_dst.rows() / 3;
+    int rows = rgb_dst.rows(); // TO DO CHANGED changed / 3
     int cols = rgb_dst.cols();
     bgr2IntensityKernelDM<<<grid, block>>>(rows, cols, rgb_src, rgb_dst);
     cudaCheckError();
@@ -1116,7 +1121,7 @@ void projectToPointCloud(const DeviceArray2D<float> & depth,
 }
 
 
-__global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* tinv, float* model_buffer, PtrStepSz<float> color_dst, PtrStepSz<float> vmap_dst, PtrStepSz<float> nmap_dst, PtrStepSz<unsigned int> time_dst, int count)
+__global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* tinv, float* model_buffer, /*PtrStepSz<float> color_dst*/float* color_dst, PtrStepSz<float> vmap_dst, PtrStepSz<float> nmap_dst, PtrStepSz<unsigned int> time_dst, int count)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     int rows_mb, cols_mb;
@@ -1218,10 +1223,15 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     dc = decodeColor(c);
 
     //writing color
-    color_dst.ptr(y)[x] = dc.x;
-    color_dst.ptr(y + rows)[x] = dc.y;
-    color_dst.ptr(y + rows  * 2)[x] = dc.z;
-    color_dst.ptr(y + rows  * 3)[x] = 1;
+    // color_dst.ptr(y)[x] = dc.x;
+    // color_dst.ptr(y + rows)[x] = dc.y;
+    // color_dst.ptr(y + rows  * 2)[x] = dc.z;
+    // color_dst.ptr(y + rows  * 3)[x] = 1;
+    color_dst[y*cols + x] = dc.x;
+    color_dst[y*cols + rows*cols + x] = dc.y;
+    color_dst[y*cols + 2*rows*cols + x] = dc.z;
+    color_dst[y*cols + 3*rows*cols + x] = 1;
+
 
     //writing vertex and conf
     vmap_dst.ptr(y)[x] = (fc.x - cx)*cp.z*(1/fx);
@@ -1241,7 +1251,7 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
 
 }
 
-void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int count,  DeviceArray2D<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
+void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int count,  /*DeviceArray2D<float>& color_dst*/DeviceArray<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
 {
     int blocksize = 32*8;
     int numblocks = (count + blocksize - 1)/ blocksize;
@@ -1253,9 +1263,11 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDep
     vmap_dst.create(rows*4, cols); // TO DO put it outside
     vmap_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
 
+    // color_dst.create(rows*4, cols);
+    // color_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
 
-    color_dst.create(rows*4, cols);
-    color_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+    color_dst.create(rows*4*cols);
+    color_dst.upload(&vertices[0], rows*4*cols);
 
     nmap_dst.create(rows*4, cols);
     nmap_dst.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
@@ -1593,3 +1605,7 @@ void fuse(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, const CameraMod
 }
 
 
+// __global__ void DATestKernel(float* da_src, float* da_dst)
+// {
+    
+// }
