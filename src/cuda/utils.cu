@@ -110,12 +110,12 @@ __global__ void fillinImage(int width, int height, float* existingRgb, float* ra
         sample.z = existingRgb[y * width * 4 + (x * 4) + 2];
         sample.w = existingRgb[y * width * 4 + (x * 4) + 3];
 
-        if (sample.x + sample.y + sample.z == 0 || passthrough == 1)
+        if (((sample.x + sample.y + sample.z) == 0) || passthrough == 1)
         {
-            dst[y * width * 4 + (x * 4) + 0] = rawRgb[y * width * 4 + (x * 4) + 0];
-            dst[y * width * 4 + (x * 4) + 1] = rawRgb[y * width * 4 + (x * 4) + 1];
-            dst[y * width * 4 + (x * 4) + 2] = rawRgb[y * width * 4 + (x * 4) + 2];
-            dst[y * width * 4 + (x * 4) + 3] = rawRgb[y * width * 4 + (x * 4) + 3];
+            dst[y * width * 4 + (x * 4) + 0] = rawRgb[y * width * 3 + (x * 3) + 0];
+            dst[y * width * 4 + (x * 4) + 1] = rawRgb[y * width * 3 + (x * 3) + 1];
+            dst[y * width * 4 + (x * 4) + 2] = rawRgb[y * width * 3 + (x * 3) + 2];
+            dst[y * width * 4 + (x * 4) + 3] = /*rawRgb[y * width * 4 + (x * 4) + 3]*/1;
         }
         else
         {            

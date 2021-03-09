@@ -258,7 +258,6 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
     rows_mb = cols_mb = 3072;
 
     int i = cols*v + u;
-
     // int i = *count;
     //writing vertex and confidence
     model_buffer[i] = vmap.ptr(v)[u];
@@ -269,15 +268,19 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
     // color encoding
     float3 c;
     float ec ;
-    c.x = rgb[i];
-    c.y = rgb[i + rows*cols];
-    c.z = rgb[i + 2*rows*cols];
+    c.x = rgb[v*cols*3 + u*3 + 0];
+    c.y = rgb[v*cols*3 + u*3 + 1];
+    c.z = rgb[v*cols*3 + u*3 + 2];
     ec = encodeColor(c);
 
-    //writing color and time
-    model_buffer[i+4*rows_mb*cols_mb] = ec; //x
-    model_buffer[i+5*rows_mb*cols_mb] = 0;//y
-    model_buffer[i+6*rows_mb*cols_mb] = 1;//z
+    // //writing color and time
+    // model_buffer[i+4*rows_mb*cols_mb] = ec; //x // TO DO UPDATE disabling color encoding, don't know what will happen
+    // model_buffer[i+5*rows_mb*cols_mb] = 0;//y
+    // model_buffer[i+6*rows_mb*cols_mb] = 1;//z
+    // model_buffer[i+7*rows_mb*cols_mb] = 1;//w time
+    model_buffer[i+4*rows_mb*cols_mb] = c.x; //x
+    model_buffer[i+5*rows_mb*cols_mb] = c.y;//y
+    model_buffer[i+6*rows_mb*cols_mb] = c.z;//z
     model_buffer[i+7*rows_mb*cols_mb] = 1;//w time
 
     //writing normals
@@ -1222,16 +1225,16 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     float3 dc; 
     dc = decodeColor(c);
 
-    //writing color
-    // color_dst.ptr(y)[x] = dc.x;
-    // color_dst.ptr(y + rows)[x] = dc.y;
-    // color_dst.ptr(y + rows  * 2)[x] = dc.z;
-    // color_dst.ptr(y + rows  * 3)[x] = 1;
-    color_dst[y*cols + x] = dc.x;
-    color_dst[y*cols + rows*cols + x] = dc.y;
-    color_dst[y*cols + 2*rows*cols + x] = dc.z;
-    color_dst[y*cols + 3*rows*cols + x] = 1;
+    //writing color TO DO UPDATE disableing color decoding
 
+    // color_dst[y*cols*4 + x*4 + 0] = dc.x;
+    // color_dst[y*cols*4 + x*4 + 1] = dc.y;
+    // color_dst[y*cols*4 + x*4 + 2] = dc.z;
+    // color_dst[y*cols*4 + x*4 + 3] = 1;
+    color_dst[y*cols*4 + x*4 + 0] = model_buffer[i+4*rows_mb*cols_mb];
+    color_dst[y*cols*4 + x*4 + 1] = model_buffer[i+5*rows_mb*cols_mb];
+    color_dst[y*cols*4 + x*4 + 2] = model_buffer[i+6*rows_mb*cols_mb];
+    color_dst[y*cols*4 + x*4 + 3] = 1;
 
     //writing vertex and conf
     vmap_dst.ptr(y)[x] = (fc.x - cx)*cp.z*(1/fx);
