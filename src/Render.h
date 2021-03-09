@@ -1,5 +1,7 @@
 #include <pangolin/pangolin.h>
 #include <string>
+#include <Shaders.h>
+
 
 class Render
 {
@@ -112,6 +114,15 @@ public:
 
 		}
 	}
+	
+	void glCoord(float data[], float vertices[], int size){
 
+		for (int i = 0; i < size; i++){
+			vertices[3 * i + 0] = data[i];
+			vertices[3 * i + 1] = data[i + size];
+			vertices[3 * i + 2] = data[i + 2 * (size)];
+		}
+
+	}
 
 };
