@@ -6,6 +6,8 @@
 #include "cuda/cudafuncs.cuh"
 #include "cuda/containers/device_array.hpp"
 #include "RGBDOdometry.h"
+#include "FillIn.h"
+#include <unistd.h>
 
 using namespace std;
 
@@ -74,6 +76,8 @@ float computeFusionWeight(float weightMultiplier, Eigen::Matrix4f diff)
 
 int main(int argc, char  *argv[])
 {
+
+
 	int width, height, rows, cols;
 	width = cols = 320;
 	height = rows = 240;
@@ -115,9 +119,10 @@ int main(int argc, char  *argv[])
 
 	rgbd_odom = new RGBDOdometry(width, height, (float)cam_model.cx, (float)cam_model.cy, (float)cam_model.fx, (float)cam_model.fy);
 
-	DeviceArray<float> rgb, rgb_prev, vmaps_tmp, nmaps_tmp;
+	DeviceArray<float> rgb, rgb_prev, color_splat, vmaps_tmp, nmaps_tmp;
 	DeviceArray2D<float> depth;
-	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev, color_splat;
+	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev/*, color_splat*/;
+	DeviceArray2D<unsigned char> lastNextImage;
 	DeviceArray2D<float> vmap_pi, nmap_pi, ct_pi;
 	DeviceArray2D<unsigned int> index_pi;
 
@@ -136,6 +141,7 @@ int main(int argc, char  *argv[])
 	rgb.create(height*3*width);
 	rgb_prev.create(height*3*width);
 	depth.create(height, width);
+	lastNextImage.create(height, width);
 
 	model_buffer.create(bufferSize);
 	unstable_buffer.create(width*height*VSIZE);
@@ -149,7 +155,16 @@ int main(int argc, char  *argv[])
 	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
 
+
 	// float* dval = new float[width*height*3];
+
+	FillIn fillin(width, height);
+	DeviceArray<float> fillin_img;
+	DeviceArray2D<float> fillin_vt, fillin_nt;
+
+	fillin_vt.create(height*4, width);
+	fillin_nt.create(height*4, width);
+	fillin_img.create(height*4*width);
 
 	int frame = 0;
 	while (ros::ok())
@@ -162,9 +177,35 @@ int main(int argc, char  *argv[])
 			continue;	
 		}
 		img.convertTo(img, CV_32FC3);
-		dimg.convertTo(img, CV_32FC1);
+		dimg.convertTo(dimg, CV_32FC1);
 		rgb.upload((float*)img.data, height*3*width);
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
+		/*debug on*/
+
+			// void* data_ = 0;
+			// int sizeBytes_ = width*height*3*sizeof(float);
+
+			//upload
+			// cudaSafeCall(cudaMalloc(&data_, sizeBytes_));
+			// cudaSafeCall(cudaMemcpy(data_, (float*)img.data, sizeBytes_, cudaMemcpyHostToDevice));
+			// cudaSafeCall(cudaDeviceSynchronize());
+
+			//download
+			// cudaSafeCall(cudaMemcpy(r, data_, sizeBytes_, cudaMemcpyDeviceToHost));
+			// cudaSafeCall(cudaDeviceSynchronize());
+			// float* r = new float[width*height*3];
+			// unsigned char* out = new unsigned char[width*height];
+			// rgb.download(r);
+			// int jj = 0;
+			// for (int ii =0; ii<width*height; ii++)
+			// {
+			// 		out[ii] = (unsigned char)r[jj];
+			// 		jj+=3;
+			// }
+			// cv::Mat save_img(rows, cols, CV_8UC1, out);
+			// cv::imwrite("src/test1.jpg", save_img);
+			// exit(0);
+		/*off*/
 		if (frame==0)
 		{
 			rgbd_odom->initFirstRGB(rgb);
@@ -174,7 +215,6 @@ int main(int argc, char  *argv[])
 			tinv  = pose.inverse();
 			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
 			splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-
 			ros::spinOnce();
 			frame++;
 			continue;
@@ -189,21 +229,14 @@ int main(int argc, char  *argv[])
 		tinv  = pose.inverse();
 
 		// perfrom tracking
-		rgbd_odom->initICPModel(vmap_splat_prev, nmap_splat_prev, maxDepth, pose);
-		copyMaps(vmap_splat_prev, nmap_splat_prev, vmaps_tmp, nmaps_tmp);
-		cudaDeviceSynchronize();
-		cudaCheckError();
-		// rgbd_odom->initRGBModel(rgb_prev, vmaps_tmp);
-
+		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, true);
+		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, true);
+		fillin.image(color_splat, rgb, fillin_img, true);
+		
+		rgbd_odom->initICPModel(fillin_vt, fillin_nt, maxDepth, pose);
+		copyMaps(fillin_vt, fillin_nt, vmaps_tmp, nmaps_tmp);
+		rgbd_odom->initRGBModel(fillin_img, vmaps_tmp);
 	
-			// float* dval = new float[width*height*3];
-			// vmaps_tmp.download(&dval[0]);
-			// for (int ii = 0; ii< width*height; ii++)
-			// {		
-			// 	std::cout<<"v = "<<dval[ii]<<"*";
-			// }
-			// std::cout<<frame<<std::endl;
-			// exit(0);		
 
 		// rgbd_odom->initICP(depthPyr, maxDepth);
 		// rgbd_odom->initRGB(rgb, vmaps_tmp);
@@ -213,7 +246,6 @@ int main(int argc, char  *argv[])
 		
 		// pose.topRightCorner(3, 1) = transObject;
 		// pose.topLeftCorner(3, 3) = rotObject;
-
 
 		// //predict indicies
 		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, i/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
