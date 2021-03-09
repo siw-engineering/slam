@@ -134,6 +134,9 @@ void fillinRgb(int width, int height, float* existingRgb, float* rawRgb, bool pa
 
     dim3 block(32, 8);
     dim3 grid(1, 1, 1);
+    
+    grid.x = getGridDim (width, block.x);
+    grid.y = getGridDim (height, block.y);
 
     fillinImage<<<grid, block>>>(width, height, existingRgb, rawRgb, passthrough, dst);
     cudaSafeCall(cudaGetLastError());
@@ -185,6 +188,9 @@ void fillinVertex(const CameraModel& intr, int width, int height, DeviceArray2D<
     dim3 block(32, 8);
     dim3 grid(1, 1, 1);
 
+    grid.x = getGridDim (width, block.x);
+    grid.y = getGridDim (height, block.y);
+
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
@@ -233,6 +239,9 @@ void fillinNormal(const CameraModel& intr, int width, int height, DeviceArray2D<
 {
     dim3 block(32, 8);
     dim3 grid(1, 1, 1);
+
+    grid.x = getGridDim (width, block.x);
+    grid.y = getGridDim (height, block.y);
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
