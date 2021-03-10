@@ -121,7 +121,7 @@ int main(int argc, char  *argv[])
 
 	DeviceArray<float> rgb, rgb_prev, color_splat, vmaps_tmp, nmaps_tmp;
 	DeviceArray2D<float> depth;
-	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev/*, color_splat*/;
+	DeviceArray2D<float> vmap, nmap, vmap_splat_prev, nmap_splat_prev/*, color_splat*/, vmap_test;
 	DeviceArray2D<unsigned char> lastNextImage;
 	DeviceArray2D<float> vmap_pi, nmap_pi, ct_pi;
 	DeviceArray2D<unsigned int> index_pi;
@@ -181,7 +181,6 @@ int main(int argc, char  *argv[])
 		rgb.upload((float*)img.data, height*3*width);
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
 		/*debug on*/
-
 			// void* data_ = 0;
 			// int sizeBytes_ = width*height*3*sizeof(float);
 
@@ -190,7 +189,7 @@ int main(int argc, char  *argv[])
 			// cudaSafeCall(cudaMemcpy(data_, (float*)img.data, sizeBytes_, cudaMemcpyHostToDevice));
 			// cudaSafeCall(cudaDeviceSynchronize());
 
-			//download
+			//downloadsssss
 			// cudaSafeCall(cudaMemcpy(r, data_, sizeBytes_, cudaMemcpyDeviceToHost));
 			// cudaSafeCall(cudaDeviceSynchronize());
 			// float* r = new float[width*height*3];
@@ -208,13 +207,16 @@ int main(int argc, char  *argv[])
 		/*off*/
 		if (frame==0)
 		{
-			rgbd_odom->initFirstRGB(rgb);
 			createVMap(intr, depth, vmap, depthCutOff);
 			createNMap(vmap, nmap);
+			rgbd_odom->initFirstRGB(rgb);
 			rgb_prev.upload((float*)img.data, height*3*width);
 			tinv  = pose.inverse();
 			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
 			splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+			fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+			fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+			fillin.image(color_splat, rgb, fillin_img, false);
 			ros::spinOnce();
 			frame++;
 			continue;
@@ -226,43 +228,101 @@ int main(int argc, char  *argv[])
 			pyrDownGaussF(depthPyr[i - 1], depthPyr[i]);
 		cudaDeviceSynchronize();
 		cudaCheckError();
-		tinv  = pose.inverse();
 
 		// perfrom tracking
-		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, true);
-		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, true);
-		fillin.image(color_splat, rgb, fillin_img, true);
-		
+		// fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+		// fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+		// fillin.image(color_splat, rgb, fillin_img, false);
+		//debug on
+			// float* r = new float[width*height*4];
+			// unsigned char* out = new unsigned char[width*height];
+			// fillin_img.download(r);
+			// int jj = 0;
+			// for (int ii =0; ii<width*height; ii++)
+			// {	
+			// 		out[ii] = (unsigned char)r[jj];
+			// 		jj+=4;
+			// }
+			// cv::Mat save_img(rows, cols, CV_8UC1, out);
+			// cv::imwrite("src/test1.jpg", save_img);
+			// exit(0);
+		//off
 		rgbd_odom->initICPModel(fillin_vt, fillin_nt, maxDepth, pose);
 		copyMaps(fillin_vt, fillin_nt, vmaps_tmp, nmaps_tmp);
 		rgbd_odom->initRGBModel(fillin_img, vmaps_tmp);
+		rgbd_odom->initICP(depthPyr, maxDepth);
+		rgbd_odom->initRGB(rgb, vmaps_tmp);
+
+		transObject = pose.topRightCorner(3, 1);
+		rotObject = pose.topLeftCorner(3, 3);
+		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
+		pose.topRightCorner(3, 1) = transObject;
+		pose.topLeftCorner(3, 3) = rotObject;
+
+		//predict()
+		tinv  = pose.inverse();
+		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		//debug on
+			// float vmap_hst[width*height*4];
+			// vmap_splat_prev.download(&vmap_hst, width*(sizeof(float)));
+			// float plot[width*height*3];
+
+			// float* vmap_hst_new = new float[height*width*3];
+			// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_hst_new);
+			// delete[] vmap_hst;
+
+			// Render view(640, 480);
+			// view.glCoord(vmap_hst, plot, width*height);
+			// view.bufferHandle(plot, sizeof(plot));
+			// view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height*3);
 	
+			// vertices = new float[width*height*4];
+			// memset(&vertices[0], 0, width*height*4);
+			// vmap_test.create(height*4, width);
+			// vmap_test.upload(&vertices[0], sizeof(float)*width, height, width);
+			// delete[] vertices;
+		// off
+		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+		fillin.image(color_splat, rgb, fillin_img, false);
 
-		// rgbd_odom->initICP(depthPyr, maxDepth);
-		// rgbd_odom->initRGB(rgb, vmaps_tmp);
-		// transObject = pose.topRightCorner(3, 1);
-		// rotObject = pose.topLeftCorner(3, 3);
-		// rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
-		
-		// pose.topRightCorner(3, 1) = transObject;
-		// pose.topLeftCorner(3, 3) = rotObject;
+		// predict indicies
+		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		//debug on
+			// float* r = new float[width*height*4];
+			// unsigned char* out = new unsigned char[width*height];
+			// fillin_img.download(r);
+			// int jj = 0;
+			// for (int ii =0; ii<width*height; ii++)
+			// {	
+			// 		out[ii] = (unsigned char)r[jj];
+			// 		jj+=4;
+			// }
+			// cv::Mat save_img(rows, cols, CV_8UC1, out);
+			// cv::imwrite("src/test1.jpg", save_img);
+			// exit(0);
+		//off
+		// fuse
+		float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		fuse(depth, rgb, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, count, w);
+		// predict indices
+		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 
-		// //predict indicies
-		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, i/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		// splat predict
+		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+		fillin.image(color_splat, rgb, fillin_img, false);
 
-		// //fuse
-		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
-		// fuse(depth, rgb, intr, rows, cols, maxDepth, pose.data(), model_buffer, i/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count, w);
-
-
-		// std::cout<<"i :"<< i<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
-
-		// //splat predict
-		// createVMap(intr, depth, vmap, 100);
-		// createNMap(vmap, nmap);
+		// std::cout<<frame<<std::endl;
 		// std::swap(rgb, rgb_prev);
-		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		// createVMap(intr, depth, vmap, maxDepth);
+		// createNMap(vmap, nmap);
 
+		// vmap_splat_prev.release();
+		// nmap_splat_prev.release();
+		std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		lastpose = pose;
 		frame++;			// TO DO set lastpose
 		ros::spinOnce();
 	}

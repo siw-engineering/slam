@@ -68,8 +68,7 @@ class RGBDOdometry {
   static const int NUM_PYRS = 3;
 
  private:
-  void populateRGBDData(DeviceArray<float>& rgb, DeviceArray<float>& vmaps_tmp, DeviceArray2D<float>* destDepths, DeviceArray2D<unsigned char>* destImages);
-
+  void populateRGBDData(DeviceArray<float>& rgb, bool c3, DeviceArray<float>& vmaps_tmp, DeviceArray2D<float>* destDepths, DeviceArray2D<unsigned char>* destImages);
   // DeviceArray<float> vmaps_tmp;
   // DeviceArray<float> nmaps_tmp;
 

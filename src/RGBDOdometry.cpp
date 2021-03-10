@@ -147,7 +147,7 @@ void RGBDOdometry::initICPModel(DeviceArray2D<float>& vmaps_tmp, DeviceArray2D<f
   cudaDeviceSynchronize();
 }
 
-void RGBDOdometry::populateRGBDData(DeviceArray<float>& rgb, DeviceArray<float>& vmaps_tmp, DeviceArray2D<float>* destDepths, DeviceArray2D<unsigned char>* destImages) {
+void RGBDOdometry::populateRGBDData(DeviceArray<float>& rgb, bool c3, DeviceArray<float>& vmaps_tmp, DeviceArray2D<float>* destDepths, DeviceArray2D<unsigned char>* destImages) {
   verticesToDepth(vmaps_tmp, destDepths[0], maxDepthRGB);
 
   for (int i = 0; i + 1 < NUM_PYRS; i++) pyrDownGaussF(destDepths[i], destDepths[i + 1]);
@@ -155,7 +155,7 @@ void RGBDOdometry::populateRGBDData(DeviceArray<float>& rgb, DeviceArray<float>&
   // cudaArray* textPtr = rgb->getCudaArray();
   // imageBGRToIntensity(textPtr, destImages[0]);
   // rgb->cudaUnmap();
-  imageBGRToIntensityDM(rgb, destImages[0]);
+  imageBGRToIntensityDM(rgb, c3, destImages[0]);
 
   for (int i = 0; i + 1 < NUM_PYRS; i++) {
     pyrDownUcharGauss(destImages[i], destImages[i + 1]);
@@ -166,12 +166,12 @@ void RGBDOdometry::populateRGBDData(DeviceArray<float>& rgb, DeviceArray<float>&
 
 void RGBDOdometry::initRGBModel(DeviceArray<float>& rgb, DeviceArray<float>& vmaps_tmp) {
   // NOTE: This depends on vmaps_tmp containing the corresponding depth from initICPModel
-  populateRGBDData(rgb, vmaps_tmp, &lastDepth[0], &lastImage[0]);
+  populateRGBDData(rgb, false, vmaps_tmp, &lastDepth[0], &lastImage[0]);
 }
 
 void RGBDOdometry::initRGB(DeviceArray<float>& rgb,  DeviceArray<float>& vmaps_tmp) {
   // NOTE: This depends on vmaps_tmp containing the corresponding depth from initICP
-  populateRGBDData(rgb, vmaps_tmp, &nextDepth[0], &nextImage[0]);
+  populateRGBDData(rgb, true, vmaps_tmp, &nextDepth[0], &nextImage[0]);
 }
 
 void RGBDOdometry::initFirstRGB(DeviceArray<float>& rgb) {
@@ -179,7 +179,7 @@ void RGBDOdometry::initFirstRGB(DeviceArray<float>& rgb) {
   // cudaArray* textPtr = rgb->getCudaArray();
   // imageBGRToIntensity(textPtr, lastNextImage[0]);
   // rgb->cudaUnmap();
-  imageBGRToIntensityDM(rgb, lastNextImage[0]);
+  imageBGRToIntensityDM(rgb, true, lastNextImage[0]);
 
   for (int i = 0; i + 1 < NUM_PYRS; i++) {
     pyrDownUcharGauss(lastNextImage[i], lastNextImage[i + 1]);

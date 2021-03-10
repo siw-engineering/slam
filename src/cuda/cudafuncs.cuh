@@ -171,7 +171,7 @@ void resizeNMap(const DeviceArray2D<float>& input,
 void imageBGRToIntensity(cudaArray * cuArr,
                          DeviceArray2D<unsigned char> & dst);
 
-void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, DeviceArray2D<unsigned char>& rgb_dst);
+void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, bool c3, DeviceArray2D<unsigned char>& rgb_dst);
 
 void verticesToDepth(DeviceArray<float>& vmap_src,
                      DeviceArray2D<float> & dst,

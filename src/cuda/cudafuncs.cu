@@ -589,11 +589,13 @@ __global__ void copyMapsKernel2D_2_1D(int rows, int cols, PtrStepSz<float> vmap_
     if (x < cols && y < rows)
     {
         //vertexes
-        float3 vsrc, vdst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+        float4 vsrc, vdst = make_float4 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff),  __int_as_float(0x7fffffff));
 
         vsrc.x = vmap_src.ptr (y)[x];
         vsrc.y = vmap_src.ptr (y + rows)[x];
         vsrc.z = vmap_src.ptr (y + 2 * rows)[x];
+        vsrc.w = vmap_src.ptr (y + 3 * rows)[x];
+
 
         if(!(vsrc.z == 0))
         {
@@ -603,16 +605,17 @@ __global__ void copyMapsKernel2D_2_1D(int rows, int cols, PtrStepSz<float> vmap_
         vmap_dst[y * cols * 4 + (x * 4) + 0] = vdst.x;
         vmap_dst[y * cols * 4 + (x * 4) + 1] = vdst.y;
         vmap_dst[y * cols * 4 + (x * 4) + 2] = vdst.z;
-        // vmap_dst[y * cols * 4 + (x * 4) + 3] = vdst.w;
-        // can do m/m optimization here
+        vmap_dst[y * cols * 4 + (x * 4) + 3] = vdst.w;
 
 
         //normals
-        float3 nsrc, ndst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+        float4 nsrc, ndst = make_float4 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff),  __int_as_float(0x7fffffff));
 
         nsrc.x = nmap_src.ptr (y)[x] ;
         nsrc.y = nmap_src.ptr (y + rows)[x] ;
         nsrc.z = nmap_src.ptr (y + 2 * rows)[x] ;
+        nsrc.w = nmap_src.ptr (y + 3 * rows)[x] ;
+
 
         if(!(vsrc.z == 0))
         {
@@ -622,6 +625,8 @@ __global__ void copyMapsKernel2D_2_1D(int rows, int cols, PtrStepSz<float> vmap_
         nmap_dst[y * cols * 4 + (x * 4) + 0]= ndst.x;
         nmap_dst[y * cols * 4 + (x * 4) + 1]= ndst.y;
         nmap_dst[y * cols * 4 + (x * 4) + 2]= ndst.z;
+        nmap_dst[y * cols * 4 + (x * 4) + 3]= ndst.w;
+
     }
 }
 
@@ -641,7 +646,6 @@ void copyMaps(const DeviceArray2D<float>& vmap_src,
     grid.x = getGridDim(cols, block.x);
     grid.y = getGridDim(rows, block.y);
 
-    std::cout<<"rows :"<<rows<<"cols :"<<cols;
 
     copyMapsKernel2D_2_1D<<<grid, block>>>(rows, cols, vmap_src, nmap_src, vmap_dst, nmap_dst);
     cudaSafeCall(cudaGetLastError());
@@ -998,7 +1002,7 @@ void imageBGRToIntensity(cudaArray * cuArr, DeviceArray2D<unsigned char> & dst)
     cudaSafeCall(cudaUnbindTexture(inTex));
 }
 
-__global__ void bgr2IntensityKernelDM(int rows, int cols, float * rgb_src, PtrStepSz<unsigned char> rgb_dst)
+__global__ void bgr2IntensityKernelDMC3(int rows, int cols, float * rgb_src, PtrStepSz<unsigned char> rgb_dst)
 {
     int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -1014,13 +1018,33 @@ __global__ void bgr2IntensityKernelDM(int rows, int cols, float * rgb_src, PtrSt
     }
 }
 
-void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, DeviceArray2D<unsigned char>& rgb_dst)
+__global__ void bgr2IntensityKernelDMC4(int rows, int cols, float * rgb_src, PtrStepSz<unsigned char> rgb_dst)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x < cols && y < rows)
+    {
+        float3 vsrc, vdst = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+        vsrc.x = rgb_src[y * cols * 4 + (x * 4) + 0];
+        vsrc.y = rgb_src[y * cols * 4 + (x * 4) + 1];
+        vsrc.z = rgb_src[y * cols * 4 + (x * 4) + 2];
+        int value = (float)vsrc.x * 0.114f + (float)vsrc.y * 0.299f + (float)vsrc.z * 0.587f;
+        rgb_dst.ptr(y)[x] = value;
+
+    }
+}
+
+void imageBGRToIntensityDM(DeviceArray<float>& rgb_src, bool c3, DeviceArray2D<unsigned char>& rgb_dst)
 {
     dim3 block (32, 8);
     dim3 grid (getGridDim (rgb_dst.cols(), block.x), getGridDim (rgb_dst.rows(), block.y));
     int rows = rgb_dst.rows(); // TO DO CHANGED changed / 3
     int cols = rgb_dst.cols();
-    bgr2IntensityKernelDM<<<grid, block>>>(rows, cols, rgb_src, rgb_dst);
+    if (c3)
+        bgr2IntensityKernelDMC3<<<grid, block>>>(rows, cols, rgb_src, rgb_dst);
+    else
+        bgr2IntensityKernelDMC4<<<grid, block>>>(rows, cols, rgb_src, rgb_dst);
+
     cudaCheckError();
 
 }
@@ -1550,6 +1574,8 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, float
                                         vNormRad0.x = normnrad.x;
                                         vNormRad0.y = normnrad.y;
                                         vNormRad0.z = normnrad.z;
+                                        // atomicAdd(count, 1);
+
 
                                     }
                                     else
@@ -1578,6 +1604,8 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, float
                                     model_buffer[current + 9*rows_mb*cols_mb] = vNormRad0.y;
                                     model_buffer[current + 10*rows_mb*cols_mb] = vNormRad0.z;
                                     model_buffer[current + 11*rows_mb*cols_mb] = vNormRad0.w;
+
+
                                 }
                             }
                         }
