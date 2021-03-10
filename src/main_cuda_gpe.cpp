@@ -8,6 +8,7 @@
 #include "RGBDOdometry.h"
 #include "FillIn.h"
 #include <unistd.h>
+#include "Render.h"
 
 using namespace std;
 
@@ -152,8 +153,8 @@ int main(int argc, char  *argv[])
 	model_buffer.upload(&vertices[0], bufferSize);
 	delete[] vertices;
 
-	depthsub  = new DepthSubscriber("/X1/front/depth", nh);
-	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
+	depthsub  = new DepthSubscriber("/ROBOTIKA_X1/front/depth", nh);
+	rgbsub = new RGBSubscriber("/ROBOTIKA_X1/front/image_raw", nh);
 
 
 	// float* dval = new float[width*height*3];
@@ -288,6 +289,22 @@ int main(int argc, char  *argv[])
 
 		// predict indicies
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+
+		// debug on
+			// float* vmap_hst = new float[width*height*4];
+			// nmap_pi.download(vmap_hst, width*(sizeof(float)));
+			// float* vmap_hst_new = new float[height*width*3];
+			// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_hst_new);
+			// delete[] vmap_hst;
+
+			// float plot[width*height*3];
+			// Render view(640, 480);
+			// view.glCoord(vmap_hst_new, plot, width*height);
+			// view.bufferHandle(plot, sizeof(plot));
+			// view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height*3);
+
+		//off
+
 		//debug on
 			// float* r = new float[width*height*4];
 			// unsigned char* out = new unsigned char[width*height];

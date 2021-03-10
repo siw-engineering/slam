@@ -1,6 +1,6 @@
 #include <pangolin/pangolin.h>
 #include <string>
-#include <Shaders.h>
+#include <shaders/Shaders.h>
 
 
 class Render
