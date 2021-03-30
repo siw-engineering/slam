@@ -14,10 +14,11 @@ catkin_package()
 
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(RealSense2 REQUIRED)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
-
+include_directories(${REALSENSE2_INCLUDE_DIR})
 
 
 # Warnings / Errors
@@ -95,6 +96,7 @@ target_link_libraries(${PROJECT_NAME}
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
     ${Pangolin_LIBRARIES}
+    ${REALSENSE2_LIBRARY}
     boost_filesystem
     boost_system
     pthread
