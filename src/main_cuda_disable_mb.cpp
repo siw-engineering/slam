@@ -291,12 +291,12 @@ int main(int argc, char  *argv[])
 		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
 		fillin.image(color_splat, rgb, fillin_img, false);
 
-		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
-		// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// drawpose.topLeftCorner(3, 3) = rotObject;
-		// glLineWidth(4);
-		// pangolin::glDrawFrustum(Kinv, 640, 480, drawpose, 0.2f);
-		// glLineWidth(1);
+		std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		drawpose.topLeftCorner(3, 3) = rotObject;
+		glLineWidth(4);
+		pangolin::glDrawFrustum(Kinv, 640, 480, drawpose, 0.2f);
+		glLineWidth(1);
 
 
 		lastpose = pose;

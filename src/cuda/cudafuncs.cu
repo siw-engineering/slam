@@ -1511,7 +1511,11 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
 
             float confnew = confidence(cx, cy, u, v, weighting);
             unsigned int best = 0U;
-            
+            int operation = 0;
+            float4 vPosition0, vNormRad0, vColor0, vPosition, vNormRad, vColor;
+            float c_k, a;
+            float3 v_k, v_g;
+
             if((int(u) % 2 == int(time) % 2) && (int(v) % 2 == int(time) % 2) && checkNeighbours(depth, u, v) && vsrc_new.z > 0 && vsrc_new.z <= maxDepth)
             {
                 float bestDist = 1000;
@@ -1526,11 +1530,10 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                 {
                     for (int vj = v - 2; vj < v + 2; vj++)
                     {
-                        if (ui < 0)
+                        if ((ui < 0) || (ui >=cols))
                             continue;
-                        if (vj < 0)
+                        if ((vj < 0) || (vj >=rows))
                             continue;
-
                         unsigned int current = index_pi.ptr(vj)[ui];
                         if(current > 0U)
                         {
@@ -1539,13 +1542,10 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                             vertConf.y = vmap_pi.ptr(vj + rows)[ui];
                             vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
                             vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
-                            
-
                             float zdiff = vertConf.z - vsrc_new.z;
                             if (abs(zdiff * lambda) < 0.05)
                             {
                                 float3 ray_v_cross = make_float3(0,0,0);
-
                                 ray_v_cross = cross(ray, make_float3(vertConf.x,vertConf.y,vertConf.z));
                                 float dist = sqrt(pow(ray_v_cross.x,2) + pow(ray_v_cross.y,2) + pow(ray_v_cross.z,2)) / lambda;
                                 float4 normRad = make_float4(0,0,0,0);
@@ -1556,89 +1556,87 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                                 float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(nnew_.x, nnew_.y, nnew_.z));
                                 if(dist < bestDist && (abs(normRad.z) < 0.75f || abw < 0.5f))
                                 {
+                                    vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
+                                    vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
+                                    vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
 
-                                    float4 vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
-                                    float4 vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
-                                    float4 vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
+                                    c_k = vPosition.w;
+                                    v_k = make_float3(vPosition.x, vPosition.y, vPosition.z);
 
-                                    float c_k = vPosition.w;
-                                    float3 v_k = make_float3(vPosition.x, vPosition.y, vPosition.z);
-
-                                    float a = confnew;
-                                    float3 v_g = vnew_;
-
-                                    float4 vPosition0, vColor0;
-                                    float4 vNormRad0;
-
+                                    a = confnew;
+                                    v_g = vnew_;
 
                                     if(nnew_.w < (1.0 + 0.5) * vNormRad.w)
                                     {
-
-                                        vPosition0 = make_float4((c_k * v_k.x + a * v_g.x) / (c_k + a),(c_k * v_k.y + a * v_g.y) / (c_k + a),(c_k * v_k.z + a * v_g.z) / (c_k + a),
-                                                          c_k + a); // Add up confidence, weighted position
-                                        float3 oldCol = decodeColor(vColor.x);
-                                        float3 newCol = decodeColor(ec_new);
-                                        float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
-                                        vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
-                                        vNormRad0 = make_float4((c_k * vNormRad.x+ a * nnew_.x)/ (c_k + a), (c_k * vNormRad.y+ a * nnew_.y)/ (c_k + a), (c_k * vNormRad.z+ a * nnew_.z)/ (c_k + a), (c_k * vNormRad.w+ a * nnew_.w)/ (c_k + a));
-                                        float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
-                                        vNormRad0.x = normnrad.x;
-                                        vNormRad0.y = normnrad.y;
-                                        vNormRad0.z = normnrad.z;
-
-                                        //writing vertex and confidence
-                                        model_buffer[current] = vPosition0.x;
-                                        model_buffer[current + rows_mb*cols_mb] = vPosition0.y;
-                                        model_buffer[current + 2*rows_mb*cols_mb] = vPosition0.z;
-                                        model_buffer[current + 3*rows_mb*cols_mb] = vPosition0.w;
-
-                                        //writing color and time
-                                        model_buffer[current + 4*rows_mb*cols_mb] = vColor0.x; //x
-                                        model_buffer[current + 5*rows_mb*cols_mb] = vColor0.y;//y
-                                        model_buffer[current + 6*rows_mb*cols_mb] = vColor0.z;//z
-                                        model_buffer[current + 7*rows_mb*cols_mb] = vColor0.w;//w time
-
-                                        //writing normals
-                                        model_buffer[current + 8*rows_mb*cols_mb] = vNormRad0.x;
-                                        model_buffer[current + 9*rows_mb*cols_mb] = vNormRad0.y;
-                                        model_buffer[current + 10*rows_mb*cols_mb] = vNormRad0.z;
-                                        model_buffer[current + 11*rows_mb*cols_mb] = vNormRad0.w;
-
+                                        operation = 1;
+                                        bestDist = dist;
+                                        best = current;
                                     }
-                                    else
-                                    {
-
-                                        vPosition0 = vPosition;
-                                        vColor0 = vColor;
-                                        vNormRad0 = vNormRad;
-                                        vPosition0.w = c_k + a;
-                                        vColor0.w = time;
-
-                                        //writing vertex and confidence
-                                        model_buffer[*count] = vPosition0.x;
-                                        model_buffer[*count + rows_mb*cols_mb] = vPosition0.y;
-                                        model_buffer[*count + 2*rows_mb*cols_mb] = vPosition0.z;
-                                        model_buffer[*count + 3*rows_mb*cols_mb] = vPosition0.w;
-
-                                        //writing color and time
-                                        model_buffer[*count + 4*rows_mb*cols_mb] = vColor0.x; //x
-                                        model_buffer[*count + 5*rows_mb*cols_mb] = vColor0.y;//y
-                                        model_buffer[*count + 6*rows_mb*cols_mb] = vColor0.z;//z
-                                        model_buffer[*count + 7*rows_mb*cols_mb] = vColor0.w;//w time
-
-                                        //writing normals
-                                        model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad0.x;
-                                        model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad0.y;
-                                        model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad0.z;
-                                        model_buffer[*count + 11*rows_mb*cols_mb] = vNormRad0.w;
-                                        atomicAdd(count, 1);
-
-                                    }
-
                                 }
                             }
                         }
                     }
+                }
+                if (operation == 1)
+                {
+                    vPosition0 = make_float4((c_k * v_k.x + a * v_g.x) / (c_k + a),(c_k * v_k.y + a * v_g.y) / (c_k + a),(c_k * v_k.z + a * v_g.z) / (c_k + a),
+                                      c_k + a); // Add up confidence, weighted position
+                    float3 oldCol = decodeColor(vColor.x);
+                    float3 newCol = decodeColor(ec_new);
+                    float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
+                    vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
+                    vNormRad0 = make_float4((c_k * vNormRad.x+ a * nnew_.x)/ (c_k + a), (c_k * vNormRad.y+ a * nnew_.y)/ (c_k + a), (c_k * vNormRad.z+ a * nnew_.z)/ (c_k + a), (c_k * vNormRad.w+ a * nnew_.w)/ (c_k + a));
+                    float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
+                    vNormRad0.x = normnrad.x;
+                    vNormRad0.y = normnrad.y;
+                    vNormRad0.z = normnrad.z;
+
+                    //writing vertex and confidence
+                    model_buffer[best] = vPosition0.x;
+                    model_buffer[best + rows_mb*cols_mb] = vPosition0.y;
+                    model_buffer[best + 2*rows_mb*cols_mb] = vPosition0.z;
+                    model_buffer[best + 3*rows_mb*cols_mb] = vPosition0.w;
+
+                    //writing color and time
+                    model_buffer[best + 4*rows_mb*cols_mb] = vColor0.x; //x
+                    model_buffer[best + 5*rows_mb*cols_mb] = vColor0.y;//y
+                    model_buffer[best + 6*rows_mb*cols_mb] = vColor0.z;//z
+                    model_buffer[best + 7*rows_mb*cols_mb] = vColor0.w;//w time
+
+                    //writing normals
+                    model_buffer[best + 8*rows_mb*cols_mb] = vNormRad0.x;
+                    model_buffer[best + 9*rows_mb*cols_mb] = vNormRad0.y;
+                    model_buffer[best + 10*rows_mb*cols_mb] = vNormRad0.z;
+                    model_buffer[best + 11*rows_mb*cols_mb] = vNormRad0.w;
+
+                }
+                else
+                {
+                    vPosition0 = vPosition;
+                    vColor0 = vColor;
+                    vNormRad0 = vNormRad;
+                    vPosition0.w = c_k + a;
+                    vColor0.w = time;
+
+                    // writing vertex and confidence
+                    model_buffer[*count] = vPosition0.x;
+                    model_buffer[*count + rows_mb*cols_mb] = vPosition0.y;
+                    model_buffer[*count + 2*rows_mb*cols_mb] = vPosition0.z;
+                    model_buffer[*count + 3*rows_mb*cols_mb] = vPosition0.w;
+
+                    //writing color and time
+                    model_buffer[*count + 4*rows_mb*cols_mb] = vColor0.x; //x
+                    model_buffer[*count + 5*rows_mb*cols_mb] = vColor0.y;//y
+                    model_buffer[*count + 6*rows_mb*cols_mb] = vColor0.z;//z
+                    model_buffer[*count + 7*rows_mb*cols_mb] = vColor0.w;//w time
+
+                    //writing normals
+                    model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad0.x;
+                    model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad0.y;
+                    model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad0.z;
+                    model_buffer[*count + 11*rows_mb*cols_mb] = vNormRad0.w;
+                    atomicAdd(count, 1);
+
                 }
             }
         }
