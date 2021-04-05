@@ -222,6 +222,20 @@ int main(int argc, char  *argv[])
 		rgbd_odom->initICP(depthPyr, maxDepth);
 		rgbd_odom->initRGB(rgb, vmaps_tmp);
 
+		transObject = pose.topRightCorner(3, 1);
+        rotObject = pose.topLeftCorner(3, 3);
+        rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
+        pose.topRightCorner(3, 1) = transObject;
+        pose.topLeftCorner(3, 3) = rotObject;
+
+        //predict()
+        tinv  = pose.inverse();
+        splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+        fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+        fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+        fillin.image(color_splat, rgb, fillin_img, false);
+
+
 		// debug on
 			// float* vmap_hst = new float[height*width*4];
 			// vmaps_tmp.download(vmap_hst);
@@ -279,7 +293,6 @@ int main(int argc, char  *argv[])
 			// cv::imwrite("src/testdepth.jpg", save_img);
 			// exit(0);
 		//off
-
  	
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
@@ -292,12 +305,12 @@ int main(int argc, char  *argv[])
 		fillin.image(color_splat, rgb, fillin_img, false);
 
 		std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		drawpose.topLeftCorner(3, 3) = rotObject;
 		glLineWidth(4);
 		pangolin::glDrawFrustum(Kinv, 640, 480, drawpose, 0.2f);
 		glLineWidth(1);
-
 
 		lastpose = pose;
 		frame++;		
