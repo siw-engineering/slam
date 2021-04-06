@@ -1526,6 +1526,7 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                 float lambda = sqrt(xl * xl + yl * yl + 1);
                 float3 ray = make_float3(xl, yl, 1);
 
+
                 for (int ui = u - 2; ui < u + 2; ui++)
                 {
                     for (int vj = v - 2; vj < v + 2; vj++)
@@ -1542,7 +1543,14 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                             vertConf.y = vmap_pi.ptr(vj + rows)[ui];
                             vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
                             vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+
+
+                            vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
+                            vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
+                            vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
+                             
                             float zdiff = vertConf.z - vsrc_new.z;
+
                             if (abs(zdiff * lambda) < 0.05)
                             {
                                 float3 ray_v_cross = make_float3(0,0,0);
@@ -1553,12 +1561,11 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                                 normRad.y = nmap_pi.ptr(vj + rows)[ui];
                                 normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
                                 normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
+                                
                                 float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(nnew_.x, nnew_.y, nnew_.z));
+                                
                                 if(dist < bestDist && (abs(normRad.z) < 0.75f || abw < 0.5f))
                                 {
-                                    vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
-                                    vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
-                                    vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
 
                                     c_k = vPosition.w;
                                     v_k = make_float3(vPosition.x, vPosition.y, vPosition.z);
@@ -1630,7 +1637,7 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                     model_buffer[*count + 6*rows_mb*cols_mb] = vColor0.z;//z
                     model_buffer[*count + 7*rows_mb*cols_mb] = vColor0.w;//w time
 
-                    //writing normals
+                    // writing normals
                     model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad0.x;
                     model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad0.y;
                     model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad0.z;
