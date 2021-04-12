@@ -247,10 +247,11 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
     float vz = vmap.ptr(v + rows*2)[u];
     atomicAdd(count, 1);
 
-    if ((vz <= 0) || (vz > max_depth))
+    if ((vz < 0) || (vz > max_depth))
     {
         return;
     }
+
 
 
     // replace this, hardcoding temporarily
@@ -1211,6 +1212,12 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
     n_ = normalized(n_);
 
+
+    if (isnan (v_.x) || isnan(v_.y) || isnan(v_.z))
+        return;
+    if (isnan (n_.x) || isnan(n_.y) || isnan(n_.z))
+        return;
+
     //to compute x,y cords (gl_fragcords)
     //TO DO need to normalize v_ 
     float3 fc;
@@ -1264,9 +1271,28 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     color_dst[y*cols*4 + x*4 + 3] = 1;
 
     //writing vertex and conf
-    vmap_dst.ptr(y)[x] = (fc.x - cx)*cp.z*(1/fx);
-    vmap_dst.ptr(y + rows)[x] = (fc.y - cy)*cp.z*(1/fy);
-    vmap_dst.ptr(y + rows * 2)[x] = cp.z;
+
+    float3 sp = make_float3(0,0,0);
+    sp.x = (fc.x - cx)*cp.z*(1/fx);
+    sp.y = (fc.y - cy)*cp.z*(1/fy);
+    sp.z = cp.z;
+
+    if ((sp.z < 0) || (sp.z > maxDepth))
+    {
+        return;
+    }
+    // if ((sp.x < 0) || (sp.x > cols))
+    // {
+    //     return;
+    // }
+    // if ((sp.y < 0) || (sp.y > rows))
+    // {
+    //     return;
+    // }
+
+    vmap_dst.ptr(y)[x] = sp.x;
+    vmap_dst.ptr(y + rows)[x] = sp.y;
+    vmap_dst.ptr(y + rows * 2)[x] = sp.z;
     vmap_dst.ptr(y + rows * 3)[x] = vsrc.w;
 
 
