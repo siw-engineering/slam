@@ -3,7 +3,7 @@
 #include "operators.cuh"
 
 
-__device__ float3 getVertex(int x, int y, int cx, int cy, int fx, int fy, float z)
+__device__ float3 getVertex(int x, int y, int cx, int cy, float fx, float fy, float z)
 {
     float3 vert  = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     vert.x = (x - cx) * z * fx;
@@ -142,7 +142,7 @@ void fillinRgb(int width, int height, float* existingRgb, float* rawRgb, bool pa
     cudaSafeCall(cudaGetLastError());
 }
 
-__global__ void fillinVert(int width, int height, float cx, float cy, float fx, float fy,
+__global__ void fillinVert(int width, int height, float cx, float cy, float fx_inv, float fy_inv,
                             PtrStepSz<float> existingVertex, PtrStepSz<float> rawDepth,bool passthrough, PtrStepSz<float> dst)
 {
     // float halfPixX = 0.5 * (1.0 / width);
@@ -151,22 +151,28 @@ __global__ void fillinVert(int width, int height, float cx, float cy, float fx, 
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
 
-    if(u < width && v < height)
+    if((u > 0) && (u < width) && (v > 0) && (v < height))
     {
-        float4 sample  = make_float4 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff),  __int_as_float(0x7fffffff));
+        float4 sample  = make_float4(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff),  __int_as_float(0x7fffffff));
         sample.x = existingVertex.ptr(v)[u];
-        sample.y = existingVertex.ptr(v+height)[u];
+        sample.y = existingVertex.ptr(v + height)[u];
         sample.z = existingVertex.ptr(v + 2 * height)[u];
         sample.w = existingVertex.ptr(v + 3 * height)[u];
-         if(sample.z == 0 || passthrough == 1)
+         if((sample.z == 0) || (passthrough == 1))
          {
-            // float z = float(rawDepth.ptr(v)[u]);
-            float3 vert  = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
-            vert = getVertex(u, v, cx, cy, fx, fy, rawDepth.ptr(v)[u]);
+            float z = rawDepth.ptr(v)[u];
+            if ((z < 0) || (z > 5) || isnan(z))
+            {
+                z = 0;
+            }
+            float3 vert  = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+            vert = getVertex(u, v, cx, cy, fx_inv, fy_inv, z);
+            // printf("fx_inv, fy_inv = %f, %f\n", fx_inv, fy_inv);
             dst.ptr(v)[u] = vert.x; // (u - cx)*z*fx
             dst.ptr(v +  height)[u] = vert.y; // (v - cy)*z*fy
             dst.ptr(v + 2 * height)[u] = vert.z; // z
             dst.ptr(v + 3 * height)[u] = 1;
+            // printf("u = %d v = %d\n", u, v);
 
          }
          else
@@ -175,6 +181,7 @@ __global__ void fillinVert(int width, int height, float cx, float cy, float fx, 
             dst.ptr(v +  height)[u] = sample.y;
             dst.ptr(v + 2 * height)[u] = sample.z;
             dst.ptr(v + 3 * height)[u] = sample.w;
+            // printf("x = %f y = %f\n", sample.x, sample.y);
          }
 
     }
