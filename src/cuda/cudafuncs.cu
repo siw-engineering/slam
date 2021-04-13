@@ -195,15 +195,16 @@ __device__ float3 getNormal(const PtrStepSz<float> depth, float3 vpos, float cx,
     float3 v3 = make_float3(z3 * (u - cx) / fx,  z3 * (v + 1 - cy) / fy,  z3); 
     float3 v4 = make_float3(z4 * (u - cx) / fx,  z4 * (v - 1- cy) / fy,  z4); 
 
-    // float3 del_x = make_float3((vpos + v2)/2 - (vpos + v1)/2);
-    // float3 del_y = make_float3((vpos + v4)/2 - (vpos + v3)/2);
-    
-    float3 del_x = make_float3(((vpos.x + v2.x)/2 - (vpos.x + v1.x)/2), ((vpos.y + v2.y)/2 - (vpos.y + v1.y)/2), ((vpos.z + v2.z)/2 - (vpos.z + v1.z)/2));
-    float3 del_y = make_float3(((vpos.x + v4.x)/2 - (vpos.x + v3.x)/2), ((vpos.y + v4.y)/2 - (vpos.y + v3.y)/2), ((vpos.z + v4.z)/2 - (vpos.z + v3.z)/2));
+    if (!isnan (v1.x) && !isnan (v2.x) && !isnan (v3.x))
+    {
 
-    return normalized(cross(del_x, del_y));    
-    // else
-    //     float3 r = __int_as_float(0x7fffffff); /*CUDART_NAN_F*/
+        float3 del_x = make_float3(((vpos.x + v2.x)/2 - (vpos.x + v1.x)/2), ((vpos.y + v2.y)/2 - (vpos.y + v1.y)/2), ((vpos.z + v2.z)/2 - (vpos.z + v1.z)/2));
+        float3 del_y = make_float3(((vpos.x + v4.x)/2 - (vpos.x + v3.x)/2), ((vpos.y + v4.y)/2 - (vpos.y + v3.y)/2), ((vpos.z + v4.z)/2 - (vpos.z + v3.z)/2));
+
+        return normalized(cross(del_x, del_y));    
+    }
+    else
+        return make_float3(0,0,0); // TO DO not sure if putting 0s is right
 }
 
 
@@ -1645,30 +1646,30 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
                 }
                 else
                 {
-                    vPosition0 = vPosition;
-                    vColor0 = vColor;
-                    vNormRad0 = vNormRad;
-                    vPosition0.w = c_k + a;
-                    vColor0.w = time;
+                    // vPosition0 = vPosition;
+                    // vColor0 = vColor;
+                    // vNormRad0 = vNormRad;
+                    // vPosition0.w = c_k + a;
+                    // vColor0.w = time;
 
                     // writing vertex and confidence
-                    model_buffer[*count] = vPosition0.x;
-                    model_buffer[*count + rows_mb*cols_mb] = vPosition0.y;
-                    model_buffer[*count + 2*rows_mb*cols_mb] = vPosition0.z;
-                    model_buffer[*count + 3*rows_mb*cols_mb] = vPosition0.w;
+                    // model_buffer[*count] = vPosition0.x;
+                    // model_buffer[*count + rows_mb*cols_mb] = vPosition0.y;
+                    // model_buffer[*count + 2*rows_mb*cols_mb] = vPosition0.z;
+                    // model_buffer[*count + 3*rows_mb*cols_mb] = vPosition0.w;
 
-                    //writing color and time
-                    model_buffer[*count + 4*rows_mb*cols_mb] = vColor0.x; //x
-                    model_buffer[*count + 5*rows_mb*cols_mb] = vColor0.y;//y
-                    model_buffer[*count + 6*rows_mb*cols_mb] = vColor0.z;//z
-                    model_buffer[*count + 7*rows_mb*cols_mb] = vColor0.w;//w time
+                    // //writing color and time
+                    // model_buffer[*count + 4*rows_mb*cols_mb] = vColor0.x; //x
+                    // model_buffer[*count + 5*rows_mb*cols_mb] = vColor0.y;//y
+                    // model_buffer[*count + 6*rows_mb*cols_mb] = vColor0.z;//z
+                    // model_buffer[*count + 7*rows_mb*cols_mb] = vColor0.w;//w time
 
-                    // writing normals
-                    model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad0.x;
-                    model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad0.y;
-                    model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad0.z;
-                    model_buffer[*count + 11*rows_mb*cols_mb] = vNormRad0.w;
-                    atomicAdd(count, 1);
+                    // // writing normals
+                    // model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad0.x;
+                    // model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad0.y;
+                    // model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad0.z;
+                    // model_buffer[*count + 11*rows_mb*cols_mb] = vNormRad0.w;
+                    // atomicAdd(count, 1);
 
                 }
             }

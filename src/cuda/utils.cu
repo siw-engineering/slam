@@ -13,7 +13,7 @@ __device__ float3 getVertex(int x, int y, int cx, int cy, float fx, float fy, fl
     return vert;
 }
 
-__device__ float3 getNormal(float3 vPosition, int x, int y, int cx, int cy, int fx, int fy, float z)
+__device__ float3 getNormal(float3 vPosition, int x, int y, int cx, int cy, float fx, float fy, float z)
 {
     float3 vPosition_x  = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     float3 vPosition_y  = make_float3 (__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -151,7 +151,7 @@ __global__ void fillinVert(int width, int height, float cx, float cy, float fx_i
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
 
-    if((u > 0) && (u < width) && (v > 0) && (v < height))
+    if((u < width) && (v < height))
     {
         float4 sample  = make_float4(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff),  __int_as_float(0x7fffffff));
         sample.x = existingVertex.ptr(v)[u];
