@@ -84,6 +84,30 @@ public:
 	    addBuffer(3, sizeof(float) * 3);
 	}
 
+	void textureHandle()
+	{
+		VertexArray();
+
+	    float vertices[] = {
+	        // positions          // colors           // texture coords
+	         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, // top right
+	         0.5f, -0.5f, 0.0f, 1.0f, 0.0f, // bottom right
+	        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // bottom left
+	        -0.5f,  0.5f, 0.0f, 0.0f, 1.0f  // top left 
+	    };
+
+	    VertexBuffer(vertices, sizeof(vertices));
+	    vaoBind();
+		// position attribute
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);	    
+
+
+	}
+
 	void bufferUnbind()
 	{
 		vaoUnbind();
@@ -114,6 +138,38 @@ public:
 
 		}
 	}
+
+	void drawTexture(std::string vert, std::string frag, int height, int width,
+		unsigned char* data)
+	{
+
+	    std::shared_ptr<Shader> program;
+	    program =  std::shared_ptr<Shader>(loadProgramFromFile(vert, frag));
+
+	    Texture();
+	    TexGen(width, height, data);
+
+	    while( !pangolin::ShouldQuit() )
+	    {
+
+	    	pangolin::OpenGlMatrix mvp = GetMvp();
+	        program->Bind();
+	        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+
+	        textureBind();
+	        glActiveTexture(GL_TEXTURE0);
+	        program->setUniform(Uniform("MVP", mvp));
+
+	     	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+
+	    	program->Unbind();
+	        pangolin::FinishFrame();
+
+
+	}
+
+}
 	
 	void glCoord(float data[], float vertices[], int size){
 
