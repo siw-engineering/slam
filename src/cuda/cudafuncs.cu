@@ -1758,7 +1758,7 @@ void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArra
 
 }
 
-__global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int* count, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
+__global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int time, int* count, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     int rows_mb, cols_mb;
@@ -1767,29 +1767,84 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
     int intY = i / cols_mb;
     int intX = i - (intY * cols_mb);
 
-    float cvw =  updateColTime.ptr(intY + rows_mb * 3)[intX];
+    float cVw =  updateColTime.ptr(intY + rows_mb * 3)[intX];
 
-    if (cvW == 0)
+    if (cVw == 0)
     {
-        vPosition0 = vPosition;
-        vColor0 = vColor;
-        vNormRad0 = vNormRad;
+
+        model_buffer_rs[i] = model_buffer[i];
+        model_buffer_rs[i+ rows_mb*cols_mb] = model_buffer[i+ rows_mb*cols_mb];
+        model_buffer_rs[i+2*rows_mb*cols_mb] = model_buffer[i+2*rows_mb*cols_mb];
+        model_buffer_rs[i+3*rows_mb*cols_mb] = model_buffer[i+3*rows_mb*cols_mb]
+
+        // //writing color and time
+        model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
+        model_buffer_rs[i+5*rows_mb*cols_mb] =  model_buffer[i+5*rows_mb*cols_mb];//y
+        model_buffer_rs[i+6*rows_mb*cols_mb] =  model_buffer[i+6*rows_mb*cols_mb];//z
+        model_buffer_rs[i+7*rows_mb*cols_mb] =  model_buffer[i+7*rows_mb*cols_mb];
+
+        //writing normals
+        model_buffer_rs[i+8*rows_mb*cols_mb] = model_buffer[i+8*rows_mb*cols_mb];
+        model_buffer_rs[i+9*rows_mb*cols_mb] = model_buffer[i+9*rows_mb*cols_mb];
+        model_buffer_rs[i+10*rows_mb*cols_mb] = model_buffer[i+10*rows_mb*cols_mb];
+        model_buffer_rs[i+11*rows_mb*cols_mb] = model_buffer[i+11*rows_mb*cols_mb];
     }
+    else if (cVw == -1)
+    {
 
-    // float4 vsrc = make_float4(0, 0, 0, 0);
-    // float4 nsrc = make_float4(0, 0, 0, 0);
+        float4 newNorm = make_float4(updateNormRad.ptr(intY)[intX], updateNormRad.ptr(intY + rows_mb)[intX], updateNormRad.ptr(intY + rows_mb * 2), updateNormRad.ptr(intY + rows_mb * 3));
+        float4 vNormRad = make_float4(model_buffer[i+ 4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+7*rows_mb*cols_mb]);
 
-    // //reading vertex and conf
-    // vsrc.x = model_buffer[i];
-    // vsrc.y = model_buffer[i + rows_mb*cols_mb];
-    // vsrc.z = model_buffer[i + 2*rows_mb*cols_mb];
-    // vsrc.w = model_buffer[i + 3*rows_mb*cols_mb];
+        float a = updateVConf.ptr(intY + rows_mb * 3)[intX];
+        float3 v_g = make_float3(updateVConf.ptr(intY)[intX], updateVConf.ptr(intY + rows_mb)[intX], updateVConf.ptr(intY + rows_mb * 2)[intX]);
+        float c_k = model_buffer[i+3*rows_mb*cols_mb];
+        float3 v_k = make_float3(model_buffer[i+ rows_mb*cols_mb], model_buffer[i+2*rows_mb*cols_mb], model_buffer[i+3*rows_mb*cols_mb]);
 
-    // //reading normal and radius
-    // nsrc.x = model_buffer[i+8*rows_mb*cols_mb];
-    // nsrc.y = model_buffer[i+9*rows_mb*cols_mb];
-    // nsrc.z = model_buffer[i+10*rows_mb*cols_mb];
-    // nsrc.w = model_buffer[i+11*rows_mb*cols_mb];
+        if (newNorm.w < (1 + 5) * vNormRad.w)
+        {
+
+            model_buffer_rs[i] = (c_k * v_k.x + a * v_g.x) / (c_k + a);
+            model_buffer_rs[i+ rows_mb*cols_mb] = (c_k * v_k.y + a * v_g.y) / (c_k + a);
+            model_buffer_rs[i+2*rows_mb*cols_mb] = (c_k * v_k.z + a * v_g.z) / (c_k + a);
+            model_buffer_rs[i+3*rows_mb*cols_mb] = c_k + a;
+
+            // TO DO color add
+            // float3 oldCol = decodeColor(vColor.x);
+            // float3 newCol = decodeColor(ec_new);
+            // float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
+            // vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
+
+            float4 vNormRad0 = make_float4((c_k * vNormRad.x+ a * newNorm.x)/ (c_k + a), (c_k * vNormRad.y+ a * newNorm.y)/ (c_k + a), (c_k * vNormRad.z+ a * newNorm.z)/ (c_k + a), (c_k * vNormRad.w+ a * newNorm.w)/ (c_k + a));
+            float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
+            model_buffer_rs[i+8*rows_mb*cols_mb] = normnrad.x;
+            model_buffer_rs[i+9*rows_mb*cols_mb] = normnrad.y;
+            model_buffer_rs[i+10*rows_mb*cols_mb] = normnrad.z;
+
+        }
+        else
+        {
+            model_buffer_rs[i] = model_buffer[i];
+            model_buffer_rs[i+ rows_mb*cols_mb] = model_buffer[i+ rows_mb*cols_mb];
+            model_buffer_rs[i+2*rows_mb*cols_mb] = model_buffer[i+2*rows_mb*cols_mb];
+            model_buffer_rs[i+3*rows_mb*cols_mb] = model_buffer[i+3*rows_mb*cols_mb]
+
+            // //writing color and time
+            model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
+            model_buffer_rs[i+5*rows_mb*cols_mb] =  model_buffer[i+5*rows_mb*cols_mb];//y
+            model_buffer_rs[i+6*rows_mb*cols_mb] =  model_buffer[i+6*rows_mb*cols_mb];//z
+            model_buffer_rs[i+7*rows_mb*cols_mb] =  model_buffer[i+7*rows_mb*cols_mb];
+
+            //writing normals
+            model_buffer_rs[i+8*rows_mb*cols_mb] = model_buffer[i+8*rows_mb*cols_mb];
+            model_buffer_rs[i+9*rows_mb*cols_mb] = model_buffer[i+9*rows_mb*cols_mb];
+            model_buffer_rs[i+10*rows_mb*cols_mb] = model_buffer[i+10*rows_mb*cols_mb];
+            model_buffer_rs[i+11*rows_mb*cols_mb] = model_buffer[i+11*rows_mb*cols_mb];
+
+            model_buffer_rs[i+3*rows_mb*cols_mb] = c_k + a;
+            model_buffer_rs[i+7*rows_mb*cols_mb]= time;
+
+        }
+    }
 
 }
 
