@@ -1624,7 +1624,7 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
                     }
                     if (operation == 1)
                     {
-                        printf("operation = 1\n");
+                        // printf("operation = 1\n");
                         vCw = -1;
                         int intY = best / cols_mb;
                         int intX = best - (intY * cols_mb);
@@ -1651,7 +1651,7 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
                     }
                     else
                     {
-                        printf("operation = 0\n");
+                        // printf("operation = 0\n");
                         vCw = -2;
                         unstable_buffer.ptr(v)[u] = vPosition.x;
                         unstable_buffer.ptr(v + rows)[u] = vPosition.y;
@@ -1734,7 +1734,7 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
 
 }
 
-void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int * h_count, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
+void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int time, int * h_count, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
 {
     dim3 block (32, 8);
     dim3 grid (1, 1, 1);
@@ -1768,6 +1768,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
     int intY = i / cols_mb;
     int intX = i - (intY * cols_mb);
 
+    float newColx = updateColTime.ptr(intY)[intX];
     float cVw =  updateColTime.ptr(intY + rows_mb * 3)[intX];
 
     if (cVw == 0)
@@ -1810,15 +1811,16 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
             model_buffer_rs[i+3*rows_mb*cols_mb] = c_k + a;
 
             // TO DO color add
-            // float3 oldCol = decodeColor(vColor.x);
-            // float3 newCol = decodeColor(ec_new);
-            // float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
-            // vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
+            float3 oldCol = decodeColor(model_buffer[i+4*rows_mb*cols_mb]);
+            float3 newCol = decodeColor(newColx);
+            float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
+            float4 vColor0 = make_float4(encodeColor(avgColor), model_buffer_rs[i+5*rows_mb*cols_mb], model_buffer_rs[i+6*rows_mb*cols_mb], time);
 
-            // model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
-            // model_buffer_rs[i+5*rows_mb*cols_mb] =  model_buffer[i+5*rows_mb*cols_mb];//y
-            // model_buffer_rs[i+6*rows_mb*cols_mb] =  model_buffer[i+6*rows_mb*cols_mb];//z
-            // model_buffer_rs[i+7*rows_mb*cols_mb] =  model_buffer[i+7*rows_mb*cols_mb];
+
+            model_buffer_rs[i+4*rows_mb*cols_mb] = vColor0.x; 
+            model_buffer_rs[i+5*rows_mb*cols_mb] = vColor0.y;
+            model_buffer_rs[i+6*rows_mb*cols_mb] = vColor0.z;
+            model_buffer_rs[i+7*rows_mb*cols_mb] = vColor0.w;
 
             float4 vNormRad0 = make_float4((c_k * vNormRad.x+ a * newNorm.x)/ (c_k + a), (c_k * vNormRad.y+ a * newNorm.y)/ (c_k + a), (c_k * vNormRad.z+ a * newNorm.z)/ (c_k + a), (c_k * vNormRad.w+ a * newNorm.w)/ (c_k + a));
             float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
@@ -1877,8 +1879,14 @@ void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, fl
 }
 
 
-
-// __global__ void DATestKernel(float* da_src, float* da_dst)
-// {
-    
-// }
+__global__ void testcolorencodingKernel()
+{
+    float3 c = make_float3(2,2,2);
+    float ec = encodeColor(c);
+    float3 dc = decodeColor(ec);
+    printf("org color %f %f %f\n encoded color %f decoded color %f %f %f \n ",c.x,c.y,c.z, ec, dc.x,dc.y,dc.z);
+}
+void testcolorencoding()
+{
+    testcolorencodingKernel<<<1,1>>>();
+}

@@ -191,6 +191,7 @@ int main(int argc, char  *argv[])
 	Render view(640, 480);
     DeviceArray2D<unsigned int> time_splat;
 
+
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -315,7 +316,9 @@ int main(int argc, char  *argv[])
  
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
-		fuse_data(depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, &count, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
+		fuse_data(depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, &count, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
+		fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 
 		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
