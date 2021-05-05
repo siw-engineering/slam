@@ -181,27 +181,30 @@ __device__ float getRadius(float fx, float fy, float depth, float norm_z)
     return radius_n;
 }
 
-__device__ float3 getNormal(const PtrStepSz<float> depth, float3 vpos, float cx, float cy, float fx, float fy, int u, int v, int rows, int cols)
+__device__ float3 getNormal(const PtrStepSz<float> depth, float depthCutoff, float3 vpos, float cx, float cy, float fx, float fy, int u, int v, int rows, int cols)
 {
     // if (!isnan (v00.x) && !isnan (v01.x) && !isnan (v10.x)) TO DO check for nan
-
     float z1 = depth.ptr(v)[u + 1];
     float z2 = depth.ptr(v)[u - 1];
     float z3 = depth.ptr(v + 1)[u];
     float z4 = depth.ptr(v - 1)[u];
 
-    float3 v1 = make_float3(z1 * (u + 1 - cx) / fx,  z1 * (v - cy) / fy,  z1); 
-    float3 v2 = make_float3(z2 * (u - 1 - cx) / fx,  z2 * (v - cy) / fy,  z2); 
-    float3 v3 = make_float3(z3 * (u - cx) / fx,  z3 * (v + 1 - cy) / fy,  z3); 
-    float3 v4 = make_float3(z4 * (u - cx) / fx,  z4 * (v - 1- cy) / fy,  z4); 
-
-    if (!isnan (v1.x) && !isnan (v2.x) && !isnan (v3.x))
+    if(z1 != 0 && z1 < depthCutoff && z2 != 0 && z2 < depthCutoff && z3 != 0 && z3 < depthCutoff && z4 != 0 && z4 < depthCutoff)
     {
 
-        float3 del_x = make_float3(((vpos.x + v2.x)/2 - (vpos.x + v1.x)/2), ((vpos.y + v2.y)/2 - (vpos.y + v1.y)/2), ((vpos.z + v2.z)/2 - (vpos.z + v1.z)/2));
-        float3 del_y = make_float3(((vpos.x + v4.x)/2 - (vpos.x + v3.x)/2), ((vpos.y + v4.y)/2 - (vpos.y + v3.y)/2), ((vpos.z + v4.z)/2 - (vpos.z + v3.z)/2));
+        float3 v1 = make_float3(z1 * (u + 1 - cx) / fx,  z1 * (v - cy) / fy,  z1); 
+        float3 v2 = make_float3(z2 * (u - 1 - cx) / fx,  z2 * (v - cy) / fy,  z2); 
+        float3 v3 = make_float3(z3 * (u - cx) / fx,  z3 * (v + 1 - cy) / fy,  z3); 
+        float3 v4 = make_float3(z4 * (u - cx) / fx,  z4 * (v - 1- cy) / fy,  z4); 
 
-        return normalized(cross(del_x, del_y));    
+        if (!isnan (v1.x) && !isnan (v2.x) && !isnan (v3.x))
+        {
+
+            float3 del_x = make_float3(((vpos.x + v2.x)/2 - (vpos.x + v1.x)/2), ((vpos.y + v2.y)/2 - (vpos.y + v1.y)/2), ((vpos.z + v2.z)/2 - (vpos.z + v1.z)/2));
+            float3 del_y = make_float3(((vpos.x + v4.x)/2 - (vpos.x + v3.x)/2), ((vpos.y + v4.y)/2 - (vpos.y + v3.y)/2), ((vpos.z + v4.z)/2 - (vpos.z + v3.z)/2));
+
+            return normalized(cross(del_x, del_y));    
+        }
     }
     else
         return make_float3(0,0,0); // TO DO not sure if putting 0s is right
@@ -1490,7 +1493,7 @@ __device__ float angleBetween(float3 a, float3 b)
     return acos(dot(a, b) / (sqrt(pow(a.x,2)+pow(a.y,2)+pow(a.z,2)) * sqrt(pow(b.x,2)+pow(b.y,2)+pow(b.z,2))));
 }
 
-__global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, int time, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, int* count, float weighting)
+__global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, int time, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, int* count, float weighting, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
 {
 
     int u = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1500,184 +1503,238 @@ __global__ void fuseKernel(const PtrStepSz<float> depth, const float* rgb, const
 
     int rows_mb, cols_mb;
     rows_mb = cols_mb = 3072;
+    int vCw;
 
-    if(u < depth.cols && v < depth.rows)
+    if(u < depth.cols && u > 0 && v < depth.rows && v > 0)
     {
         float z = depth.ptr(v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
 
         if(z != 0 && z < maxDepth /*&& m == maskID*/) //FIXME
-        {
-            float3 vsrc_new = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
-            float3 vnew_ = make_float3(0,0,0);
-            vnew_.x = pose[0]*vsrc_new.x + pose[1]*vsrc_new.y + pose[2]*vsrc_new.z + pose[3]*1;
-            vnew_.y = pose[4]*vsrc_new.x + pose[5]*vsrc_new.y + pose[6]*vsrc_new.z + pose[7]*1;
-            vnew_.z = pose[8]*vsrc_new.x + pose[9]*vsrc_new.y + pose[10]*vsrc_new.z + pose[11]*1;
+        {   
+            //vPosLocal = vsrc_new
+            float3 vPosLocal = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
+            float4 vPosition = make_float4(0,0,0,0); //vPosition = vnew_
+            vPosition.x = pose[0]*vPosLocal.x + pose[1]*vPosLocal.y + pose[2]*vPosLocal.z + pose[3]*1;
+            vPosition.y = pose[4]*vPosLocal.x + pose[5]*vPosLocal.y + pose[6]*vPosLocal.z + pose[7]*1;
+            vPosition.z = pose[8]*vPosLocal.x + pose[9]*vPosLocal.y + pose[10]*vPosLocal.z + pose[11]*1;
 
             float zf = depthf.ptr(v)[u];
-            float3 vsrc_new_f = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  zf); //depth filtering look up
-            
-            float3 cnew = make_float3(0,0,0);
-            float cvw = 0;
-            float ec_new ;
-            cnew.x = rgb[i];
-            cnew.y = rgb[i + rows*cols];
-            cnew.z = rgb[i + 2*rows*cols];
-            ec_new = encodeColor(cnew);
-            
-            float3 nsrc_new = make_float3(0,0,0);
-            float4 nnew_ = make_float4(0,0,0,0);
-            float rnew;
-            nsrc_new = getNormal(depth, vsrc_new_f, cx, cy ,fx ,fy, u, v, rows, cols); // TO change vsrc_new  to vsrc_new_f
-            nnew_.x = pose[0]*nsrc_new.x + pose[1]*nsrc_new.y + pose[2]*nsrc_new.z;
-            nnew_.y = pose[4]*nsrc_new.x + pose[5]*nsrc_new.y + pose[6]*nsrc_new.z;
-            nnew_.z = pose[8]*nsrc_new.x + pose[9]*nsrc_new.y + pose[10]*nsrc_new.z;
-            nnew_.w =  getRadius(fx, fy, vsrc_new_f.z, nsrc_new.z); // TO DO change vsrc_new.z to vsrc_new_f.z
 
-            // //Confidence
-            // vPosition.w = confidence(x, y, weighting);
+            if (zf !=0 && zf < maxDepth)
+            {   
+                // vsrc_new_f = vPosition_f
+                float3 vPosition_f = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  zf); //depth filtering look up
+               
+                float3 cnew = make_float3(0,0,0);
+                cnew.x = rgb[i];
+                cnew.y = rgb[i + rows*cols];
+                cnew.z = rgb[i + 2*rows*cols];
+                //possibly unecessary TO DO
+                if (isnan(cnew.x))
+                    cnew.x = 0;
+                if (isnan(cnew.y))
+                    cnew.y = 0;
+                if (isnan(cnew.z))
+                    cnew.z = 0;
 
-            float confnew = confidence(cx, cy, u, v, weighting);
-            unsigned int best = 0U;
-            int operation = 0;
-            float4 vPosition0, vNormRad0, vColor0, vPosition, vNormRad, vColor;
-            float c_k, a;
-            float3 v_k, v_g;
+                float ec_new ;
+                //FIX encoding
+                ec_new = encodeColor(cnew);
 
-            if((int(u) % 2 == int(time) % 2) && (int(v) % 2 == int(time) % 2) && checkNeighbours(depth, u, v) && vsrc_new.z > 0 && vsrc_new.z <= maxDepth)
-            {
-                float bestDist = 1000;
+                // nsrc_new = vNormLocal
+                float3 vNormLocal = make_float3(0,0,0);
+                //nnew_ = vNormRad
+                float4 vNormRad = make_float4(0,0,0,0);
+                float rnew;
+                vNormLocal = getNormal(depth, maxDepth, vPosition_f, cx, cy ,fx ,fy, u, v, rows, cols); // TO change vsrc_new  to vsrc_new_f
+                vNormRad.x = pose[0]*vNormLocal.x + pose[1]*vNormLocal.y + pose[2]*vNormLocal.z;
+                vNormRad.y = pose[4]*vNormLocal.x + pose[5]*vNormLocal.y + pose[6]*vNormLocal.z;
+                vNormRad.z = pose[8]*vNormLocal.x + pose[9]*vNormLocal.y + pose[10]*vNormLocal.z;
+                vNormRad.w =  getRadius(fx, fy, vPosition_f.z, vNormLocal.z); // TO DO change vsrc_new.z to vsrc_new_f.z
 
-                float xl = (u - cx) * fx;
-                float yl = (v - cy) * fy;
+                // //Confidence
+                vPosition.w = confidence(cx, cy, u, v, weighting);
+                // float confnew = confidence(cx, cy, u, v, weighting);
+                vCw = 0;
+                int updateId = 0;
+                unsigned int best = 0U;
+                // float4 vPosition0, vNormRad0, vColor0, vPosition, vNormRad, vColor;
+                // float c_k, a;
+                // float3 v_k, v_g;
+                // vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
+                // vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
+                // vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
 
-                float lambda = sqrt(xl * xl + yl * yl + 1);
-                float3 ray = make_float3(xl, yl, 1);
+                // c_k = vPosition.w;
+                // v_k = make_float3(vPosition.x, vPosition.y, vPosition.z);
 
+                // a = confnew;
+                // v_g = vnew_;
 
-                for (int ui = u - 2; ui < u + 2; ui++)
+                if((int(u) % 2 == int(time) % 2) && (int(v) % 2 == int(time) % 2) && checkNeighbours(depth, u, v) && vPosLocal.z > 0 && vPosLocal.z <= maxDepth)
                 {
-                    for (int vj = v - 2; vj < v + 2; vj++)
+                    int operation = 0;
+                    float bestDist = 1000;
+                    float xl = (u - cx) * fx;
+                    float yl = (v - cy) * fy;
+                    float lambda = sqrt(xl * xl + yl * yl + 1);
+                    float3 ray = make_float3(xl, yl, 1);
+
+                    for (int ui = u - 2; ui < u + 2; ui++)
                     {
-                        if ((ui < 0) || (ui >=cols))
-                            continue;
-                        if ((vj < 0) || (vj >=rows))
-                            continue;
-                        unsigned int current = index_pi.ptr(vj)[ui];
-                        if(current > 0U)
+                        for (int vj = v - 2; vj < v + 2; vj++)
                         {
-                            float4 vertConf = make_float4(0,0,0,0);
-                            vertConf.x = vmap_pi.ptr(vj)[ui];
-                            vertConf.y = vmap_pi.ptr(vj + rows)[ui];
-                            vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
-                            vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
-
-
-                            vPosition = make_float4(vmap_pi.ptr(v)[u], vmap_pi.ptr(v + rows)[u], vmap_pi.ptr(v + rows * 2)[u], vmap_pi.ptr(v + rows * 3)[u]);
-                            vNormRad =  make_float4(nmap_pi.ptr(v)[u], nmap_pi.ptr(v + rows)[u], nmap_pi.ptr(v + rows * 2)[u], nmap_pi.ptr(v + rows * 3)[u]);
-                            vColor = make_float4(ct_pi.ptr(v)[u], ct_pi.ptr(v + rows)[u], ct_pi.ptr(v + rows * 2)[u], ct_pi.ptr(v + rows * 3)[u]);
-                             
-                            float zdiff = vertConf.z - vsrc_new.z;
-
-                            if (abs(zdiff * lambda) < 0.05)
+                            if ((ui < 0) || (ui >=cols))
+                                continue;
+                            if ((vj < 0) || (vj >=rows))
+                                continue;
+                            unsigned int current = index_pi.ptr(vj)[ui];
+                            if(current > 0U)
                             {
-                                float3 ray_v_cross = make_float3(0,0,0);
-                                ray_v_cross = cross(ray, make_float3(vertConf.x,vertConf.y,vertConf.z));
-                                float dist = sqrt(pow(ray_v_cross.x,2) + pow(ray_v_cross.y,2) + pow(ray_v_cross.z,2)) / lambda;
-                                float4 normRad = make_float4(0,0,0,0);
-                                normRad.x = nmap_pi.ptr(vj)[ui];
-                                normRad.y = nmap_pi.ptr(vj + rows)[ui];
-                                normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
-                                normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
-                                
-                                float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(nnew_.x, nnew_.y, nnew_.z));
-                                
-                                if(dist < bestDist && (abs(normRad.z) < 0.75f || abw < 0.5f))
+                                float4 vertConf = make_float4(0,0,0,0);
+                                vertConf.x = vmap_pi.ptr(vj)[ui];
+                                vertConf.y = vmap_pi.ptr(vj + rows)[ui];
+                                vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
+                                vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+                                 
+                                float zdiff = vertConf.z - vPosLocal.z;
+
+                                if (abs(zdiff * lambda) < 0.05)
                                 {
-
-                                    c_k = vPosition.w;
-                                    v_k = make_float3(vPosition.x, vPosition.y, vPosition.z);
-
-                                    a = confnew;
-                                    v_g = vnew_;
-
-                                    if(nnew_.w < (1.0 + 0.5) * vNormRad.w)
+                                    float3 ray_v_cross = make_float3(0,0,0);
+                                    ray_v_cross = cross(ray, make_float3(vertConf.x,vertConf.y,vertConf.z));
+                                    float dist = sqrt(pow(ray_v_cross.x,2) + pow(ray_v_cross.y,2) + pow(ray_v_cross.z,2)) /*/ lambda*/;
+                                    float4 normRad = make_float4(0,0,0,0);
+                                    normRad.x = nmap_pi.ptr(vj)[ui];
+                                    normRad.y = nmap_pi.ptr(vj + rows)[ui];
+                                    normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
+                                    normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
+                                    
+                                    float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(vNormLocal.x, vNormLocal.y, vNormLocal.z));
+                                    
+                                    if(dist < bestDist && (abs(normRad.z) < 0.75f || abw < 0.5f))
                                     {
-                                        operation = 1;
-                                        bestDist = dist;
-                                        best = current;
+                                            operation = 1;
+                                            bestDist = dist;
+                                            best = current;
                                     }
                                 }
                             }
                         }
                     }
-                }
-                if (operation == 1)
-                {
-                    vPosition0 = make_float4((c_k * v_k.x + a * v_g.x) / (c_k + a),(c_k * v_k.y + a * v_g.y) / (c_k + a),(c_k * v_k.z + a * v_g.z) / (c_k + a),
-                                      c_k + a); // Add up confidence, weighted position
-                    float3 oldCol = decodeColor(vColor.x);
-                    float3 newCol = decodeColor(ec_new);
-                    float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
-                    vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
-                    vNormRad0 = make_float4((c_k * vNormRad.x+ a * nnew_.x)/ (c_k + a), (c_k * vNormRad.y+ a * nnew_.y)/ (c_k + a), (c_k * vNormRad.z+ a * nnew_.z)/ (c_k + a), (c_k * vNormRad.w+ a * nnew_.w)/ (c_k + a));
-                    float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
-                    vNormRad0.x = normnrad.x;
-                    vNormRad0.y = normnrad.y;
-                    vNormRad0.z = normnrad.z;
+                    if (operation == 1)
+                    {
+                        printf("operation = 1\n");
+                        vCw = -1;
+                        int intY = best / cols_mb;
+                        int intX = best - (intY * cols_mb);
+                        updateVConf.ptr(intY)[intX] = vPosition.x;
+                        updateVConf.ptr(intY + rows_mb)[intX] = vPosition.y;
+                        updateVConf.ptr(intY + rows_mb * 2)[intX] = vPosition.z;
+                        updateVConf.ptr(intY + rows_mb * 3)[intX] = vPosition.w;
 
-                    //writing vertex and confidence
-                    model_buffer[best] = vPosition0.x;
-                    model_buffer[best + rows_mb*cols_mb] = vPosition0.y;
-                    model_buffer[best + 2*rows_mb*cols_mb] = vPosition0.z;
-                    model_buffer[best + 3*rows_mb*cols_mb] = vPosition0.w;
+                        updateNormRad.ptr(intY)[intX] = vNormRad.x;
+                        updateNormRad.ptr(intY + rows_mb)[intX] = vNormRad.y;
+                        updateNormRad.ptr(intY + rows_mb * 2)[intX] = vNormRad.z;
+                        updateNormRad.ptr(intY + rows_mb * 3)[intX] = vNormRad.w;
 
-                    //writing color and time
-                    model_buffer[best + 4*rows_mb*cols_mb] = vColor0.x; //x
-                    model_buffer[best + 5*rows_mb*cols_mb] = vColor0.y;//y
-                    model_buffer[best + 6*rows_mb*cols_mb] = vColor0.z;//z
-                    model_buffer[best + 7*rows_mb*cols_mb] = vColor0.w;//w time
+                        updateColTime.ptr(intY)[intX] = ec_new;
+                        updateColTime.ptr(intY + rows_mb)[intX] = 0;
+                        updateColTime.ptr(intY + rows_mb * 2)[intX] = time;
+                        updateColTime.ptr(intY + rows_mb * 3)[intX] = vCw;
 
-                    //writing normals
-                    model_buffer[best + 8*rows_mb*cols_mb] = vNormRad0.x;
-                    model_buffer[best + 9*rows_mb*cols_mb] = vNormRad0.y;
-                    model_buffer[best + 10*rows_mb*cols_mb] = vNormRad0.z;
-                    model_buffer[best + 11*rows_mb*cols_mb] = vNormRad0.w;
+                        unstable_buffer.ptr(v)[u] = vPosition.x;
+                        unstable_buffer.ptr(v + rows)[u] = vPosition.y;
+                        unstable_buffer.ptr(v + rows * 2)[u] = vPosition.z;
+                        unstable_buffer.ptr(v + rows * 3)[u] = vPosition.w;
 
-                }
-                else
-                {
-                    // vPosition0 = vPosition;
-                    // vColor0 = vColor;
-                    // vNormRad0 = vNormRad;
-                    // vPosition0.w = c_k + a;
-                    // vColor0.w = time;
+                    }
+                    else
+                    {
+                        printf("operation = 0\n");
+                        vCw = -2;
+                        unstable_buffer.ptr(v)[u] = vPosition.x;
+                        unstable_buffer.ptr(v + rows)[u] = vPosition.y;
+                        unstable_buffer.ptr(v + rows * 2)[u] = vPosition.z;
+                        unstable_buffer.ptr(v + rows * 3)[u] = vPosition.w;                       
+                    }
+                    // if (operation == 1)
+                    // {
+                    //     vPosition0 = make_float4((c_k * v_k.x + a * v_g.x) / (c_k + a),(c_k * v_k.y + a * v_g.y) / (c_k + a),(c_k * v_k.z + a * v_g.z) / (c_k + a),
+                    //                       c_k + a); // Add up confidence, weighted position
+                    //     float3 oldCol = decodeColor(vColor.x);
+                    //     float3 newCol = decodeColor(ec_new);
+                    //     float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
+                    //     vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
+                    //     vNormRad0 = make_float4((c_k * vNormRad.x+ a * nnew_.x)/ (c_k + a), (c_k * vNormRad.y+ a * nnew_.y)/ (c_k + a), (c_k * vNormRad.z+ a * nnew_.z)/ (c_k + a), (c_k * vNormRad.w+ a * nnew_.w)/ (c_k + a));
+                    //     float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
+                    //     vNormRad0.x = normnrad.x;
+                    //     vNormRad0.y = normnrad.y;
+                    //     vNormRad0.z = normnrad.z;
 
-                    // writing vertex and confidence
-                    // model_buffer[*count] = vPosition0.x;
-                    // model_buffer[*count + rows_mb*cols_mb] = vPosition0.y;
-                    // model_buffer[*count + 2*rows_mb*cols_mb] = vPosition0.z;
-                    // model_buffer[*count + 3*rows_mb*cols_mb] = vPosition0.w;
+                    //     //writing vertex and confidence
+                    //     model_buffer[best] = vPosition0.x;
+                    //     model_buffer[best + rows_mb*cols_mb] = vPosition0.y;
+                    //     model_buffer[best + 2*rows_mb*cols_mb] = vPosition0.z;
+                    //     model_buffer[best + 3*rows_mb*cols_mb] = vPosition0.w;
 
-                    // //writing color and time
-                    // model_buffer[*count + 4*rows_mb*cols_mb] = vColor0.x; //x
-                    // model_buffer[*count + 5*rows_mb*cols_mb] = vColor0.y;//y
-                    // model_buffer[*count + 6*rows_mb*cols_mb] = vColor0.z;//z
-                    // model_buffer[*count + 7*rows_mb*cols_mb] = vColor0.w;//w time
+                    //     //writing color and time
+                    //     model_buffer[best + 4*rows_mb*cols_mb] = vColor0.x; //x
+                    //     model_buffer[best + 5*rows_mb*cols_mb] = vColor0.y;//y
+                    //     model_buffer[best + 6*rows_mb*cols_mb] = vColor0.z;//z
+                    //     model_buffer[best + 7*rows_mb*cols_mb] = vColor0.w;//w time
 
-                    // // writing normals
-                    // model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad0.x;
-                    // model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad0.y;
-                    // model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad0.z;
-                    // model_buffer[*count + 11*rows_mb*cols_mb] = vNormRad0.w;
-                    // atomicAdd(count, 1);
+                    //     //writing normals
+                    //     model_buffer[best + 8*rows_mb*cols_mb] = vNormRad0.x;
+                    //     model_buffer[best + 9*rows_mb*cols_mb] = vNormRad0.y;
+                    //     model_buffer[best + 10*rows_mb*cols_mb] = vNormRad0.z;
+                    //     model_buffer[best + 11*rows_mb*cols_mb] = vNormRad0.w;
 
+                    // }
+                    // else
+                    // {
+                    //     vPosition0 = vPosition;
+                    //     vColor0 = vColor;
+                    //     vNormRad0 = vNormRad;
+                    //     vPosition0.w = c_k + a;
+                    //     vColor0.w = time;
+
+                    //     // // writing vertex and confidence
+                    //     // model_buffer[*count] = vPosition.x;
+                    //     // model_buffer[*count + rows_mb*cols_mb] = vPosition.y;
+                    //     // model_buffer[*count + 2*rows_mb*cols_mb] = vPosition.z;
+                    //     // model_buffer[*count + 3*rows_mb*cols_mb] =  c_k + a;
+
+                    //     // //writing color and time
+                    //     // model_buffer[*count + 4*rows_mb*cols_mb] = vColor.x; //x
+                    //     // model_buffer[*count + 5*rows_mb*cols_mb] = vColor.y;//y
+                    //     // model_buffer[*count + 6*rows_mb*cols_mb] = vColor.z;//z
+                    //     // model_buffer[*count + 7*rows_mb*cols_mb] = time;//w time
+
+                    //     // // writing normals
+                    //     // model_buffer[*count + 8*rows_mb*cols_mb] = vNormRad.x;
+                    //     // model_buffer[*count + 9*rows_mb*cols_mb] = vNormRad.y;
+                    //     // model_buffer[*count + 10*rows_mb*cols_mb] = vNormRad.z;
+                    //     // model_buffer[*count + 11*rows_mb*cols_mb] = vNormRad.w;
+                    //     atomicAdd(count, 1);
+                    // }        
                 }
             }
         }
     }
+
+    // if (vCw == 1)
+    // {
+
+    // }
+    // if (vCw > 0)
+    // {
+
+    // }
+
 }
 
-void fuse(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int * h_count, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting)
+void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int * h_count, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
 {
     dim3 block (32, 8);
     dim3 grid (1, 1, 1);
@@ -1695,11 +1752,69 @@ void fuse(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<f
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-    fuseKernel<<<grid, block>>>(depth, rgb, depthf, fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, time, vmap_pi, ct_pi, nmap_pi, index_pi, d_count, weighting);
+    fusedataKernel<<<grid, block>>>(depth, rgb, depthf, fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, time, vmap_pi, ct_pi, nmap_pi, index_pi, d_count, weighting, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
+
+__global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int* count, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
+{
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
+
+    int intY = i / cols_mb;
+    int intX = i - (intY * cols_mb);
+
+    float cvw =  updateColTime.ptr(intY + rows_mb * 3)[intX];
+
+    if (cvW == 0)
+    {
+        vPosition0 = vPosition;
+        vColor0 = vColor;
+        vNormRad0 = vNormRad;
+    }
+
+    // float4 vsrc = make_float4(0, 0, 0, 0);
+    // float4 nsrc = make_float4(0, 0, 0, 0);
+
+    // //reading vertex and conf
+    // vsrc.x = model_buffer[i];
+    // vsrc.y = model_buffer[i + rows_mb*cols_mb];
+    // vsrc.z = model_buffer[i + 2*rows_mb*cols_mb];
+    // vsrc.w = model_buffer[i + 3*rows_mb*cols_mb];
+
+    // //reading normal and radius
+    // nsrc.x = model_buffer[i+8*rows_mb*cols_mb];
+    // nsrc.y = model_buffer[i+9*rows_mb*cols_mb];
+    // nsrc.z = model_buffer[i+10*rows_mb*cols_mb];
+    // nsrc.w = model_buffer[i+11*rows_mb*cols_mb];
+
+}
+
+void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int *h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
+{
+
+    int blocksize = 32*8;
+    int numblocks = (*h_count + blocksize - 1)/ blocksize;
+
+    float fy = intr.fy, cy = intr.cy;
+
+    int *d_count;
+    cudaMalloc((void**)&d_count, sizeof(int));
+    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+
+    float *t;
+    cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
+
+    fuseupdateKernel<<<numblocks, blocksize>>>(fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, d_count, updateVConf, updateNormRad, updateColTime);
+    cudaSafeCall(cudaGetLastError());
+    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+
+}
+
 
 
 // __global__ void DATestKernel(float* da_src, float* da_dst)

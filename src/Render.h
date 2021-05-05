@@ -152,8 +152,8 @@ public:
 	    program =  std::shared_ptr<Shader>(loadProgramFromFile(vert, frag));
 
 
-		while( !pangolin::ShouldQuit() )
-		{
+		// while( !pangolin::ShouldQuit() )
+		// {
 			pangolin::OpenGlMatrix mvp = GetMvp();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -163,7 +163,7 @@ public:
 		 	program->Unbind();
 		 	pangolin::FinishFrame();
 
-		}
+		// }
 	}
 
 	void drawTexture(std::string vert, std::string frag, int height, int width,
