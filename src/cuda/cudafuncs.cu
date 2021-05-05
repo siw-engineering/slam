@@ -1758,6 +1758,7 @@ void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArra
 
 }
 
+
 __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int time, int* count, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1775,7 +1776,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
         model_buffer_rs[i] = model_buffer[i];
         model_buffer_rs[i+ rows_mb*cols_mb] = model_buffer[i+ rows_mb*cols_mb];
         model_buffer_rs[i+2*rows_mb*cols_mb] = model_buffer[i+2*rows_mb*cols_mb];
-        model_buffer_rs[i+3*rows_mb*cols_mb] = model_buffer[i+3*rows_mb*cols_mb]
+        model_buffer_rs[i+3*rows_mb*cols_mb] = model_buffer[i+3*rows_mb*cols_mb];
 
         // //writing color and time
         model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
@@ -1792,7 +1793,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
     else if (cVw == -1)
     {
 
-        float4 newNorm = make_float4(updateNormRad.ptr(intY)[intX], updateNormRad.ptr(intY + rows_mb)[intX], updateNormRad.ptr(intY + rows_mb * 2), updateNormRad.ptr(intY + rows_mb * 3));
+        float4 newNorm = make_float4(updateNormRad.ptr(intY)[intX], updateNormRad.ptr(intY + rows_mb)[intX], updateNormRad.ptr(intY + rows_mb * 2)[intX], updateNormRad.ptr(intY + rows_mb * 3)[intX]);
         float4 vNormRad = make_float4(model_buffer[i+ 4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+7*rows_mb*cols_mb]);
 
         float a = updateVConf.ptr(intY + rows_mb * 3)[intX];
@@ -1814,6 +1815,11 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
             // float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
             // vColor0 = make_float4(encodeColor(avgColor), vColor.y, vColor.z, time);
 
+            // model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
+            // model_buffer_rs[i+5*rows_mb*cols_mb] =  model_buffer[i+5*rows_mb*cols_mb];//y
+            // model_buffer_rs[i+6*rows_mb*cols_mb] =  model_buffer[i+6*rows_mb*cols_mb];//z
+            // model_buffer_rs[i+7*rows_mb*cols_mb] =  model_buffer[i+7*rows_mb*cols_mb];
+
             float4 vNormRad0 = make_float4((c_k * vNormRad.x+ a * newNorm.x)/ (c_k + a), (c_k * vNormRad.y+ a * newNorm.y)/ (c_k + a), (c_k * vNormRad.z+ a * newNorm.z)/ (c_k + a), (c_k * vNormRad.w+ a * newNorm.w)/ (c_k + a));
             float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
             model_buffer_rs[i+8*rows_mb*cols_mb] = normnrad.x;
@@ -1826,7 +1832,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
             model_buffer_rs[i] = model_buffer[i];
             model_buffer_rs[i+ rows_mb*cols_mb] = model_buffer[i+ rows_mb*cols_mb];
             model_buffer_rs[i+2*rows_mb*cols_mb] = model_buffer[i+2*rows_mb*cols_mb];
-            model_buffer_rs[i+3*rows_mb*cols_mb] = model_buffer[i+3*rows_mb*cols_mb]
+            model_buffer_rs[i+3*rows_mb*cols_mb] = model_buffer[i+3*rows_mb*cols_mb];
 
             // //writing color and time
             model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
@@ -1848,13 +1854,13 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
 
 }
 
-void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int *h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
+void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int *h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
 {
 
     int blocksize = 32*8;
     int numblocks = (*h_count + blocksize - 1)/ blocksize;
 
-    float fy = intr.fy, cy = intr.cy;
+    float fx = intr.fx, fy = intr.fy, cx = intr.cx, cy = intr.cy;
 
     int *d_count;
     cudaMalloc((void**)&d_count, sizeof(int));
@@ -1864,7 +1870,7 @@ void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, fl
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-    fuseupdateKernel<<<numblocks, blocksize>>>(fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, d_count, updateVConf, updateNormRad, updateColTime);
+    fuseupdateKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, time, d_count, updateVConf, updateNormRad, updateColTime);
     cudaSafeCall(cudaGetLastError());
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
