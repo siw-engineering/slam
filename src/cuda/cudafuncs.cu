@@ -1722,16 +1722,6 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
             }
         }
     }
-
-    // if (vCw == 1)
-    // {
-
-    // }
-    // if (vCw > 0)
-    // {
-
-    // }
-
 }
 
 void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int time, int * h_count, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
@@ -1839,7 +1829,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
             // //writing color and time
             model_buffer_rs[i+4*rows_mb*cols_mb] =  model_buffer[i+4*rows_mb*cols_mb]; //x
             model_buffer_rs[i+5*rows_mb*cols_mb] =  model_buffer[i+5*rows_mb*cols_mb];//y
-            model_buffer_rs[i+6*rows_mb*cols_mb] =  model_buffer[i+6*rows_mb*cols_mb];//z
+            model_buffer_rs[i+6*rows_mb*cols_mb] =  model_buffer_rs[i+6*rows_mb*cols_mb];//z
             model_buffer_rs[i+7*rows_mb*cols_mb] =  model_buffer[i+7*rows_mb*cols_mb];
 
             //writing normals
@@ -1879,14 +1869,25 @@ void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, fl
 }
 
 
-__global__ void testcolorencodingKernel()
+__global__ void cleanKernel(const PtrStepSz<float> depthf, const float* rgb, const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, int time, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, int* count, float weighting, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
+{   
+    
+}   
+
+void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer, int time, int * h_count, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
 {
-    float3 c = make_float3(2,2,2);
-    float ec = encodeColor(c);
-    float3 dc = decodeColor(ec);
-    printf("org color %f %f %f\n encoded color %f decoded color %f %f %f \n ",c.x,c.y,c.z, ec, dc.x,dc.y,dc.z);
+
 }
-void testcolorencoding()
-{
-    testcolorencodingKernel<<<1,1>>>();
-}
+
+
+// __global__ void testcolorencodingKernel()
+// {
+//     float3 c = make_float3(2,2,2);
+//     float ec = encodeColor(c);
+//     float3 dc = decodeColor(ec);
+//     printf("org color %f %f %f\n encoded color %f decoded color %f %f %f \n ",c.x,c.y,c.z, ec, dc.x,dc.y,dc.z);
+// }
+// void testcolorencoding()
+// {
+//     testcolorencodingKernel<<<1,1>>>();
+// }

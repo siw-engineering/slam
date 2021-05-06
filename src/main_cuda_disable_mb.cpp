@@ -317,7 +317,7 @@ int main(int argc, char  *argv[])
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, &count, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		// fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
 		
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 
