@@ -152,7 +152,7 @@ int main(int argc, char  *argv[])
 
 	model_buffer.create(bufferSize);
 	model_buffer_rs.create(bufferSize);
-	unstable_buffer.create(width, height*VSIZE);
+	unstable_buffer.create(width, height*VSIZE*3);
 	updateVConf.create(TEXTURE_DIMENSION, TEXTURE_DIMENSION*4);
 	updateNormRad.create(TEXTURE_DIMENSION, TEXTURE_DIMENSION*4);
 	updateColTime.create(TEXTURE_DIMENSION, TEXTURE_DIMENSION*4);
