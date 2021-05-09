@@ -1838,7 +1838,7 @@ __global__ void cleanKernel(const PtrStepSz<float> depthf, float cx, float cy, f
         float4 vPosition, vNormRad, vColor;
         float3 localPos, localNorm;
 
-        if (input_flip)
+        if (!input_flip)
         {
             vPosition = make_float4(model_buffer_rs[i], model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+2*rows_mb*cols_mb], model_buffer_rs[i+3*rows_mb*cols_mb]);
             vNormRad = make_float4(model_buffer_rs[i+8*rows_mb*cols_mb], model_buffer_rs[i+9*rows_mb*cols_mb], model_buffer_rs[i+10*rows_mb*cols_mb], model_buffer_rs[i+11*rows_mb*cols_mb]);
@@ -1869,7 +1869,7 @@ __global__ void cleanKernel(const PtrStepSz<float> depthf, float cx, float cy, f
         int zCount = 0;
         int violationCount = 0; // Look-through outlier test
         float avgViolation = 0;
-
+        float outlierCoeff = 0.9;
 
         if((time - vColor.w < timeDelta) && (localPos.z > 0) && (x > 0) && (y > 0) && (x < cols) && (y < rows))
         {
@@ -1935,18 +1935,16 @@ __global__ void cleanKernel(const PtrStepSz<float> depthf, float cx, float cy, f
         
         if((vColor.w > 0 ) && (time - vColor.w) > timeDelta) test = 1;
 
-        // if(violationCount > 0) {
-        //   avgViolation /= violationCount;
-        //   vPosition.w *= 1.0 / (1 + outlierCoeff * avgViolation);
-
-        //   uint maskValue = uint(textureLod(maskSampler, vec2(x_n, y_n), 0.0));
-        //   float wDepth = float(textureLod(depthSamplerInput, vec2(x_n, y_n), 0));
-        //   if(wDepth > 0.0f && wDepth > localPos.z+0.03) violationCount++;
-        //   if(maskValue != maskID && (wDepth > localPos.z-0.05 && wDepth < localPos.z+0.05)) vPosition.w *= (0.5 + 0.5 * (1 - outlierCoeff / 10.0));
-
+        if(violationCount > 0) 
+        {
+          avgViolation /= violationCount;
+          vPosition.w *= 1.0 / (1 + outlierCoeff * avgViolation);
+          //uint maskValue = uint(textureLod(maskSampler, vec2(x_n, y_n), 0.0));
+          float wDepth = float(depthf.ptr(int(y))[int(x)]);
+          if(wDepth > 0.0f && wDepth > localPos.z+0.03) violationCount++;
+          if((wDepth > localPos.z-0.05 && wDepth < localPos.z+0.05)) vPosition.w *= (0.5 + 0.5 * (1 - outlierCoeff / 10.0));
         }
-
-
+    }
 }   
 
 void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* t_inv, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int timeDelta, float confThreshold, int * h_count_rs, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
@@ -1964,9 +1962,14 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
     float *t;
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, t_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
-    cleanKernel<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, t, model_buffer, model_buffer_rs, 1, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+    cleanKernel<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, t, model_buffer, model_buffer_rs, 0, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
     cudaMemcpy(h_count_rs, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+
+    dim3 grid (1, 1, 1);
+    grid.x = getGridDim (depthf.cols (), 32);
+    grid.y = getGridDim (depthf.rows (), 8);
+    //check count TO DO
 
 
 }
