@@ -1700,7 +1700,7 @@ void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArra
 }
 
 
-__global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int time, int* count, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
+__global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int time, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     int rows_mb, cols_mb;
@@ -1714,7 +1714,6 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
 
     if (cVw == 0)
     {
-
         model_buffer_rs[i] = model_buffer[i];
         model_buffer_rs[i+ rows_mb*cols_mb] = model_buffer[i+ rows_mb*cols_mb];
         model_buffer_rs[i+2*rows_mb*cols_mb] = model_buffer[i+2*rows_mb*cols_mb];
@@ -1745,7 +1744,6 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
 
         if (newNorm.w < (1 + 5) * vNormRad.w)
         {
-
             model_buffer_rs[i] = (c_k * v_k.x + a * v_g.x) / (c_k + a);
             model_buffer_rs[i+ rows_mb*cols_mb] = (c_k * v_k.y + a * v_g.y) / (c_k + a);
             model_buffer_rs[i+2*rows_mb*cols_mb] = (c_k * v_k.z + a * v_g.z) / (c_k + a);
@@ -1797,36 +1795,27 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
 
 }
 
-void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int *h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
+void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int* h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
 {
 
     int blocksize = 32*8;
     int numblocks = (*h_count + blocksize - 1)/ blocksize;
-
     float fx = intr.fx, fy = intr.fy, cx = intr.cx, cy = intr.cy;
-
-    int *d_count;
-    cudaMalloc((void**)&d_count, sizeof(int));
-    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
 
     float *t;
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-    fuseupdateKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, time, d_count, updateVConf, updateNormRad, updateColTime);
+    fuseupdateKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, time, updateVConf, updateNormRad, updateColTime);
     cudaSafeCall(cudaGetLastError());
-    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
 
-
-__global__ void cleanKernel(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, float* model_buffer_rs, int input_flip, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
+__global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, int* h_count, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
 {   
 
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
-
-    int i = v*cols + u;
 
     int rows_mb, cols_mb;
     rows_mb = cols_mb = 3072;
@@ -1838,20 +1827,11 @@ __global__ void cleanKernel(const PtrStepSz<float> depthf, float cx, float cy, f
         float4 vPosition, vNormRad, vColor;
         float3 localPos, localNorm;
 
-        if (!input_flip)
-        {
-            vPosition = make_float4(model_buffer_rs[i], model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+2*rows_mb*cols_mb], model_buffer_rs[i+3*rows_mb*cols_mb]);
-            vNormRad = make_float4(model_buffer_rs[i+8*rows_mb*cols_mb], model_buffer_rs[i+9*rows_mb*cols_mb], model_buffer_rs[i+10*rows_mb*cols_mb], model_buffer_rs[i+11*rows_mb*cols_mb]);
-            vColor = make_float4(model_buffer_rs[i+4*rows_mb*cols_mb], model_buffer_rs[i+5*rows_mb*cols_mb], model_buffer_rs[i+6*rows_mb*cols_mb], model_buffer_rs[i+7*rows_mb*cols_mb]);
-        
-        }
-        else
-        {
-            vPosition = make_float4(unstable_buffer.ptr(v)[u], unstable_buffer.ptr(v + rows)[u], unstable_buffer.ptr(v + 2*rows)[u], unstable_buffer.ptr(v + 3*rows)[u]);
-            vNormRad = make_float4(unstable_buffer.ptr(v + 4*rows)[u], unstable_buffer.ptr(v + 5*rows)[u], unstable_buffer.ptr(v + 6*rows)[u], unstable_buffer.ptr(v + 7*rows)[u]);
-            vColor = make_float4(unstable_buffer.ptr(v + 8*rows)[u], unstable_buffer.ptr(v + 9*rows)[u], unstable_buffer.ptr(v + 10*rows)[u], unstable_buffer.ptr(v + 11*rows)[u]);
-        
-        }
+        vPosition = make_float4(unstable_buffer.ptr(v)[u], unstable_buffer.ptr(v + rows)[u], unstable_buffer.ptr(v + 2*rows)[u], unstable_buffer.ptr(v + 3*rows)[u]);
+        vNormRad = make_float4(unstable_buffer.ptr(v + 4*rows)[u], unstable_buffer.ptr(v + 5*rows)[u], unstable_buffer.ptr(v + 6*rows)[u], unstable_buffer.ptr(v + 7*rows)[u]);
+        vColor = make_float4(unstable_buffer.ptr(v + 8*rows)[u], unstable_buffer.ptr(v + 9*rows)[u], unstable_buffer.ptr(v + 10*rows)[u], unstable_buffer.ptr(v + 11*rows)[u]);
+    
+    
         localPos = make_float3(0,0,0);
         localPos.x = t[0]*vPosition.x + t[1]*vPosition.y + t[2]*vPosition.z + t[3]*1;
         localPos.y = t[4]*vPosition.x + t[5]*vPosition.y + t[6]*vPosition.z + t[7]*1;
@@ -1944,33 +1924,158 @@ __global__ void cleanKernel(const PtrStepSz<float> depthf, float cx, float cy, f
           if(wDepth > 0.0f && wDepth > localPos.z+0.03) violationCount++;
           if((wDepth > localPos.z-0.05 && wDepth < localPos.z+0.05)) vPosition.w *= (0.5 + 0.5 * (1 - outlierCoeff / 10.0));
         }
+
+        if (test == 1)
+        {
+            // write
+        }
+    }
+}   
+__global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, float* model_buffer_rs, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
+{   
+
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
+
+    int test = 1;
+
+    if((i > 0) && (i < rows_mb*cols_mb))
+    {
+        float4 vPosition, vNormRad, vColor;
+        float3 localPos, localNorm;
+
+        vPosition = make_float4(model_buffer_rs[i], model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+2*rows_mb*cols_mb], model_buffer_rs[i+3*rows_mb*cols_mb]);
+        vNormRad = make_float4(model_buffer_rs[i+8*rows_mb*cols_mb], model_buffer_rs[i+9*rows_mb*cols_mb], model_buffer_rs[i+10*rows_mb*cols_mb], model_buffer_rs[i+11*rows_mb*cols_mb]);
+        vColor = make_float4(model_buffer_rs[i+4*rows_mb*cols_mb], model_buffer_rs[i+5*rows_mb*cols_mb], model_buffer_rs[i+6*rows_mb*cols_mb], model_buffer_rs[i+7*rows_mb*cols_mb]);
+        
+        localPos = make_float3(0,0,0);
+        localPos.x = t[0]*vPosition.x + t[1]*vPosition.y + t[2]*vPosition.z + t[3]*1;
+        localPos.y = t[4]*vPosition.x + t[5]*vPosition.y + t[6]*vPosition.z + t[7]*1;
+        localPos.z = t[8]*vPosition.x + t[9]*vPosition.y + t[10]*vPosition.z + t[11]*1;
+    
+        float x = ((fx * localPos.x) / localPos.z) + cx;
+        float y = ((fy * localPos.y) / localPos.z) + cy;
+    
+        localNorm = make_float3(0,0,0);
+        localNorm.x = t[0]*vNormRad.x + t[1]*vNormRad.y + t[2]*vNormRad.z;
+        localNorm.y = t[4]*vNormRad.x + t[5]*vNormRad.y + t[6]*vNormRad.z;
+        localNorm.z = t[8]*vNormRad.x + t[9]*vNormRad.y + t[10]*vNormRad.z;
+ 
+        int count = 0;
+        int zCount = 0;
+        int violationCount = 0; // Look-through outlier test
+        float avgViolation = 0;
+        float outlierCoeff = 0.9;
+
+        if((time - vColor.w < timeDelta) && (localPos.z > 0) && (x > 0) && (y > 0) && (x < cols) && (y < rows))
+        {
+            for(int ui = x - 2; ui < x + 2; ui++){
+                for(int vj = y - 2; vj < y + 2; vj++){
+
+                  unsigned int current = index_pi.ptr(vj)[ui];
+                   if(current > 0U)
+                   {
+                        float4 vertConf = make_float4(0,0,0,0);
+                        vertConf.x = vmap_pi.ptr(vj)[ui];
+                        vertConf.y = vmap_pi.ptr(vj + rows)[ui];
+                        vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
+                        vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+
+                        float4 colorTime = make_float4(0,0,0,0);
+                        colorTime.x = ct_pi.ptr(vj)[ui];
+                        colorTime.y = ct_pi.ptr(vj + rows)[ui];
+                        colorTime.z = ct_pi.ptr(vj + rows * 2)[ui];
+                        colorTime.w = ct_pi.ptr(vj + rows * 3)[ui];
+
+
+                        float cond = sqrt(dot(make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0), make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0)));
+
+                        if((colorTime.z < vColor.z) && // Surfel in map is older (init-time)
+                          (vertConf.w > confThreshold) && // Surfel in map is good (high conf)
+                          (vertConf.z > localPos.z) && // Surfel in map is behind vertex
+                          (vertConf.z - localPos.z < 0.01) && // Close to each other
+                          (cond < vNormRad.w * 1.4)){ // falls within radius
+                           count++;
+                        }
+
+                        if((colorTime.w == time) && // Only possible if lost?
+                          (vertConf.w > confThreshold) && // Surfel in map is good (high conf)
+                          (vertConf.z > localPos.z) && // Surfel in map is behind vertex
+                          (vertConf.z - localPos.z > 0.01) && // Not too close
+                          (abs(localNorm.z) > 0.85f)){
+                           zCount++;
+                        }
+                   }
+                }
+            }
+
+            // New outlier rejection ("see-through")
+            for(int ui = x - 2; ui <= x + 2; ui++){
+                for(int vj = y - 2; vj <= y + 2; vj++){
+                    float d = depthf.ptr(vj)[ui] - localPos.z; //cast depthf float? TO DO
+                    if(d > 0.03) {
+                      violationCount++;
+                      avgViolation += d;
+                    }
+                }
+            }
+        }
+        
+        if((count > 8) || (zCount > 4)) test = 0;
+        
+        //New unstable point
+        if(vColor.w == -2) vColor.w = time;
+        
+        //Degenerate case or too unstable
+        if(((vColor.w == -1) || (((time - vColor.w) > 20) && (vPosition.w < confThreshold)))) test = 0;
+        
+        if((vColor.w > 0 ) && (time - vColor.w) > timeDelta) test = 1;
+
+        if(violationCount > 0) 
+        {
+          avgViolation /= violationCount;
+          vPosition.w *= 1.0 / (1 + outlierCoeff * avgViolation);
+          //uint maskValue = uint(textureLod(maskSampler, vec2(x_n, y_n), 0.0));
+          float wDepth = float(depthf.ptr(int(y))[int(x)]);
+          if(wDepth > 0.0f && wDepth > localPos.z+0.03) violationCount++;
+          if((wDepth > localPos.z-0.05 && wDepth < localPos.z+0.05)) vPosition.w *= (0.5 + 0.5 * (1 - outlierCoeff / 10.0));
+        }
+
+        if (test == 1)
+        {
+            // write
+            printf("test = 1\n");
+        }
+        else
+            printf("test = 0\n");
+
     }
 }   
 
-void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* t_inv, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int timeDelta, float confThreshold, int * h_count_rs, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
+void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* t_inv, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int timeDelta, float confThreshold, int * h_count, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
 {
 
     int blocksize = 32*8;
-    int numblocks = (*h_count_rs + blocksize - 1)/ blocksize;
-
+    int numblocks = (*h_count + blocksize - 1)/ blocksize;
     float fx = intr.fx, fy = intr.fy, cx = intr.cx, cy = intr.cy;
-
-    int *d_count;
-    cudaMalloc((void**)&d_count, sizeof(int));
-    cudaMemcpy(d_count, h_count_rs, sizeof(int), cudaMemcpyHostToDevice);
 
     float *t;
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, t_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
-    cleanKernel<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, t, model_buffer, model_buffer_rs, 0, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+    cleanKernel1D<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, t, model_buffer, model_buffer_rs, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
     cudaSafeCall(cudaGetLastError());
-    cudaMemcpy(h_count_rs, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
-    dim3 grid (1, 1, 1);
-    grid.x = getGridDim (depthf.cols (), 32);
-    grid.y = getGridDim (depthf.rows (), 8);
-    //check count TO DO
-
+    // dim3 grid (1, 1, 1);
+    // grid.x = getGridDim (depthf.cols (), 32);
+    // grid.y = getGridDim (depthf.rows (), 8);
+    // //check count TO DO
+    // int *d_count;
+    // cudaMalloc((void**)&d_count, sizeof(int));
+    // cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+    // cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, h_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
+    // cudaSafeCall(cudaGetLastError());
+    // cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
 

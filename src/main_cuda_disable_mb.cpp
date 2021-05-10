@@ -87,6 +87,8 @@ int main(int argc, char  *argv[])
 	int count = 0;
 	float depthCutOff, maxDepth;
 	maxDepth = depthCutOff = 5;
+	float confThreshold = 9;
+	int timeDelta = 200;
 
 	const int TEXTURE_DIMENSION = 3072;
 	const int MAX_VERTICES = TEXTURE_DIMENSION * TEXTURE_DIMENSION;
@@ -190,6 +192,7 @@ int main(int argc, char  *argv[])
 	int frame = 0;
 	Render view(640, 480);
     DeviceArray2D<unsigned int> time_splat;
+
 
 
 	while (ros::ok())
@@ -317,9 +320,10 @@ int main(int argc, char  *argv[])
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, &count, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		// fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		
+		fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+
+		clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
 		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
@@ -327,23 +331,23 @@ int main(int argc, char  *argv[])
 		fillin.image(color_splat, rgb, fillin_img, false);
 
 
-      	// float* mb = new float[bufferSize];
-       //  model_buffer.download(mb);
-       //  float* mb_xyz = new float[height*width*3];
-       //  std::copy(mb, mb+(height*width), mb_xyz);
-       //  std::copy(mb+(3072*3072), mb+(3072*3072)+(height*width), mb_xyz+(height*width));
-       //  std::copy(mb+2*(3072*3072), mb+2*(3072*3072)+(height*width), mb_xyz+(2*height*width));
-       //  // std::copy(mb+(8*3072*3072), mb+(8*3072*3072)+(height*width), mb_xyz);
-       //  // std::copy(mb+(9*3072*3072), mb+(9*3072*3072)+(height*width), mb_xyz+(height*width));
-       //  // std::copy(mb+(10*3072*3072), mb+(10*3072*3072)+(height*width), mb_xyz+(2*height*width));
-       //  delete[] mb;
+		//  float* mb = new float[bufferSize];
+		//  model_buffer.download(mb);
+		//  float* mb_xyz = new float[height*width*3];
+		//  std::copy(mb, mb+(height*width), mb_xyz);
+		//  std::copy(mb+(3072*3072), mb+(3072*3072)+(height*width), mb_xyz+(height*width));
+		//  std::copy(mb+2*(3072*3072), mb+2*(3072*3072)+(height*width), mb_xyz+(2*height*width));
+		//  // std::copy(mb+(8*3072*3072), mb+(8*3072*3072)+(height*width), mb_xyz);
+		//  // std::copy(mb+(9*3072*3072), mb+(9*3072*3072)+(height*width), mb_xyz+(height*width));
+		//  // std::copy(mb+(10*3072*3072), mb+(10*3072*3072)+(height*width), mb_xyz+(2*height*width));
+		//  delete[] mb;
 
-       //  float plot[width*height*3];
-       //  view.glCoord(mb_xyz, plot, width*height);
-       //  view.bufferHandle(plot, sizeof(plot));
-       //  view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height);
+		//  float plot[width*height*3];
+		//  view.glCoord(mb_xyz, plot, width*height);
+		//  view.bufferHandle(plot, sizeof(plot));
+		//  view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height);
 
-        // std::cout<<"count :"<<count<<std::endl;
+		// std::cout<<"count :"<<count<<std::endl;
 		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 		// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// drawpose.topLeftCorner(3, 3) = rotObject;
