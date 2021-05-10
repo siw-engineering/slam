@@ -1811,7 +1811,7 @@ void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, fl
 
 }
 
-__global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, int* h_count, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
+__global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, int* d_count, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
 {   
 
     int u = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1824,8 +1824,11 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
 
     if(u < cols && u > 0 && v < rows && v > 0)
     {
-        float4 vPosition, vNormRad, vColor;
+        float4 vPosition, vNormRad, vColor, vertConf, colorTime, normRad;
         float3 localPos, localNorm;
+        vertConf = make_float4(0,0,0,0);
+        colorTime = make_float4(0,0,0,0);
+        normRad = make_float4(0,0,0,0);
 
         vPosition = make_float4(unstable_buffer.ptr(v)[u], unstable_buffer.ptr(v + rows)[u], unstable_buffer.ptr(v + 2*rows)[u], unstable_buffer.ptr(v + 3*rows)[u]);
         vNormRad = make_float4(unstable_buffer.ptr(v + 4*rows)[u], unstable_buffer.ptr(v + 5*rows)[u], unstable_buffer.ptr(v + 6*rows)[u], unstable_buffer.ptr(v + 7*rows)[u]);
@@ -1859,18 +1862,20 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
                   unsigned int current = index_pi.ptr(vj)[ui];
                    if(current > 0U)
                    {
-                        float4 vertConf = make_float4(0,0,0,0);
                         vertConf.x = vmap_pi.ptr(vj)[ui];
                         vertConf.y = vmap_pi.ptr(vj + rows)[ui];
                         vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
                         vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
 
-                        float4 colorTime = make_float4(0,0,0,0);
                         colorTime.x = ct_pi.ptr(vj)[ui];
                         colorTime.y = ct_pi.ptr(vj + rows)[ui];
                         colorTime.z = ct_pi.ptr(vj + rows * 2)[ui];
                         colorTime.w = ct_pi.ptr(vj + rows * 3)[ui];
 
+                        normRad.x = nmap_pi.ptr(vj)[ui];
+                        normRad.y = nmap_pi.ptr(vj + rows)[ui];
+                        normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
+                        normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
 
                         float cond = sqrt(dot(make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0), make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0)));
 
@@ -1927,7 +1932,21 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
 
         if (test == 1)
         {
-            // write
+            model_buffer[*d_count] = vertConf.x;
+            model_buffer[*d_count+ rows_mb*cols_mb] = vertConf.y;
+            model_buffer[*d_count+2*rows_mb*cols_mb] = vertConf.z;
+            model_buffer[*d_count+3*rows_mb*cols_mb] = vertConf.w;
+
+            model_buffer[*d_count+4*rows_mb*cols_mb] = normRad.x;
+            model_buffer[*d_count+5*rows_mb*cols_mb] = normRad.y;
+            model_buffer[*d_count+6*rows_mb*cols_mb] = normRad.z;
+            model_buffer[*d_count+7*rows_mb*cols_mb] = normRad.w;
+
+            model_buffer[*d_count+4*rows_mb*cols_mb] = colorTime.x;
+            model_buffer[*d_count+5*rows_mb*cols_mb] = colorTime.y;
+            model_buffer[*d_count+6*rows_mb*cols_mb] = colorTime.z;
+            model_buffer[*d_count+7*rows_mb*cols_mb] = colorTime.w;
+            atomicAdd(d_count, 1);
         }
     }
 }   
@@ -1942,8 +1961,11 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
 
     if((i > 0) && (i < rows_mb*cols_mb))
     {
-        float4 vPosition, vNormRad, vColor;
-        float3 localPos, localNorm;
+        float4 vPosition, vNormRad, vColor, vertConf, colorTime, normRad;
+        float3 localPos, localNorm; 
+        vertConf = make_float4(0,0,0,0);
+        colorTime = make_float4(0,0,0,0);
+        normRad = make_float4(0,0,0,0);
 
         vPosition = make_float4(model_buffer_rs[i], model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+2*rows_mb*cols_mb], model_buffer_rs[i+3*rows_mb*cols_mb]);
         vNormRad = make_float4(model_buffer_rs[i+8*rows_mb*cols_mb], model_buffer_rs[i+9*rows_mb*cols_mb], model_buffer_rs[i+10*rows_mb*cols_mb], model_buffer_rs[i+11*rows_mb*cols_mb]);
@@ -1976,18 +1998,20 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
                   unsigned int current = index_pi.ptr(vj)[ui];
                    if(current > 0U)
                    {
-                        float4 vertConf = make_float4(0,0,0,0);
                         vertConf.x = vmap_pi.ptr(vj)[ui];
                         vertConf.y = vmap_pi.ptr(vj + rows)[ui];
                         vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
                         vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
 
-                        float4 colorTime = make_float4(0,0,0,0);
                         colorTime.x = ct_pi.ptr(vj)[ui];
                         colorTime.y = ct_pi.ptr(vj + rows)[ui];
                         colorTime.z = ct_pi.ptr(vj + rows * 2)[ui];
                         colorTime.w = ct_pi.ptr(vj + rows * 3)[ui];
 
+                        normRad.x = nmap_pi.ptr(vj)[ui];
+                        normRad.y = nmap_pi.ptr(vj + rows)[ui];
+                        normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
+                        normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
 
                         float cond = sqrt(dot(make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0), make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0)));
 
@@ -2045,10 +2069,22 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
         if (test == 1)
         {
             // write
-            printf("test = 1\n");
+            model_buffer[i] = vertConf.x;
+            model_buffer[i+ rows_mb*cols_mb] = vertConf.y;
+            model_buffer[i+2*rows_mb*cols_mb] = vertConf.z;
+            model_buffer[i+3*rows_mb*cols_mb] = vertConf.w;
+
+            model_buffer[i+4*rows_mb*cols_mb] = normRad.x;
+            model_buffer[i+5*rows_mb*cols_mb] = normRad.y;
+            model_buffer[i+6*rows_mb*cols_mb] = normRad.z;
+            model_buffer[i+7*rows_mb*cols_mb] = normRad.w;
+
+            model_buffer[i+4*rows_mb*cols_mb] = colorTime.x;
+            model_buffer[i+5*rows_mb*cols_mb] = colorTime.y;
+            model_buffer[i+6*rows_mb*cols_mb] = colorTime.z;
+            model_buffer[i+7*rows_mb*cols_mb] = colorTime.w;
+
         }
-        else
-            printf("test = 0\n");
 
     }
 }   
@@ -2066,16 +2102,16 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
     cleanKernel1D<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, t, model_buffer, model_buffer_rs, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
     cudaSafeCall(cudaGetLastError());
 
-    // dim3 grid (1, 1, 1);
-    // grid.x = getGridDim (depthf.cols (), 32);
-    // grid.y = getGridDim (depthf.rows (), 8);
-    // //check count TO DO
-    // int *d_count;
-    // cudaMalloc((void**)&d_count, sizeof(int));
-    // cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
-    // cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, h_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
-    // cudaSafeCall(cudaGetLastError());
-    // cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    dim3 grid (1, 1, 1);
+    grid.x = getGridDim (depthf.cols (), 32);
+    grid.y = getGridDim (depthf.rows (), 8);
+    //check count TO DO
+    int *d_count;
+    cudaMalloc((void**)&d_count, sizeof(int));
+    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+    cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, d_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+    cudaSafeCall(cudaGetLastError());
+    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
 

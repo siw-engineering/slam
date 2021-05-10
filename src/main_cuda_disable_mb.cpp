@@ -315,14 +315,12 @@ int main(int argc, char  *argv[])
 		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 		updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 		unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
-		
  
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, &count, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
 		fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-
 		clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
 		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
@@ -330,7 +328,7 @@ int main(int argc, char  *argv[])
 		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
 		fillin.image(color_splat, rgb, fillin_img, false);
 
-
+		
 		//  float* mb = new float[bufferSize];
 		//  model_buffer.download(mb);
 		//  float* mb_xyz = new float[height*width*3];
@@ -349,11 +347,11 @@ int main(int argc, char  *argv[])
 
 		// std::cout<<"count :"<<count<<std::endl;
 		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
-		// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// drawpose.topLeftCorner(3, 3) = rotObject;
-		// glLineWidth(4);
-		// pangolin::glDrawFrustum(Kinv, 640, 480, drawpose, 0.2f);
-		// glLineWidth(1);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		drawpose.topLeftCorner(3, 3) = rotObject;
+		glLineWidth(4);
+		pangolin::glDrawFrustum(Kinv, 640, 480, drawpose, 0.2f);
+		glLineWidth(1);
 
 		lastpose = pose;
 		frame++;		
