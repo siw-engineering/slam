@@ -1493,7 +1493,7 @@ __device__ float angleBetween(float3 a, float3 b)
     return acos(dot(a, b) / (sqrt(pow(a.x,2)+pow(a.y,2)+pow(a.z,2)) * sqrt(pow(b.x,2)+pow(b.y,2)+pow(b.z,2))));
 }
 
-__global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, int time, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, int* count, float weighting, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
+__global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, const float* rgb, const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, int time, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, float weighting, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
 {
 
     int u = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1523,7 +1523,7 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
             if (zf !=0 && zf < maxDepth)
             {   
                 // vsrc_new_f = vPosition_f
-                float3 vPosition_f = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  zf); //depth filtering look up
+                float3 vPosition_f = make_float3(zf * (u - cx) / fx,  zf * (v - cy) / fy,  zf); //depth filtering look up
                
                 float3 cnew = make_float3(0,0,0);
                 cnew.x = rgb[i];
@@ -1645,7 +1645,7 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
                         unstable_buffer.ptr(v + rows * 9)[u] = 0;
                         unstable_buffer.ptr(v + rows * 10)[u] = time;
                         unstable_buffer.ptr(v + rows * 11)[u] = vCw;
-
+                        atomicAdd(up, 1);
                     }
                     else
                     {
@@ -1664,7 +1664,9 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
                         unstable_buffer.ptr(v + rows * 8)[u] = ec_new;
                         unstable_buffer.ptr(v + rows * 9)[u] = 0;
                         unstable_buffer.ptr(v + rows * 10)[u] = time;
-                        unstable_buffer.ptr(v + rows * 11)[u] = vCw;                
+                        unstable_buffer.ptr(v + rows * 11)[u] = vCw;     
+                        atomicAdd(usp, 1);
+
                     }
 
                     //     atomicAdd(count, 1);
@@ -1675,7 +1677,7 @@ __global__ void fusedataKernel(const PtrStepSz<float> depth, const float* rgb, c
     }
 }
 
-void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int time, int * h_count, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
+void fuse_data(int* up, int* usp, DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, float weighting, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer)
 {
     dim3 block (32, 8);
     dim3 grid (1, 1, 1);
@@ -1685,17 +1687,21 @@ void fuse_data(DeviceArray2D<float>& depth,  DeviceArray<float>& rgb, DeviceArra
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
-    int *d_count;
-    cudaMalloc((void**)&d_count, sizeof(int));
-    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+    int *d_up, *d_usp;
+    cudaMalloc((void**)&d_up, sizeof(int));
+    cudaMalloc((void**)&d_usp, sizeof(int));
+    cudaMemcpy(d_up, up, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_usp, usp, sizeof(int), cudaMemcpyHostToDevice);
 
     float * t;
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-    fusedataKernel<<<grid, block>>>(depth, rgb, depthf, fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, time, vmap_pi, ct_pi, nmap_pi, index_pi, d_count, weighting, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+    fusedataKernel<<<grid, block>>>(d_up, d_usp, depth, rgb, depthf, fx, fy, cx, cy, rows, cols, maxDepth, t, model_buffer, time, vmap_pi, ct_pi, nmap_pi, index_pi, weighting, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
-    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(up, d_up, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(usp, d_usp, sizeof(int), cudaMemcpyDeviceToHost);
+
 
 }
 
