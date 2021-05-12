@@ -194,10 +194,11 @@ int main(int argc, char  *argv[])
     DeviceArray2D<unsigned int> time_splat;
 
 
-    int up, usp;
-    up =0;
+    int up, usp, cvw0, cvwm1;
+    up = 0;
     usp = 0;
-
+    cvw0 = 0;
+    cvwm1 = 0;
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -322,7 +323,7 @@ int main(int argc, char  *argv[])
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		// fuse_update(intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
 		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		// clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
@@ -349,6 +350,9 @@ int main(int argc, char  *argv[])
 		//  view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height);
 
 		std::cout<<"frame :"<<frame<<" update points:"<<up<<" unstable points:"<<usp<<std::endl;
+		// std::cout<<"frame :"<<frame<<" cvw0 points:"<<cvw0<<" cvwm1 points:"<<cvwm1<<std::endl;
+		if (frame > 30)
+			break;
 		// std::cout<<"count :"<<count<<std::endl;
 		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 		// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -358,6 +362,8 @@ int main(int argc, char  *argv[])
 		// glLineWidth(1);
 		up = 0;
 		usp = 0;
+		cvw0 = 0;
+    	cvwm1 = 0;
 		lastpose = pose;
 		frame++;		
 		// count = 0;	// TO DO set lastpose

@@ -188,6 +188,7 @@ __device__ float3 getNormal(const PtrStepSz<float> depth, float depthCutoff, flo
     float z2 = depth.ptr(v)[u - 1];
     float z3 = depth.ptr(v + 1)[u];
     float z4 = depth.ptr(v - 1)[u];
+    
 
     if(z1 != 0 && z1 < depthCutoff && z2 != 0 && z2 < depthCutoff && z3 != 0 && z3 < depthCutoff && z4 != 0 && z4 < depthCutoff)
     {
@@ -196,14 +197,13 @@ __device__ float3 getNormal(const PtrStepSz<float> depth, float depthCutoff, flo
         float3 v2 = make_float3(z2 * (u - 1 - cx) / fx,  z2 * (v - cy) / fy,  z2); 
         float3 v3 = make_float3(z3 * (u - cx) / fx,  z3 * (v + 1 - cy) / fy,  z3); 
         float3 v4 = make_float3(z4 * (u - cx) / fx,  z4 * (v - 1- cy) / fy,  z4); 
-
+        
         if (!isnan (v1.x) && !isnan (v2.x) && !isnan (v3.x))
         {
-
             float3 del_x = make_float3(((vpos.x + v2.x)/2 - (vpos.x + v1.x)/2), ((vpos.y + v2.y)/2 - (vpos.y + v1.y)/2), ((vpos.z + v2.z)/2 - (vpos.z + v1.z)/2));
             float3 del_y = make_float3(((vpos.x + v4.x)/2 - (vpos.x + v3.x)/2), ((vpos.y + v4.y)/2 - (vpos.y + v3.y)/2), ((vpos.z + v4.z)/2 - (vpos.z + v3.z)/2));
-
-            return normalized(cross(del_x, del_y));    
+            float3 ret = normalized(cross(del_x, del_y));    
+            return ret;
         }
     }
     else
@@ -1513,10 +1513,12 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
         {   
             //vPosLocal = vsrc_new
             float3 vPosLocal = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
+            // printf("vPosLocal x=%f y=%f z=%f\n",vPosLocal.x, vPosLocal.y, vPosLocal.z);
             float4 vPosition = make_float4(0,0,0,0); //vPosition = vnew_
             vPosition.x = pose[0]*vPosLocal.x + pose[1]*vPosLocal.y + pose[2]*vPosLocal.z + pose[3]*1;
             vPosition.y = pose[4]*vPosLocal.x + pose[5]*vPosLocal.y + pose[6]*vPosLocal.z + pose[7]*1;
             vPosition.z = pose[8]*vPosLocal.x + pose[9]*vPosLocal.y + pose[10]*vPosLocal.z + pose[11]*1;
+            // printf("vPosition x=%f y=%f z=%f\n",vPosition.x, vPosition.y, vPosition.z);
 
             float zf = depthf.ptr(v)[u];
 
@@ -1524,6 +1526,7 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
             {   
                 // vsrc_new_f = vPosition_f
                 float3 vPosition_f = make_float3(zf * (u - cx) / fx,  zf * (v - cy) / fy,  zf); //depth filtering look up
+                // printf("vPosition_f x=%f y=%f z=%f\n",vPosition_f.x, vPosition_f.y, vPosition_f.z);
                
                 float3 cnew = make_float3(0,0,0);
                 cnew.x = rgb[i];
@@ -1539,8 +1542,12 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
 
                 float ec_new ;
                 //FIX encoding
-                ec_new = encodeColor(cnew);
+                cnew.x = cnew.x/255;
+                cnew.y = cnew.y/255;
+                cnew.z = cnew.z/255;
 
+                ec_new = encodeColor(cnew);
+                // printf("color x= %f y=%f z=%f encoded color = %f\n",cnew.x, cnew.y, cnew.z, ec_new);
                 // nsrc_new = vNormLocal
                 float3 vNormLocal = make_float3(0,0,0);
                 //nnew_ = vNormRad
@@ -1550,10 +1557,15 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                 vNormRad.x = pose[0]*vNormLocal.x + pose[1]*vNormLocal.y + pose[2]*vNormLocal.z;
                 vNormRad.y = pose[4]*vNormLocal.x + pose[5]*vNormLocal.y + pose[6]*vNormLocal.z;
                 vNormRad.z = pose[8]*vNormLocal.x + pose[9]*vNormLocal.y + pose[10]*vNormLocal.z;
-                vNormRad.w =  getRadius(fx, fy, vPosition_f.z, vNormLocal.z); // TO DO change vsrc_new.z to vsrc_new_f.z
+                vNormRad.w = getRadius(fx, fy, vPosition_f.z, vNormLocal.z); // TO DO change vsrc_new.z to vsrc_new_f.z
+                // printf("vNormLocal x=%f y=%f z=%f\n",vNormLocal.x, vNormLocal.y, vNormLocal.z);
+                // printf("vNormRad x=%f y=%f z=%f rad=%f\n",vNormRad.x, vNormRad.y, vNormRad.z, vNormRad.w);
 
                 // //Confidence
                 vPosition.w = confidence(cx, cy, u, v, weighting);
+                // printf("vPosition.w (confidence) =%f\n",vPosition.w);
+
+
                 // float confnew = confidence(cx, cy, u, v, weighting);
                 vCw = 0;
                 int updateId = 0;
@@ -1563,10 +1575,11 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                 {
                     int operation = 0;
                     float bestDist = 1000;
-                    float xl = (u - cx) * fx;
-                    float yl = (v - cy) * fy;
+                    float xl = (u - cx) * 1/fx;
+                    float yl = (v - cy) * 1/fy;
                     float lambda = sqrt(xl * xl + yl * yl + 1);
                     float3 ray = make_float3(xl, yl, 1);
+
 
                     for (int ui = u - 2; ui < u + 2; ui++)
                     {
@@ -1577,6 +1590,9 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                             if ((vj < 0) || (vj >=rows))
                                 continue;
                             unsigned int current = index_pi.ptr(vj)[ui];
+                            // printf("current =%d\n",current);
+                            // printf("xl = %f yl = %f\n", xl, yl);
+                            // printf("lambda = %f \n", lambda);
                             if(current > 0U)
                             {
                                 float4 vertConf = make_float4(0,0,0,0);
@@ -1584,21 +1600,29 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                                 vertConf.y = vmap_pi.ptr(vj + rows)[ui];
                                 vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
                                 vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+                                // printf("vertConf x=%f y=%f z=%f w=%f\n",vertConf.x, vertConf.y, vertConf.z, vertConf.w);
                                  
                                 float zdiff = vertConf.z - vPosLocal.z;
+                                // printf("zdiff =%f\n",zdiff);
+                                // printf("abs(zdiff * lambda) (< 0.05) =%f\n",abs(zdiff * lambda));
 
                                 if (abs(zdiff * lambda) < 0.05)
                                 {
                                     float3 ray_v_cross = make_float3(0,0,0);
                                     ray_v_cross = cross(ray, make_float3(vertConf.x,vertConf.y,vertConf.z));
                                     float dist = sqrt(pow(ray_v_cross.x,2) + pow(ray_v_cross.y,2) + pow(ray_v_cross.z,2)) /*/ lambda*/;
+                                    // printf("dist =%f\n",dist);
+                                    // printf("bestDist =%f\n",bestDist);
+
                                     float4 normRad = make_float4(0,0,0,0);
                                     normRad.x = nmap_pi.ptr(vj)[ui];
                                     normRad.y = nmap_pi.ptr(vj + rows)[ui];
                                     normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
                                     normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
+                                    // printf("normRad x=%f y=%f z=%f rad=%f\n",normRad.x, normRad.y, normRad.z, normRad.w);
                                     
                                     float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(vNormLocal.x, vNormLocal.y, vNormLocal.z));
+                                    // printf("abw(<0.5) =%f\n",abw);
                                     
                                     if(dist < bestDist && (abs(normRad.z) < 0.75f || abw < 0.5f))
                                     {
@@ -1683,6 +1707,8 @@ void fuse_data(int* up, int* usp, DeviceArray2D<float>& depth,  DeviceArray<floa
     dim3 grid (1, 1, 1);
     grid.x = getGridDim (depth.cols (), block.x);
     grid.y = getGridDim (depth.rows (), block.y);
+    // grid.x = getGridDim (1, block.x);
+    // grid.y = getGridDim (1, block.y);
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
@@ -1706,7 +1732,7 @@ void fuse_data(int* up, int* usp, DeviceArray2D<float>& depth,  DeviceArray<floa
 }
 
 
-__global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int time, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
+__global__ void fuseupdateKernel(int* cvw0, int* cvwm1, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* pose, float* model_buffer, float* model_buffer_rs, int time, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     int rows_mb, cols_mb;
@@ -1720,6 +1746,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
 
     if (cVw == 0)
     {
+        atomicAdd(cvw0, 1);
         model_buffer_rs[i] = model_buffer[i];
         model_buffer_rs[i+ rows_mb*cols_mb] = model_buffer[i+ rows_mb*cols_mb];
         model_buffer_rs[i+2*rows_mb*cols_mb] = model_buffer[i+2*rows_mb*cols_mb];
@@ -1739,6 +1766,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
     }
     else if (cVw == -1)
     {
+        atomicAdd(cvwm1, 1);
 
         float4 newNorm = make_float4(updateNormRad.ptr(intY)[intX], updateNormRad.ptr(intY + rows_mb)[intX], updateNormRad.ptr(intY + rows_mb * 2)[intX], updateNormRad.ptr(intY + rows_mb * 3)[intX]);
         float4 vNormRad = make_float4(model_buffer[i+ 4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+7*rows_mb*cols_mb]);
@@ -1801,7 +1829,7 @@ __global__ void fuseupdateKernel(float cx, float cy, float fx, float fy, int row
 
 }
 
-void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int* h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
+void fuse_update(int* cvw0, int* cvwm1, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int* h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
 {
 
     int blocksize = 32*8;
@@ -1812,8 +1840,16 @@ void fuse_update(const CameraModel& intr, int rows, int cols, float maxDepth, fl
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
-    fuseupdateKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, time, updateVConf, updateNormRad, updateColTime);
+    int *d_cvw0, *d_cvwm1;
+    cudaMalloc((void**)&d_cvw0, sizeof(int));
+    cudaMalloc((void**)&d_cvwm1, sizeof(int));
+    cudaMemcpy(d_cvw0, cvw0, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_cvwm1, cvwm1, sizeof(int), cudaMemcpyHostToDevice);
+
+    fuseupdateKernel<<<numblocks, blocksize>>>(d_cvw0, d_cvwm1, cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, model_buffer_rs, time, updateVConf, updateNormRad, updateColTime);
     cudaSafeCall(cudaGetLastError());
+    cudaMemcpy(cvw0, d_cvw0, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(cvwm1, d_cvwm1, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
 
@@ -2122,14 +2158,14 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
 }
 
 
-// __global__ void testcolorencodingKernel()
-// {
-//     float3 c = make_float3(2,2,2);
-//     float ec = encodeColor(c);
-//     float3 dc = decodeColor(ec);
-//     printf("org color %f %f %f\n encoded color %f decoded color %f %f %f \n ",c.x,c.y,c.z, ec, dc.x,dc.y,dc.z);
-// }
-// void testcolorencoding()
-// {
-//     testcolorencodingKernel<<<1,1>>>();
-// }
+__global__ void testcolorencodingKernel()
+{
+    float3 c = make_float3(59,74,43);
+    float ec = encodeColor(c);
+    float3 dc = decodeColor(ec);
+    printf("org color %f %f %f\n encoded color %f decoded color %f %f %f \n ",c.x,c.y,c.z, ec, dc.x,dc.y,dc.z);
+}
+void testcolorencoding()
+{
+    testcolorencodingKernel<<<1,1>>>();
+}
