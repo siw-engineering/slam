@@ -247,53 +247,59 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
 
-
     float vz = vmap.ptr(v + rows*2)[u];
-    atomicAdd(count, 1);
 
     if ((vz < 0) || (vz > max_depth))
     {
         return;
     }
 
+    if (u > 0 && u < cols && v > 0 && v < rows)
+    {
+        // replace this, hardcoding temporarily
+        int rows_mb, cols_mb;
+        rows_mb = cols_mb = 3072;
+        int i = cols*v + u;
 
+        float3 vert, norm;
+        vert = make_float3(vmap.ptr(v)[u], vmap.ptr(v + rows)[u], vz);
+        norm = make_float3(nmap.ptr(v)[u], nmap.ptr(v + rows)[u], nmap.ptr(v + rows*2)[u]);
 
-    // replace this, hardcoding temporarily
-    int rows_mb, cols_mb;
-    rows_mb = cols_mb = 3072;
+        if (isnan(vert.x) || isnan(vert.y) || isnan(vert.z) || isnan(norm.x) || isnan(norm.y) || isnan(norm.z))
+            return;
 
-    int i = cols*v + u;
-    // int i = *count;
-    //writing vertex and confidence
-    model_buffer[i] = vmap.ptr(v)[u];
-    model_buffer[i+ rows_mb*cols_mb] = vmap.ptr(v + rows)[u];
-    model_buffer[i+2*rows_mb*cols_mb] = vz;
-    model_buffer[i+3*rows_mb*cols_mb] = confidence(cx, cy, u, v, 1);
+        atomicAdd(count, 1);
+        //writing vertex and confidence
+        model_buffer[i] = vert.x;
+        model_buffer[i+ rows_mb*cols_mb] = vert.y;
+        model_buffer[i+2*rows_mb*cols_mb] = vert.z;
+        model_buffer[i+3*rows_mb*cols_mb] = confidence(cx, cy, u, v, 1);
 
-    // color encoding
-    float3 c;
-    float ec ;
-    c.x = rgb[v*cols*3 + u*3 + 0];
-    c.y = rgb[v*cols*3 + u*3 + 1];
-    c.z = rgb[v*cols*3 + u*3 + 2];
-    ec = encodeColor(c);
+        // color encoding
+        float3 c;
+        float ec ;
+        c.x = rgb[v*cols*3 + u*3 + 0];
+        c.y = rgb[v*cols*3 + u*3 + 1];
+        c.z = rgb[v*cols*3 + u*3 + 2];
 
-    // //writing color and time
-    // model_buffer[i+4*rows_mb*cols_mb] = ec; //x // TO DO UPDATE disabling color encoding, don't know what will happen
-    // model_buffer[i+5*rows_mb*cols_mb] = 0;//y
-    // model_buffer[i+6*rows_mb*cols_mb] = 1;//z
-    // model_buffer[i+7*rows_mb*cols_mb] = 1;//w time
-    model_buffer[i+4*rows_mb*cols_mb] = c.x; //x
-    model_buffer[i+5*rows_mb*cols_mb] = c.y;//y
-    model_buffer[i+6*rows_mb*cols_mb] = c.z;//z
-    model_buffer[i+7*rows_mb*cols_mb] = 1;//w time
+        c.x = c.x/255;
+        c.y = c.y/255;
+        c.z = c.z/255;
 
-    //writing normals
-    model_buffer[i+8*rows_mb*cols_mb] = nmap.ptr(v)[u];
-    model_buffer[i+9*rows_mb*cols_mb] = nmap.ptr(v + rows)[u];
-    model_buffer[i+10*rows_mb*cols_mb] = nmap.ptr(v + rows*2)[u];
-    model_buffer[i+11*rows_mb*cols_mb] = getRadius(fx, fy, vmap.ptr(v + rows*2)[u], nmap.ptr(v + rows*2)[u]);
+        ec = encodeColor(c);
+        // //writing color and time
+        model_buffer[i+4*rows_mb*cols_mb] = ec; //x
+        model_buffer[i+5*rows_mb*cols_mb] = 0;//y
+        model_buffer[i+6*rows_mb*cols_mb] = 1;//z
+        model_buffer[i+7*rows_mb*cols_mb] = 1;//w time
 
+        //writing normals
+        model_buffer[i+8*rows_mb*cols_mb] = norm.x;
+        model_buffer[i+9*rows_mb*cols_mb] = norm.y;
+        model_buffer[i+10*rows_mb*cols_mb] = norm.z;
+        model_buffer[i+11*rows_mb*cols_mb] = getRadius(fx, fy, vmap.ptr(v + rows*2)[u], nmap.ptr(v + rows*2)[u]);
+        // printf("initModelBuffer :vx = %f vy = %f vz = %f cx = %f cy = %f cz = %f nx = %f ny = %f nz = %f \n",model_buffer[i],model_buffer[i+ rows_mb*cols_mb], model_buffer[i+ 2*rows_mb*cols_mb], model_buffer[i+ 4*rows_mb*cols_mb], model_buffer[i+ 5*rows_mb*cols_mb], model_buffer[i+ 6*rows_mb*cols_mb], model_buffer[i+ 8*rows_mb*cols_mb], model_buffer[i+ 9*rows_mb*cols_mb], model_buffer[i+ 10*rows_mb*cols_mb]);
+    }
 }
 
 void initModelBuffer(const CameraModel& intr, const float depthCutOff, DeviceArray<float> & model_buffer, int* h_count, const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb )
@@ -1763,6 +1769,8 @@ __global__ void fuseupdateKernel(int* cvw0, int* cvwm1, float cx, float cy, floa
         model_buffer_rs[i+9*rows_mb*cols_mb] = model_buffer[i+9*rows_mb*cols_mb];
         model_buffer_rs[i+10*rows_mb*cols_mb] = model_buffer[i+10*rows_mb*cols_mb];
         model_buffer_rs[i+11*rows_mb*cols_mb] = model_buffer[i+11*rows_mb*cols_mb];
+        // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer_rs[i],model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+ 2*rows_mb*cols_mb], model_buffer_rs[i+ 3*rows_mb*cols_mb], model_buffer[i+4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer_rs[i+ 7*rows_mb*cols_mb], model_buffer[i+8*rows_mb*cols_mb], model_buffer[i+9*rows_mb*cols_mb], model_buffer[i+10*rows_mb*cols_mb]);
+
     }
     else if (cVw == -1)
     {
@@ -1786,9 +1794,9 @@ __global__ void fuseupdateKernel(int* cvw0, int* cvwm1, float cx, float cy, floa
             // TO DO color add
             float3 oldCol = decodeColor(model_buffer[i+4*rows_mb*cols_mb]);
             float3 newCol = decodeColor(newColx);
+            
             float3 avgColor = make_float3((c_k * oldCol.x+ a * newCol.x)/ (c_k + a), (c_k * oldCol.y+ a * newCol.y)/ (c_k + a), (c_k * oldCol.z+ a * newCol.z)/ (c_k + a));
             float4 vColor0 = make_float4(encodeColor(avgColor), model_buffer_rs[i+5*rows_mb*cols_mb], model_buffer_rs[i+6*rows_mb*cols_mb], time);
-
 
             model_buffer_rs[i+4*rows_mb*cols_mb] = vColor0.x; 
             model_buffer_rs[i+5*rows_mb*cols_mb] = vColor0.y;
@@ -1800,6 +1808,7 @@ __global__ void fuseupdateKernel(int* cvw0, int* cvwm1, float cx, float cy, floa
             model_buffer_rs[i+8*rows_mb*cols_mb] = normnrad.x;
             model_buffer_rs[i+9*rows_mb*cols_mb] = normnrad.y;
             model_buffer_rs[i+10*rows_mb*cols_mb] = normnrad.z;
+            // printf("cvw :1 in: vx = %f vy = %f vz = %f cx = %f cy = %f cz = %f nx = %f ny = %f nz = %f \n",model_buffer_rs[i],model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+ 2*rows_mb*cols_mb], vColor0.x, vColor0.y, vColor0.z, normnrad.x, normnrad.y, normnrad.z);
 
         }
         else
@@ -1823,10 +1832,12 @@ __global__ void fuseupdateKernel(int* cvw0, int* cvwm1, float cx, float cy, floa
 
             model_buffer_rs[i+3*rows_mb*cols_mb] = c_k + a;
             model_buffer_rs[i+7*rows_mb*cols_mb]= time;
+            // printf("cvw :1 out: vx = %f vy = %f vz = %f cx = %f cy = %f cz = %f nx = %f ny = %f nz = %f \n",model_buffer_rs[i],model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+ 2*rows_mb*cols_mb], model_buffer[i+4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+8*rows_mb*cols_mb], model_buffer[i+9*rows_mb*cols_mb], model_buffer[i+10*rows_mb*cols_mb]);
+
 
         }
+        // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer_rs[i],model_buffer_rs[i+ rows_mb*cols_mb], model_buffer_rs[i+ 2*rows_mb*cols_mb], model_buffer_rs[i+ 3*rows_mb*cols_mb], model_buffer[i+4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer_rs[i+ 7*rows_mb*cols_mb], model_buffer[i+8*rows_mb*cols_mb], model_buffer[i+9*rows_mb*cols_mb], model_buffer[i+10*rows_mb*cols_mb]);
     }
-
 }
 
 void fuse_update(int* cvw0, int* cvwm1, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int* h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime)
@@ -1988,7 +1999,9 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
             model_buffer[*d_count+5*rows_mb*cols_mb] = colorTime.y;
             model_buffer[*d_count+6*rows_mb*cols_mb] = colorTime.z;
             model_buffer[*d_count+7*rows_mb*cols_mb] = colorTime.w;
+            // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer[*d_count],model_buffer[*d_count+ rows_mb*cols_mb], model_buffer[*d_count+ 2*rows_mb*cols_mb], model_buffer[*d_count+ 3*rows_mb*cols_mb], model_buffer[*d_count+4*rows_mb*cols_mb], model_buffer[*d_count+5*rows_mb*cols_mb], model_buffer[*d_count+6*rows_mb*cols_mb], model_buffer[*d_count+ 7*rows_mb*cols_mb], model_buffer[*d_count+8*rows_mb*cols_mb], model_buffer[*d_count+9*rows_mb*cols_mb], model_buffer[*d_count+10*rows_mb*cols_mb], model_buffer[*d_count+11*rows_mb*cols_mb]);
             atomicAdd(d_count, 1);
+
         }
     }
 }   
@@ -2116,15 +2129,16 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
             model_buffer[i+2*rows_mb*cols_mb] = vertConf.z;
             model_buffer[i+3*rows_mb*cols_mb] = vertConf.w;
 
-            model_buffer[i+4*rows_mb*cols_mb] = normRad.x;
-            model_buffer[i+5*rows_mb*cols_mb] = normRad.y;
-            model_buffer[i+6*rows_mb*cols_mb] = normRad.z;
-            model_buffer[i+7*rows_mb*cols_mb] = normRad.w;
+            model_buffer[i+8*rows_mb*cols_mb] = normRad.x;
+            model_buffer[i+9*rows_mb*cols_mb] = normRad.y;
+            model_buffer[i+10*rows_mb*cols_mb] = normRad.z;
+            model_buffer[i+11*rows_mb*cols_mb] = normRad.w;
 
             model_buffer[i+4*rows_mb*cols_mb] = colorTime.x;
             model_buffer[i+5*rows_mb*cols_mb] = colorTime.y;
             model_buffer[i+6*rows_mb*cols_mb] = colorTime.z;
             model_buffer[i+7*rows_mb*cols_mb] = colorTime.w;
+            // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer[i],model_buffer[i+ rows_mb*cols_mb], model_buffer[i+ 2*rows_mb*cols_mb], model_buffer[i+ 3*rows_mb*cols_mb], model_buffer[i+4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+ 7*rows_mb*cols_mb], model_buffer[i+8*rows_mb*cols_mb], model_buffer[i+9*rows_mb*cols_mb], model_buffer[i+10*rows_mb*cols_mb], model_buffer[i+11*rows_mb*cols_mb]);
 
         }
 
