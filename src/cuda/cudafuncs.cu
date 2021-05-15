@@ -1985,20 +1985,20 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
 
         if (test == 1)
         {
-            model_buffer[*d_count] = vertConf.x;
-            model_buffer[*d_count+ rows_mb*cols_mb] = vertConf.y;
-            model_buffer[*d_count+2*rows_mb*cols_mb] = vertConf.z;
-            model_buffer[*d_count+3*rows_mb*cols_mb] = vertConf.w;
+            model_buffer[*d_count] = vPosition.x;
+            model_buffer[*d_count+ rows_mb*cols_mb] = vPosition.y;
+            model_buffer[*d_count+2*rows_mb*cols_mb] = vPosition.z;
+            model_buffer[*d_count+3*rows_mb*cols_mb] = vPosition.w;
 
-            model_buffer[*d_count+4*rows_mb*cols_mb] = normRad.x;
-            model_buffer[*d_count+5*rows_mb*cols_mb] = normRad.y;
-            model_buffer[*d_count+6*rows_mb*cols_mb] = normRad.z;
-            model_buffer[*d_count+7*rows_mb*cols_mb] = normRad.w;
+            model_buffer[*d_count+4*rows_mb*cols_mb] = vNormRad.x;
+            model_buffer[*d_count+5*rows_mb*cols_mb] = vNormRad.y;
+            model_buffer[*d_count+6*rows_mb*cols_mb] = vNormRad.z;
+            model_buffer[*d_count+7*rows_mb*cols_mb] = vNormRad.w;
 
-            model_buffer[*d_count+4*rows_mb*cols_mb] = colorTime.x;
-            model_buffer[*d_count+5*rows_mb*cols_mb] = colorTime.y;
-            model_buffer[*d_count+6*rows_mb*cols_mb] = colorTime.z;
-            model_buffer[*d_count+7*rows_mb*cols_mb] = colorTime.w;
+            model_buffer[*d_count+4*rows_mb*cols_mb] = vColor.x;
+            model_buffer[*d_count+5*rows_mb*cols_mb] = vColor.y;
+            model_buffer[*d_count+6*rows_mb*cols_mb] = vColor.z;
+            model_buffer[*d_count+7*rows_mb*cols_mb] = vColor.w;
             // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer[*d_count],model_buffer[*d_count+ rows_mb*cols_mb], model_buffer[*d_count+ 2*rows_mb*cols_mb], model_buffer[*d_count+ 3*rows_mb*cols_mb], model_buffer[*d_count+4*rows_mb*cols_mb], model_buffer[*d_count+5*rows_mb*cols_mb], model_buffer[*d_count+6*rows_mb*cols_mb], model_buffer[*d_count+ 7*rows_mb*cols_mb], model_buffer[*d_count+8*rows_mb*cols_mb], model_buffer[*d_count+9*rows_mb*cols_mb], model_buffer[*d_count+10*rows_mb*cols_mb], model_buffer[*d_count+11*rows_mb*cols_mb]);
             atomicAdd(d_count, 1);
 
@@ -2124,20 +2124,20 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
         if (test == 1)
         {
             // write
-            model_buffer[i] = vertConf.x;
-            model_buffer[i+ rows_mb*cols_mb] = vertConf.y;
-            model_buffer[i+2*rows_mb*cols_mb] = vertConf.z;
-            model_buffer[i+3*rows_mb*cols_mb] = vertConf.w;
+            model_buffer[i] = vPosition.x;
+            model_buffer[i+ rows_mb*cols_mb] = vPosition.y;
+            model_buffer[i+2*rows_mb*cols_mb] = vPosition.z;
+            model_buffer[i+3*rows_mb*cols_mb] = vPosition.w;
 
-            model_buffer[i+8*rows_mb*cols_mb] = normRad.x;
-            model_buffer[i+9*rows_mb*cols_mb] = normRad.y;
-            model_buffer[i+10*rows_mb*cols_mb] = normRad.z;
-            model_buffer[i+11*rows_mb*cols_mb] = normRad.w;
+            model_buffer[i+8*rows_mb*cols_mb] = vNormRad.x;
+            model_buffer[i+9*rows_mb*cols_mb] = vNormRad.y;
+            model_buffer[i+10*rows_mb*cols_mb] = vNormRad.z;
+            model_buffer[i+11*rows_mb*cols_mb] = vNormRad.w;
 
-            model_buffer[i+4*rows_mb*cols_mb] = colorTime.x;
-            model_buffer[i+5*rows_mb*cols_mb] = colorTime.y;
-            model_buffer[i+6*rows_mb*cols_mb] = colorTime.z;
-            model_buffer[i+7*rows_mb*cols_mb] = colorTime.w;
+            model_buffer[i+4*rows_mb*cols_mb] = vColor.x;
+            model_buffer[i+5*rows_mb*cols_mb] = vColor.y;
+            model_buffer[i+6*rows_mb*cols_mb] = vColor.z;
+            model_buffer[i+7*rows_mb*cols_mb] = vColor.w;
             // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer[i],model_buffer[i+ rows_mb*cols_mb], model_buffer[i+ 2*rows_mb*cols_mb], model_buffer[i+ 3*rows_mb*cols_mb], model_buffer[i+4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+ 7*rows_mb*cols_mb], model_buffer[i+8*rows_mb*cols_mb], model_buffer[i+9*rows_mb*cols_mb], model_buffer[i+10*rows_mb*cols_mb], model_buffer[i+11*rows_mb*cols_mb]);
 
         }
