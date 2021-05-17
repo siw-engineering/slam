@@ -2172,6 +2172,32 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
 }
 
 
+
+__global__ void testimagecopyKernel(float* rgb, float* imagebin, int cols, int rows, int* d_ibcount)
+{
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    if (i < rows* cols)
+    {
+        printf("i = %f\n", i);
+    }
+
+}
+
+void testimagecopy(DeviceArray<float> rgb, DeviceArray<float> imagebin,  int cols, int rows, int* ibcount)
+{   
+    int blocksize = 32*8;
+    int numblocks = (rows*cols)/ blocksize;
+
+    int* d_ibcount;
+    cudaMalloc((void**)&d_ibcount, sizeof(int));
+    cudaMemcpy(d_ibcount, ibcount, sizeof(int), cudaMemcpyHostToDevice);
+    testimagecopyKernel<<<numblocks, blocksize>>>(rgb, imagebin, cols, rows, d_ibcount);
+    cudaSafeCall(cudaGetLastError());
+    cudaMemcpy(ibcount, d_ibcount, sizeof(int), cudaMemcpyDeviceToHost);
+
+}
+
+
 __global__ void testcolorencodingKernel()
 {
     float3 c = make_float3(59,74,43);

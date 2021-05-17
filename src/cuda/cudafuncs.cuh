@@ -212,5 +212,7 @@ void fuse_data(int* up, int* usp, DeviceArray2D<float>& depth,  DeviceArray<floa
 void fuse_update(int* cvw0, int* cvwm1, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int* h_count, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime);
 void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int cols, float maxDepth, float* t_inv, DeviceArray<float>& model_buffer, DeviceArray<float>& model_buffer_rs, int time, int timeDelta, float confThreshold, int * h_count, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, DeviceArray2D<float>& updateVConf, DeviceArray2D<float>& updateNormRad, DeviceArray2D<float>& updateColTime, DeviceArray2D<float>& unstable_buffer);
 void testcolorencoding();
+void testimagecopy(DeviceArray<float> rgb, DeviceArray<float> imagebin,  int cols, int rows, int* ibcount);
+
 #endif /* CUDA_CUDAFUNCS_CUH_ */
 

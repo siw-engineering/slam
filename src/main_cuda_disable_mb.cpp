@@ -199,6 +199,18 @@ int main(int argc, char  *argv[])
     usp = 0;
     cvw0 = 0;
     cvwm1 = 0;
+
+    //debug
+	DeviceArray<float> imagebin;
+	imagebin.create(width*height*10);
+	int ibcount = 0;
+
+	float* imgzeros = new float[width*height*10];
+	memset(&imgzeros[0], 0, width*height*10);
+	imagebin.upload(&imgzeros[0], width*height*10);
+	delete[] imgzeros;
+	//off
+
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -214,47 +226,52 @@ int main(int argc, char  *argv[])
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
         computeBilateralFilter(depth, depthf, depthCutOff);
 
-		if (frame==0)
-		{
-			createVMap(intr, depth, vmap, depthCutOff);
-			createNMap(vmap, nmap);
-			rgbd_odom->initFirstRGB(rgb);
-			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
-			tinv  = pose.inverse();
-			splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-			fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
-			fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
-			fillin.image(color_splat, rgb, fillin_img, false);
-			ros::spinOnce();
-			frame++;
-			continue;
-		}
+        //debug
+        testimagecopy(rgb, imagebin, width, height, &ibcount);
+
+        //off
+
+		// if (frame==0)
+		// {
+		// 	createVMap(intr, depth, vmap, depthCutOff);
+		// 	createNMap(vmap, nmap);
+		// 	rgbd_odom->initFirstRGB(rgb);
+		// 	initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
+		// 	tinv  = pose.inverse();
+		// 	splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		// 	fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+		// 	fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+		// 	fillin.image(color_splat, rgb, fillin_img, false);
+		// 	ros::spinOnce();
+		// 	frame++;
+		// 	continue;
+		// }
 
 		//generateCUDATextures
-		copyDMaps(depth, depthPyr[0]);
-		for (int i = 1; i < 3; ++i) 
-			pyrDownGaussF(depthPyr[i - 1], depthPyr[i]);
-		cudaDeviceSynchronize();
-		cudaCheckError();
+		// copyDMaps(depth, depthPyr[0]);
+		// for (int i = 1; i < 3; ++i) 
+		// 	pyrDownGaussF(depthPyr[i - 1], depthPyr[i]);
+		// cudaDeviceSynchronize();
+		// cudaCheckError();
 
-		rgbd_odom->initICPModel(fillin_vt, fillin_nt, maxDepth, pose);
-		copyMaps(fillin_vt, fillin_nt, vmaps_tmp, nmaps_tmp);
-		rgbd_odom->initRGBModel(fillin_img, vmaps_tmp);
-		rgbd_odom->initICP(depthPyr, maxDepth);
-		rgbd_odom->initRGB(rgb, vmaps_tmp);
+		// rgbd_odom->initICPModel(fillin_vt, fillin_nt, maxDepth, pose);
+		// copyMaps(fillin_vt, fillin_nt, vmaps_tmp, nmaps_tmp);
+		// rgbd_odom->initRGBModel(fillin_img, vmaps_tmp);
+		// rgbd_odom->initICP(depthPyr, maxDepth);
+		// rgbd_odom->initRGB(rgb, vmaps_tmp);
 
-		transObject = pose.topRightCorner(3, 1);
-		rotObject = pose.topLeftCorner(3, 3);
-		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
-		pose.topRightCorner(3, 1) = transObject;
-		pose.topLeftCorner(3, 3) = rotObject;
+		// transObject = pose.topRightCorner(3, 1);
+		// rotObject = pose.topLeftCorner(3, 3);
+		// rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
+		// pose.topRightCorner(3, 1) = transObject;
+		// pose.topLeftCorner(3, 3) = rotObject;
 
         //predict()
-		tinv  = pose.inverse();
-		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
-		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
-		fillin.image(color_splat, rgb, fillin_img, false);
+		// tinv  = pose.inverse();
+		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		// fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+		// fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+		// fillin.image(color_splat, rgb, fillin_img, false);
 
 
 		// debug on
@@ -315,22 +332,22 @@ int main(int argc, char  *argv[])
 			// exit(0);
 		//off
 
-		updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
+		// updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		// updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		// updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		// unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
  
-		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		float w = computeFusionWeight(1, pose.inverse()*lastpose);
-		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		// fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
+		// fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		// clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
-		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
-		fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
-		fillin.image(color_splat, rgb, fillin_img, false);
+		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		// fillin.vertex(intr, vmap_splat_prev, depth, fillin_vt, false);
+		// fillin.normal(intr, nmap_splat_prev, depth, fillin_nt, false);
+		// fillin.image(color_splat, rgb, fillin_img, false);
 
 		
 		 // float* mb = new float[bufferSize];
@@ -354,7 +371,7 @@ int main(int argc, char  *argv[])
 		// std::cout<<"count :"<<count<<std::endl;
 		// if (frame > 0)
 			// break;
-		std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 
 		// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		// drawpose.topRightCorner(3, 1) = transObject;
@@ -363,17 +380,32 @@ int main(int argc, char  *argv[])
 		// pangolin::glDrawFrustum(Kinv, 640, 480, drawpose, 0.2f);
 		// glLineWidth(1);
 
-		up = 0;
-		usp = 0;
-		cvw0 = 0;
-    	cvwm1 = 0;
-		lastpose = pose;
+		// up = 0;
+		// usp = 0;
+		// cvw0 = 0;
+  		// cvwm1 = 0;
+		// lastpose = pose;
+
+
+
+
+
+
 		frame++;		
+		// std::cout<<"frame :"<<frame<<std::endl;
 		// count = 0;	// TO DO set lastpose
 		ros::spinOnce();
-		pangolin::FinishFrame();
+		// pangolin::FinishFrame();
 
 	}
+
+    // debug
+
+	
+
+
+
+
 
 	return 0;
 }
