@@ -2173,31 +2173,58 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
 
 
 
-__global__ void testimagecopyKernel(float* rgb, float* imagebin, int cols, int rows, int* d_ibcount)
+__global__ void testimagecopyKernel(float* rgb, float* imagebin, int cols, int rows, int ibcount)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
-    if (i < rows* cols)
-    {
-        printf("i = %f\n", i);
-    }
+
+    printf("ind = %f\n", i);
+
+    // if (i > 0 && i < rows*cols)
+    // {   
+    //     int x, y;
+    //     y = i/cols;
+    //     x = i - y*cols;
+    //     float r = rgb[3*y*cols + 3*x];
+    //     imagebin[i+(ibcount*rows*cols)] = r;
+    // }
 
 }
-
-void testimagecopy(DeviceArray<float> rgb, DeviceArray<float> imagebin,  int cols, int rows, int* ibcount)
+void testimagecopy(DeviceArray<float> rgb, DeviceArray<float> imagebin,  int cols, int rows, int ibcount)
 {   
     int blocksize = 32*8;
     int numblocks = (rows*cols)/ blocksize;
 
-    int* d_ibcount;
-    cudaMalloc((void**)&d_ibcount, sizeof(int));
-    cudaMemcpy(d_ibcount, ibcount, sizeof(int), cudaMemcpyHostToDevice);
-    testimagecopyKernel<<<numblocks, blocksize>>>(rgb, imagebin, cols, rows, d_ibcount);
+    // int* d_ibcount;
+    // cudaMalloc((void**)&d_ibcount, sizeof(int));
+    // cudaMemcpy(d_ibcount, ibcount, sizeof(int), cudaMemcpyHostToDevice);
+    testimagecopyKernel<<<numblocks, blocksize>>>(rgb, imagebin, cols, rows, ibcount);
     cudaSafeCall(cudaGetLastError());
-    cudaMemcpy(ibcount, d_ibcount, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaThreadSynchronize();
+    // cudaMemcpy(ibcount, d_ibcount, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
 
+__global__ void testimageprintKernel(float* imagebin, int ibcount)
+{
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    float r = imagebin[i];
+    
+}
 
+
+void testimageprint(DeviceArray<float> imagebin, int cols, int rows, int ibcount)
+{   
+    int blocksize = 32*8;
+    int numblocks = ((ibcount)*rows*cols)/ blocksize;
+
+    // int* d_ibcount;
+    // cudaMalloc((void**)&d_ibcount, sizeof(int));
+    // cudaMemcpy(d_ibcount, ibcount, sizeof(int), cudaMemcpyHostToDevice);
+    testimageprintKernel<<<numblocks, blocksize>>>(imagebin, ibcount);
+    cudaSafeCall(cudaGetLastError());
+    // cudaMemcpy(ibcount, d_ibcount, sizeof(int), cudaMemcpyDeviceToHost);
+
+}
 __global__ void testcolorencodingKernel()
 {
     float3 c = make_float3(59,74,43);

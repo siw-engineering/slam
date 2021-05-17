@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include "Render.h"
 
+
 using namespace std;
 
 
@@ -190,7 +191,7 @@ int main(int argc, char  *argv[])
 	fillin_img.create(height*4*width);
 
 	int frame = 0;
-	Render view(640, 480);
+	// Render view(640, 480);
     DeviceArray2D<unsigned int> time_splat;
 
 
@@ -202,7 +203,7 @@ int main(int argc, char  *argv[])
 
     //debug
 	DeviceArray<float> imagebin;
-	imagebin.create(width*height*10);
+	imagebin.create(width*height*100);
 	int ibcount = 0;
 
 	float* imgzeros = new float[width*height*10];
@@ -227,8 +228,17 @@ int main(int argc, char  *argv[])
         computeBilateralFilter(depth, depthf, depthCutOff);
 
         //debug
-        testimagecopy(rgb, imagebin, width, height, &ibcount);
+        if (ibcount < 100)
+        {
+        	testimagecopy(rgb, imagebin, width, height, ibcount);
+        	ibcount++;
+        }
+        else
+        	ibcount = 1;	
 
+		break;
+
+		// testimageprint(imagebin, width, height, ibcount);
         //off
 
 		// if (frame==0)
