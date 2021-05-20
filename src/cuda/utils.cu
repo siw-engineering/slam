@@ -143,7 +143,7 @@ void fillinRgb(int width, int height, float* existingRgb, float* rawRgb, bool pa
 }
 
 __global__ void fillinVert(int width, int height, float cx, float cy, float fx_inv, float fy_inv,
-                            PtrStepSz<float> existingVertex, PtrStepSz<float> rawDepth,bool passthrough, PtrStepSz<float> dst)
+                            PtrStepSz<float> existingVertex, PtrStepSz<float> rawDepth, bool passthrough, PtrStepSz<float> dst)
 {
     // float halfPixX = 0.5 * (1.0 / width);
     // float halfPixY = 0.5 * (1.0 / height);
@@ -158,10 +158,11 @@ __global__ void fillinVert(int width, int height, float cx, float cy, float fx_i
         sample.y = existingVertex.ptr(v + height)[u];
         sample.z = existingVertex.ptr(v + 2 * height)[u];
         sample.w = existingVertex.ptr(v + 3 * height)[u];
+
          if((sample.z == 0) || (passthrough == 1))
          {
             float z = rawDepth.ptr(v)[u];
-            if ((z < 0) || (z > 5) || isnan(z))
+            if ((z < 0) || (z > 5) || isnan(z) || isinf(z))
             {
                 z = 0;
             }
@@ -173,7 +174,6 @@ __global__ void fillinVert(int width, int height, float cx, float cy, float fx_i
             dst.ptr(v + 2 * height)[u] = vert.z; // z
             dst.ptr(v + 3 * height)[u] = 1;
             // printf("u = %d v = %d\n", u, v);
-
          }
          else
          {
@@ -256,3 +256,4 @@ void fillinNormal(const CameraModel& intr, int width, int height, DeviceArray2D<
     fillinNorm<<<grid, block>>>(width, height, cx, cy, 1/fx, 1/fy, existingNormal, rawDepth, passthrough, dst);
     cudaSafeCall(cudaGetLastError());    
 }
+
