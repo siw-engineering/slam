@@ -1400,6 +1400,10 @@ __global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  i
         fc.y = fc.y * rows;
         int x = fc.x, y = fc.y;
 
+        if (x < 0 || x > cols || y < 0 || y > rows)
+            return;
+
+
         // printf("x = %d y = %d\n", x, y);
         vmap_pi.ptr(y)[x] = v_.x;
         vmap_pi.ptr(y + rows)[x] = v_.y;
