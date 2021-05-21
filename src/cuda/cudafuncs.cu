@@ -516,15 +516,14 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     dc = decodeColor(c);
 
     //writing color TO DO UPDATE disableing color decoding
-
-    // color_dst[y*cols*4 + x*4 + 0] = dc.x;
-    // color_dst[y*cols*4 + x*4 + 1] = dc.y;
-    // color_dst[y*cols*4 + x*4 + 2] = dc.z;
-    // color_dst[y*cols*4 + x*4 + 3] = 1;
-    color_dst[y*cols*4 + x*4 + 0] = model_buffer[i+4*rows_mb*cols_mb];
-    color_dst[y*cols*4 + x*4 + 1] = model_buffer[i+5*rows_mb*cols_mb];
-    color_dst[y*cols*4 + x*4 + 2] = model_buffer[i+6*rows_mb*cols_mb];
+    color_dst[y*cols*4 + x*4 + 0] = dc.x;
+    color_dst[y*cols*4 + x*4 + 1] = dc.y;
+    color_dst[y*cols*4 + x*4 + 2] = dc.z;
     color_dst[y*cols*4 + x*4 + 3] = 1;
+    // color_dst[y*cols*4 + x*4 + 0] = model_buffer[i+4*rows_mb*cols_mb];
+    // color_dst[y*cols*4 + x*4 + 1] = model_buffer[i+5*rows_mb*cols_mb];
+    // color_dst[y*cols*4 + x*4 + 2] = model_buffer[i+6*rows_mb*cols_mb];
+    // color_dst[y*cols*4 + x*4 + 3] = 1;
 
     //writing vertex and conf
 

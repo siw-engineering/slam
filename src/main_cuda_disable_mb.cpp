@@ -299,9 +299,9 @@ int main(int argc, char  *argv[])
         // predict()
 		tinv  = pose.inverse();
 		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
-		fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
-		fillinRgb(width, height, color_splat, rgb, false, fillin_img);
+		fillinVertex(intr, width, height, vmap_splat_prev, depth, true, fillin_vt);
+		fillinNormal(intr, width, height, nmap_splat_prev, depth, true, fillin_nt);
+		fillinRgb(width, height, color_splat, rgb, true, fillin_img);
 
 		// debug on
 			// float* vmap_hst = new float[height*width*4];
@@ -400,11 +400,11 @@ int main(int argc, char  *argv[])
 		// std::cout<<"count :"<<count<<std::endl;
 		// if (frame > 0)
 			// break;
-		std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
+		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		drawpose.topRightCorner(3, 1) = transObject;
-		drawpose.topLeftCorner(3, 3) = rotObject;
+		// drawpose.topRightCorner(3, 1) = transObject;
+		// drawpose.topLeftCorner(3, 3) = rotObject;
 		glLineWidth(4);
 		pangolin::glDrawFrustum(Kinv, 640, 480, pose, 0.2f);
 		glLineWidth(1);
