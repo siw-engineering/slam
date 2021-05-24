@@ -201,6 +201,11 @@ void fillinVertex(const CameraModel& intr, int width, int height, DeviceArray2D<
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
+    float* vertices_fillin = new float[height*width*4];
+    dst.upload(&vertices_fillin[0], sizeof(float)*width, 4*height, width);
+    delete[] vertices_fillin;
+
+
     fillinVert<<<grid, block>>>(width, height, cx, cy, 1/fx, 1/fy, existingVertex, rawDepth, passthrough, dst);
     cudaSafeCall(cudaGetLastError());    
 }
@@ -249,6 +254,11 @@ void fillinNormal(const CameraModel& intr, int width, int height, DeviceArray2D<
 
     grid.x = getGridDim (width, block.x);
     grid.y = getGridDim (height, block.y);
+
+    float* normal_fillin = new float[height*width*4];
+    dst.upload(&normal_fillin[0], sizeof(float)*width, 4*height, width);
+    delete[] normal_fillin;
+
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
