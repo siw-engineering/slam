@@ -570,6 +570,18 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDep
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
 
+    float* vertices_splat = new float[rows*cols*4];
+
+    vmap_dst.upload(&vertices_splat[0], sizeof(float)*cols, 4*rows, cols);
+
+    color_dst.upload(&vertices_splat[0], rows*4*cols);
+
+    nmap_dst.upload(&vertices_splat[0], sizeof(float)*cols, 4*rows, cols);
+    
+    time_dst.upload(&vertices_splat[0], sizeof(float)*cols, rows, cols);
+
+    delete[] vertices_splat;
+
     float * tinv;
     cudaSafeCall(cudaMalloc((void**) &tinv, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(tinv, pose_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
