@@ -21,5 +21,10 @@ void fillinVertex(const CameraModel& intr, int width, int height, DeviceArray2D<
 
 void fillinNormal(const CameraModel& intr, int width, int height, DeviceArray2D<float>& existingNormal,
                     DeviceArray2D<float>& rawDepth, bool passthrough, DeviceArray2D<float>& dst);
+
+void ResizeMap(const DeviceArray2D<float>& input, DeviceArray2D<unsigned char>& output);
+
+void Resize(const int height, const int width, float* src, unsigned char* dst, int factor);
+
 #endif /* CUDA_CUDAFUNCS_CUH_ */
 
