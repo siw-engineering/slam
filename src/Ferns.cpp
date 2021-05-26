@@ -113,7 +113,6 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
           (pix(2) > conservatory.at(i).rgbd(2)) << 1 |
           (int(verts.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) * 1000.0f) > conservatory.at(i).rgbd(3));
       frame->goodCodes++;
-      std::cout << conservatory.at(i).ids[code] <<  "   i - " << i << std::endl;
       for (size_t j = 0; j < conservatory.at(i).ids[code].size(); j++) {
         coOccurrences[conservatory.at(i).ids[code].at(j)]++;
 
