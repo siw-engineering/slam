@@ -290,6 +290,7 @@ __global__ void resizeMapKernel(int drows, int dcols, int srows, const PtrStep<f
     if (isnan (x00) || isnan (x01) || isnan (x10) || isnan (x11))
     {
         output.ptr (y)[x] = qnan;
+        // output.ptr (y)[x] = (unsigned char)0;
         return;
     }
     else
@@ -314,10 +315,11 @@ __global__ void resizeMapKernel(int drows, int dcols, int srows, const PtrStep<f
 
         // if (normalize)
             // n = normalized (n);
-
+        // output.ptr(y)[x] = n;
         output.ptr (y        )[x] = (unsigned char)n.x;
         output.ptr (y + drows)[x] = (unsigned char)n.y;
         output.ptr (y + 2 * drows)[x] = (unsigned char)n.z;
+        // output.ptr (y + 3 * drows)[x] = (unsigned char)0;
     }
 }
 
@@ -326,10 +328,10 @@ __global__ void resizeMapKernel(int drows, int dcols, int srows, const PtrStep<f
 void ResizeMap(const DeviceArray2D<float>& input, DeviceArray2D<unsigned char>& output)
 {
     int in_cols = input.cols ();
-    int in_rows = input.rows () / 3;
+    int in_rows = input.rows () / 4;
 
     int out_cols = output.cols ();
-    int out_rows = output.rows ();
+    int out_rows = output.rows () / 4;
 
     // output.create (out_rows * 3, out_cols);
 
@@ -365,7 +367,7 @@ __global__ void resizeImg(int height, int width, unsigned char * dst, const floa
         dst[y * width * 4 + (x * 4) + 0] = 0;
         dst[y * width * 4 + (x * 4) + 1] = 0;
         dst[y * width * 4 + (x * 4) + 2] = 0;
-        dst[y * width * 4 + (x * 4) + 3] = 0;
+        // dst[y * width * 4 + (x * 4) + 3] = 0;
         return;
     }
     else
@@ -390,7 +392,7 @@ __global__ void resizeImg(int height, int width, unsigned char * dst, const floa
         dst[y * width * 4 + (x * 4) + 0] = (unsigned char)out.x;
         dst[y * width * 4 + (x * 4) + 1] = (unsigned char)out.y;
         dst[y * width * 4 + (x * 4) + 2] = (unsigned char)out.z;
-        dst[y * width * 4 + (x * 4) + 3] = (unsigned char)0;
+        // dst[y * width * 4 + (x * 4) + 3] = (unsigned char)0;
 
     }
     // dst[y * width * 4 + (x * 4) + 0] = src[ys * (width*2) * 4 + (xs * 4) + 0];

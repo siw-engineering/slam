@@ -82,14 +82,13 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
   DeviceArray<unsigned char> img_dst;
   DeviceArray2D<unsigned char> vertexResized, normalResized;
 
-  vertexResized.create(height, width);
-  normalResized.create(height, width);
+  vertexResized.create(height * 4, width);
+  normalResized.create(height * 4, width);
   img_dst.create(height*width*3);
 
   Resize(height, width, imageTexture, img_dst, factor);
   ResizeMap(vertexTexture, vertexResized);
   ResizeMap(normalTexture, normalResized);
-
   img_dst.download(img.data);
   vertexResized.download(verts.data, width*sizeof(float));
   normalResized.download(norms.data, width*sizeof(float));
@@ -164,8 +163,8 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   DeviceArray<unsigned char> img_dst;
   DeviceArray2D<unsigned char> vertexResized, normalResized;
 
-  vertexResized.create(height, width);
-  normalResized.create(height, width);
+  vertexResized.create(height * 4, width);
+  normalResized.create(height * 4, width);
   img_dst.create(height*width*3);
 
   Resize(height, width, imageTexture, img_dst, factor);
