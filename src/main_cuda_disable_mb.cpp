@@ -268,7 +268,7 @@ int main(int argc, char  *argv[])
 			rgbd_odom->initFirstRGB(rgb);
 			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
 			tinv  = pose.inverse();
-			splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+			splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 			fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 			fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
 			fillinRgb(width, height, color_splat, rgb, false, fillin_img);
@@ -293,16 +293,16 @@ int main(int argc, char  *argv[])
 		transObject = pose.topRightCorner(3, 1);
 		rotObject = pose.topLeftCorner(3, 3);
 		rgbd_odom->getIncrementalTransformation(transObject, rotObject, false, 0.3, true, false, true, 0, 0);
-		pose.topRightCorner(3, 1) = transObject;
+		if(!(isnan(transObject[0])))
+			pose.topRightCorner(3, 1) = transObject;
 		pose.topLeftCorner(3, 3) = rotObject;
 
         // predict()
 		tinv  = pose.inverse();
-		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 		fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
 		fillinRgb(width, height, color_splat, rgb, false, fillin_img);
-
 
 		updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
@@ -340,15 +340,15 @@ int main(int argc, char  *argv[])
 		//off
 
 		// debug on
-			// float* vmap_hst = new float[height*width*4];
-			// vmap_splat_prev.download(vmap_hst, width*sizeof(float));
-			// float* vmap_hst_new = new float[height*width*3];
-			// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_hst_new);
-			// delete[] vmap_hst;
-			// float plot[width*height*3];
-			// view.glCoord(vmap_hst_new, plot, width*height);
-			// view.bufferHandle(plot, sizeof(plot));
-			// view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height);
+			float* vmap_hst = new float[height*width*4];
+			vmap_splat_prev.download(vmap_hst, width*sizeof(float));
+			float* vmap_hst_new = new float[height*width*3];
+			std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_hst_new);
+			delete[] vmap_hst;
+			float plot[width*height*3];
+			view.glCoord(vmap_hst_new, plot, width*height);
+			view.bufferHandle(plot, sizeof(plot));
+			view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height);
 		//off
 
 		//debug on
@@ -381,10 +381,10 @@ int main(int argc, char  *argv[])
 		
 		 // float* mb = new float[bufferSize];
 		 // model_buffer.download(mb);
-		 // float* mb_xyz = new float[height*width*3];
-		 // std::copy(mb, mb+(height*width), mb_xyz);
-		 // std::copy(mb+(3072*3072), mb+(3072*3072)+(height*width), mb_xyz+(height*width));
-		 // std::copy(mb+2*(3072*3072), mb+2*(3072*3072)+(height*width), mb_xyz+(2*height*width));
+		 // float* mb_xyz = new float[(height*width+20)*3];
+		 // std::copy(mb, mb+((height*width+20)), mb_xyz);
+		 // std::copy(mb+(3072*3072), mb+(3072*3072)+((height*width+20)), mb_xyz+((height*width+20)));
+		 // std::copy(mb+2*(3072*3072), mb+2*(3072*3072)+((height*width+20)), mb_xyz+(2*(height*width+20)));
 		 // std::copy(mb+(8*3072*3072), mb+(8*3072*3072)+(height*width), mb_xyz);
 		 // std::copy(mb+(9*3072*3072), mb+(9*3072*3072)+(height*width), mb_xyz+(height*width));
 		 // std::copy(mb+(10*3072*3072), mb+(10*3072*3072)+(height*width), mb_xyz+(2*height*width));
@@ -402,12 +402,12 @@ int main(int argc, char  *argv[])
 			// break;
 		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		drawpose.topRightCorner(3, 1) = transObject;
-		drawpose.topLeftCorner(3, 3) = rotObject;
-		glLineWidth(4);
-		pangolin::glDrawFrustum(Kinv, 640, 480, pose, 0.2f);
-		glLineWidth(1);
+		// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		// drawpose.topRightCorner(3, 1) = transObject;
+		// drawpose.topLeftCorner(3, 3) = rotObject;
+		// glLineWidth(4);
+		// pangolin::glDrawFrustum(Kinv, 640, 480, pose, 0.2f);
+		// glLineWidth(1);
 
 		// std::cout<<pose<<std::endl;
 

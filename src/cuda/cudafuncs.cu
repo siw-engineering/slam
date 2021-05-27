@@ -402,7 +402,7 @@ void createNMap(const DeviceArray2D<float>& vmap, DeviceArray2D<float>& nmap)
     cudaSafeCall (cudaGetLastError ());
 }
 
-__global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* tinv, float* model_buffer, /*PtrStepSz<float> color_dst*/float* color_dst, PtrStepSz<float> vmap_dst, PtrStepSz<float> nmap_dst, PtrStepSz<unsigned int> time_dst, int count)
+__global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, int rows, int cols, float* model_buffer, float maxDepth, float confThreshold, int time,  int maxTime,  int timeDelta, float* tinv, float* color_dst, PtrStepSz<float> vmap_dst, PtrStepSz<float> nmap_dst, PtrStepSz<unsigned int> time_dst, int count)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     int rows_mb, cols_mb;
@@ -417,6 +417,7 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
         return;
     if ((model_buffer[i] == 0) && (model_buffer[i + rows_mb*cols_mb] == 0) && (model_buffer[i + 2*rows_mb*cols_mb] == 0)) 
         return;
+
 
     // float4 vsrc = make_float4(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
     // float4 nsrc = make_float4(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
@@ -443,7 +444,7 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     c = model_buffer[i+4*rows_mb*cols_mb]; //x
 
     //reading time
-    unsigned int t;
+    unsigned int t; //vcolor.w
     t = (unsigned int)model_buffer[i+7*rows_mb*cols_mb];
 
 
@@ -464,7 +465,9 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
     n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
     n_ = normalized(n_);
 
-
+    // if(v_.z > maxDepth || v_.z < 0 || vsrc.w < confThreshold || time - t > timeDelta || t > maxTime)
+    //     return;
+    
     if (isnan (v_.x) || isnan(v_.y) || isnan(v_.z))
         return;
     if (isnan (n_.x) || isnan(n_.y) || isnan(n_.z))
@@ -562,7 +565,7 @@ __global__ void splatDepthPredictKernel(float cx, float cy, float fx, float fy, 
 
 }
 
-void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int count, DeviceArray<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
+void splatDepthPredict(const CameraModel& intr, int rows, int cols, DeviceArray<float>& model_buffer, float depthCutoff, float confThreshold, int time, int maxTime, int timeDelta, float* pose_inv, int count, DeviceArray<float>& color_dst, DeviceArray2D<float>& vmap_dst, DeviceArray2D<float>& nmap_dst, DeviceArray2D<unsigned int>& time_dst)
 {
     int blocksize = 32*8;
     int numblocks = (count + blocksize - 1)/ blocksize;
@@ -587,7 +590,7 @@ void splatDepthPredict(const CameraModel& intr, int rows, int cols, float maxDep
     cudaSafeCall(cudaMemcpy(tinv, pose_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
 
     // std::cout<<"cx = "<<cx<<": cy = "<<cy<<": fx = "<<fx<<": fy = "<<fy<<": rows = "<<rows<<": cols = "<<cols;
-    splatDepthPredictKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, tinv, model_buffer, color_dst, vmap_dst, nmap_dst, time_dst, count);
+    splatDepthPredictKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, model_buffer, depthCutoff, confThreshold, time, maxTime, timeDelta, tinv, color_dst, vmap_dst, nmap_dst, time_dst, count);
     cudaCheckError();
 
 }
