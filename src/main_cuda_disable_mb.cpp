@@ -307,32 +307,32 @@ int main(int argc, char  *argv[])
 
         // predict()
 		tinv  = pose.inverse();
-		// splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
-		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
-		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
+		splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
+		fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
+		fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 
-		// updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		// updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		// updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		// unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
+		updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
  
-		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
-		// fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		// fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		// clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
-
-		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
-		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
-		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
-
-		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
+		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+
+		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
+		fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
+		fillinRgb(width, height, color_splat, rgb, false, fillin_img);
+
+		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		// normalFusion(model_buffer, &count, depth, intr, rows, cols, maxDepth, pose.data());
-		normalFusionData(model_buffer, &count, frame, depth, intr, rows, cols, maxDepth, pose.data(), w, vmap_pi, ct_pi, nmap_pi, index_pi);
+		// normalFusionData(model_buffer, &count, frame, depth, intr, rows, cols, maxDepth, pose.data(), w, vmap_pi, ct_pi, nmap_pi, index_pi);
 
 
 		// debug on

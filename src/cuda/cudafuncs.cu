@@ -1864,11 +1864,13 @@ void fuse_update(int* cvw0, int* cvwm1, const CameraModel& intr, int rows, int c
 
 }
 
-__global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, int* d_count, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
+__global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy, float fx, float fy, int rows, int cols, float maxDepth, float* t, float* model_buffer, int* d_count, int fixed_count, int time, int timeDelta, float confThreshold, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi, PtrStepSz<float> updateVConf, PtrStepSz<float> updateNormRad, PtrStepSz<float> updateColTime, PtrStepSz<float> unstable_buffer)
 {   
 
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
+
+    int i = v*cols + u;
 
     int rows_mb, cols_mb;
     rows_mb = cols_mb = 3072;
@@ -1985,20 +1987,20 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
 
         if (test == 1)
         {
-            model_buffer[*d_count] = vPosition.x;
-            model_buffer[*d_count+ rows_mb*cols_mb] = vPosition.y;
-            model_buffer[*d_count+2*rows_mb*cols_mb] = vPosition.z;
-            model_buffer[*d_count+3*rows_mb*cols_mb] = vPosition.w;
+            model_buffer[fixed_count+i] = vPosition.x;
+            model_buffer[fixed_count+i+rows_mb*cols_mb] = vPosition.y;
+            model_buffer[fixed_count+i+2*rows_mb*cols_mb] = vPosition.z;
+            model_buffer[fixed_count+i+3*rows_mb*cols_mb] = vPosition.w;
 
-            model_buffer[*d_count+4*rows_mb*cols_mb] = vNormRad.x;
-            model_buffer[*d_count+5*rows_mb*cols_mb] = vNormRad.y;
-            model_buffer[*d_count+6*rows_mb*cols_mb] = vNormRad.z;
-            model_buffer[*d_count+7*rows_mb*cols_mb] = vNormRad.w;
+            model_buffer[fixed_count+i+4*rows_mb*cols_mb] = vNormRad.x;
+            model_buffer[fixed_count+i+5*rows_mb*cols_mb] = vNormRad.y;
+            model_buffer[fixed_count+i+6*rows_mb*cols_mb] = vNormRad.z;
+            model_buffer[fixed_count+i+7*rows_mb*cols_mb] = vNormRad.w;
 
-            model_buffer[*d_count+4*rows_mb*cols_mb] = vColor.x;
-            model_buffer[*d_count+5*rows_mb*cols_mb] = vColor.y;
-            model_buffer[*d_count+6*rows_mb*cols_mb] = vColor.z;
-            model_buffer[*d_count+7*rows_mb*cols_mb] = vColor.w;
+            model_buffer[fixed_count+i+4*rows_mb*cols_mb] = vColor.x;
+            model_buffer[fixed_count+i+5*rows_mb*cols_mb] = vColor.y;
+            model_buffer[fixed_count+i+6*rows_mb*cols_mb] = vColor.z;
+            model_buffer[fixed_count+i+7*rows_mb*cols_mb] = vColor.w;
             // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer[*d_count],model_buffer[*d_count+ rows_mb*cols_mb], model_buffer[*d_count+ 2*rows_mb*cols_mb], model_buffer[*d_count+ 3*rows_mb*cols_mb], model_buffer[*d_count+4*rows_mb*cols_mb], model_buffer[*d_count+5*rows_mb*cols_mb], model_buffer[*d_count+6*rows_mb*cols_mb], model_buffer[*d_count+ 7*rows_mb*cols_mb], model_buffer[*d_count+8*rows_mb*cols_mb], model_buffer[*d_count+9*rows_mb*cols_mb], model_buffer[*d_count+10*rows_mb*cols_mb], model_buffer[*d_count+11*rows_mb*cols_mb]);
             atomicAdd(d_count, 1);
 
@@ -2162,10 +2164,11 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
     grid.x = getGridDim (depthf.cols (), 32);
     grid.y = getGridDim (depthf.rows (), 8);
     //check count TO DO
-    int *d_count;
+    int *d_count, fixed_count;
+    fixed_count = *h_count;
     cudaMalloc((void**)&d_count, sizeof(int));
     cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
-    cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, d_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+    cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, t, model_buffer, d_count, fixed_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -2357,19 +2360,32 @@ __global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixe
 
                     if (vNormRad.w < (1 + 5) * nRad.w)
                     {
-                        model_buffer[fixed_count+i] = (c_k * v_k.x + a * v_g.x) / (c_k + a);
-                        model_buffer[fixed_count+i+ rows_mb*cols_mb] = (c_k * v_k.y + a * v_g.y) / (c_k + a);
-                        model_buffer[fixed_count+i+2*rows_mb*cols_mb] = (c_k * v_k.z + a * v_g.z) / (c_k + a);
-                        model_buffer[fixed_count+i+3*rows_mb*cols_mb] = c_k + a;
+                        model_buffer[best] = (c_k * v_k.x + a * v_g.x) / (c_k + a);
+                        model_buffer[best] = (c_k * v_k.y + a * v_g.y) / (c_k + a);
+                        model_buffer[best] = (c_k * v_k.z + a * v_g.z) / (c_k + a);
+                        model_buffer[best] = c_k + a;
 
                         float4 vNormRad0 = make_float4((c_k * nRad.x + a * vNormRad.x)/ (c_k + a), (c_k * nRad.y + a * vNormRad.y)/ (c_k + a), (c_k * nRad.z + a * vNormRad.z)/ (c_k + a), (c_k * nRad.w+ a * vNormRad.w)/ (c_k + a));
                         float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
-                        model_buffer[fixed_count+i+8*rows_mb*cols_mb] = normnrad.x;
-                        model_buffer[fixed_count+i+9*rows_mb*cols_mb] = normnrad.y;
-                        model_buffer[fixed_count+i+10*rows_mb*cols_mb] = normnrad.z;
+                        model_buffer[best] = normnrad.x;
+                        model_buffer[best] = normnrad.y;
+                        model_buffer[best] = normnrad.z;
                         
-                        // atomicAdd(count, 1);
                     }
+                } 
+                else
+                {
+                        model_buffer[fixed_count+i] = vPosition.x;
+                        model_buffer[fixed_count+i+ rows_mb*cols_mb] = vPosition.y;
+                        model_buffer[fixed_count+i+2*rows_mb*cols_mb] = vPosition.z;
+                        model_buffer[fixed_count+i+3*rows_mb*cols_mb] = vPosition.w;
+
+                        model_buffer[fixed_count+i+8*rows_mb*cols_mb] = vNormRad.x;
+                        model_buffer[fixed_count+i+9*rows_mb*cols_mb] = vNormRad.y;
+                        model_buffer[fixed_count+i+10*rows_mb*cols_mb] = vNormRad.z;
+                        model_buffer[fixed_count+i+11*rows_mb*cols_mb] = vNormRad.w;
+                        atomicAdd(count, 1);
+
                 }
             }
         }
