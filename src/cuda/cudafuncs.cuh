@@ -214,6 +214,8 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
 void testcolorencoding();
 void testimagecopy(DeviceArray<float> rgb, DeviceArray<float> imagebin,  int cols, int rows, int ibcount);
 void testimageprint(DeviceArray<float> imagebin, int cols, int rows, int ibcount);
+void normalFusion(DeviceArray<float>& model_buffer, int* h_count, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose);
+void normalFusionData(DeviceArray<float>& model_buffer, int* h_count, int time, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, float weighting, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi);
 
 #endif /* CUDA_CUDAFUNCS_CUH_ */
 

@@ -2233,3 +2233,234 @@ void testcolorencoding()
 {
     testcolorencodingKernel<<<1,1>>>();
 }
+
+__global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixed_count, int time, const PtrStepSz<float> depth, float fx, float fy, float cx, float cy, int rows, int cols, float maxDepth, float* t, float weighting, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
+{
+    
+    int u = threadIdx.x + blockIdx.x * blockDim.x;
+    int v = threadIdx.y + blockIdx.y * blockDim.y;
+
+    int i = v*cols + u;
+
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
+
+    if (*count >= rows_mb*cols_mb/15)
+        return;
+
+    if(u < depth.cols && u > 0 && v < depth.rows && v > 0)
+    {
+        float z = depth.ptr(v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
+
+        if(z != 0 && z < maxDepth /*&& m == maskID*/) //FIXME
+        {  
+            unsigned int best = 0U;
+            float3 vPosLocal = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
+            // printf("vPosLocal x=%f y=%f z=%f\n",vPosLocal.x, vPosLocal.y, vPosLocal.z);
+            float4 vPosition = make_float4(0,0,0,0); //vPosition = vnew_
+            
+            vPosition.x = t[0]*vPosLocal.x + t[1]*vPosLocal.y + t[2]*vPosLocal.z + t[3]*1;
+            vPosition.y = t[4]*vPosLocal.x + t[5]*vPosLocal.y + t[6]*vPosLocal.z + t[7]*1;
+            vPosition.z = t[8]*vPosLocal.x + t[9]*vPosLocal.y + t[10]*vPosLocal.z + t[11]*1;
+            vPosition.w = confidence(cx, cy, u, v, weighting);
+
+            float3 vNormLocal = make_float3(0,0,0);
+            //nnew_ = vNormRad
+            float4 vNormRad = make_float4(0,0,0,0);
+            float rnew;
+            vNormLocal = getNormal(depth, maxDepth, vPosLocal, cx, cy ,fx ,fy, u, v, rows, cols); // TO change vsrc_new  to vsrc_new_f
+            vNormRad.x = t[0]*vNormLocal.x + t[1]*vNormLocal.y + t[2]*vNormLocal.z;
+            vNormRad.y = t[4]*vNormLocal.x + t[5]*vNormLocal.y + t[6]*vNormLocal.z;
+            vNormRad.z = t[8]*vNormLocal.x + t[9]*vNormLocal.y + t[10]*vNormLocal.z;
+            vNormRad.w = getRadius(fx, fy, vPosLocal.z, vNormLocal.z); // TO DO change vsrc_new.z to vsrc_new_f.z
+
+            if((int(u) % 2 == int(time) % 2) && (int(v) % 2 == int(time) % 2) && checkNeighbours(depth, u, v) && vPosLocal.z > 0 && vPosLocal.z <= maxDepth)
+            {
+                int operation = 0;
+                float bestDist = 1000;
+                float xl = (u - cx) * 1/fx;
+                float yl = (v - cy) * 1/fy;
+                float lambda = sqrt(xl * xl + yl * yl + 1);
+                float3 ray = make_float3(xl, yl, 1);
+                float4 vertConf = make_float4(0,0,0,0);
+                float4 normRad = make_float4(0,0,0,0);
+
+                for (int ui = u - 2; ui < u + 2; ui++)
+                {
+                    for (int vj = v - 2; vj < v + 2; vj++)
+                    {
+                        if ((ui < 0) || (ui >=cols))
+                            continue;
+                        if ((vj < 0) || (vj >=rows))
+                            continue;
+                        unsigned int current = index_pi.ptr(vj)[ui];
+                        // printf("current =%d\n",current);
+                        // printf("xl = %f yl = %f\n", xl, yl);
+                        // printf("lambda = %f \n", lambda);
+                        if(current > 0U)
+                        {
+                            vertConf.x = vmap_pi.ptr(vj)[ui];
+                            vertConf.y = vmap_pi.ptr(vj + rows)[ui];
+                            vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
+                            vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+                            // printf("vertConf x=%f y=%f z=%f w=%f\n",vertConf.x, vertConf.y, vertConf.z, vertConf.w);
+                             
+                            float zdiff = vertConf.z - vPosLocal.z;
+                            // printf("zdiff =%f\n",zdiff);
+                            // printf("abs(zdiff * lambda) (< 0.05) =%f\n",abs(zdiff * lambda));
+
+                            if (abs(zdiff * lambda) < 0.05)
+                            {
+                                float3 ray_v_cross = make_float3(0,0,0);
+                                ray_v_cross = cross(ray, make_float3(vertConf.x,vertConf.y,vertConf.z));
+                                float dist = sqrt(pow(ray_v_cross.x,2) + pow(ray_v_cross.y,2) + pow(ray_v_cross.z,2)) /*/ lambda*/;
+                                // printf("dist =%f\n",dist);
+                                // printf("bestDist =%f\n",bestDist);
+
+                                normRad.x = nmap_pi.ptr(vj)[ui];
+                                normRad.y = nmap_pi.ptr(vj + rows)[ui];
+                                normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
+                                normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
+                                // printf("normRad x=%f y=%f z=%f rad=%f\n",normRad.x, normRad.y, normRad.z, normRad.w);
+                                
+                                float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(vNormLocal.x, vNormLocal.y, vNormLocal.z));
+                                // printf("abw(<0.5) =%f\n",abw);
+                                
+                                if(dist < bestDist && (abs(normRad.z) < 0.75f || abw < 0.5f))
+                                {
+                                        operation = 1;
+                                        bestDist = dist;
+                                        best = current;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (operation == 1)
+                {
+                    //newNorm = vNormRad
+                    //vNormRad = normRad
+                    float4 vConf = make_float4(vertConf.x, vertConf.y, vertConf.z, vertConf.w);
+                    vConf.x = t[0]*vertConf.x + t[1]*vertConf.y + t[2]*vertConf.z + t[3]*1;
+                    vConf.y = t[4]*vertConf.x + t[5]*vertConf.y + t[6]*vertConf.z + t[7]*1;
+                    vConf.z = t[8]*vertConf.x + t[9]*vertConf.y + t[10]*vertConf.z + t[11]*1;
+                    
+                    float4 nRad = make_float4(normRad.x, normRad.y, normRad.z, normRad.w);
+                    nRad.x = t[0]*normRad.x + t[1]*normRad.y + t[2]*normRad.z;
+                    nRad.y = t[4]*normRad.x + t[5]*normRad.y + t[6]*normRad.z;
+                    nRad.z = t[8]*normRad.x + t[9]*normRad.y + t[10]*normRad.z;
+
+                    float a = vPosition.w;
+                    float3 v_g = make_float3(vPosition.x, vPosition.y, vPosition.z);
+                    float c_k = vConf.w;
+                    float3 v_k = make_float3(vConf.x, vConf.y, vConf.z);
+
+                    if (vNormRad.w < (1 + 5) * nRad.w)
+                    {
+                        model_buffer[fixed_count+i] = (c_k * v_k.x + a * v_g.x) / (c_k + a);
+                        model_buffer[fixed_count+i+ rows_mb*cols_mb] = (c_k * v_k.y + a * v_g.y) / (c_k + a);
+                        model_buffer[fixed_count+i+2*rows_mb*cols_mb] = (c_k * v_k.z + a * v_g.z) / (c_k + a);
+                        model_buffer[fixed_count+i+3*rows_mb*cols_mb] = c_k + a;
+
+                        float4 vNormRad0 = make_float4((c_k * nRad.x + a * vNormRad.x)/ (c_k + a), (c_k * nRad.y + a * vNormRad.y)/ (c_k + a), (c_k * nRad.z + a * vNormRad.z)/ (c_k + a), (c_k * nRad.w+ a * vNormRad.w)/ (c_k + a));
+                        float3 normnrad = normalized(make_float3(vNormRad0.x,vNormRad0.y,vNormRad0.z));
+                        model_buffer[fixed_count+i+8*rows_mb*cols_mb] = normnrad.x;
+                        model_buffer[fixed_count+i+9*rows_mb*cols_mb] = normnrad.y;
+                        model_buffer[fixed_count+i+10*rows_mb*cols_mb] = normnrad.z;
+                        
+                        // atomicAdd(count, 1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void normalFusionData(DeviceArray<float>& model_buffer, int* h_count, int time, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, float weighting, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi)
+{
+    dim3 block (32, 8);
+    dim3 grid (1, 1, 1);
+    grid.x = getGridDim (depth.cols (), block.x);
+    grid.y = getGridDim (depth.rows (), block.y);
+
+    float fx = intr.fx, cx = intr.cx;
+    float fy = intr.fy, cy = intr.cy;
+
+    float * t;
+    cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
+    int *d_count, fixed_count;
+    fixed_count = *h_count;
+    cudaMalloc((void**)&d_count, sizeof(int));
+    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+    normalFusionDataKernel<<<grid, block>>>(model_buffer, d_count, fixed_count, time, depth, fx, fy, cx, cy, rows, cols, maxDepth, t, weighting, vmap_pi, ct_pi, nmap_pi, index_pi);
+    cudaDeviceSynchronize();
+    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaSafeCall(cudaGetLastError());
+
+}
+__global__ void normalFusionKernel(float* model_buffer, int* count, int fixed_count, const PtrStepSz<float> depth, float fx, float fy, float cx, float cy, int rows, int cols, float maxDepth, float* t)
+{
+    
+    int u = threadIdx.x + blockIdx.x * blockDim.x;
+    int v = threadIdx.y + blockIdx.y * blockDim.y;
+
+    int i = v*cols + u;
+
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
+
+    if (*count >= rows_mb*cols_mb/15)
+        return;
+
+    if(u < depth.cols && u > 0 && v < depth.rows && v > 0)
+    {
+        float z = depth.ptr(v)[u] /*/ 1000.f*/; // load and convert: mm -> meters
+
+        if(z != 0 && z < maxDepth /*&& m == maskID*/) //FIXME
+        {  
+
+            float3 vPosLocal = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
+            // printf("vPosLocal x=%f y=%f z=%f\n",vPosLocal.x, vPosLocal.y, vPosLocal.z);
+            float4 vPosition = make_float4(0,0,0,0); //vPosition = vnew_
+
+            vPosition.x = t[0]*vPosLocal.x + t[1]*vPosLocal.y + t[2]*vPosLocal.z + t[3]*1;
+            vPosition.y = t[4]*vPosLocal.x + t[5]*vPosLocal.y + t[6]*vPosLocal.z + t[7]*1;
+            vPosition.z = t[8]*vPosLocal.x + t[9]*vPosLocal.y + t[10]*vPosLocal.z + t[11]*1;
+
+            model_buffer[fixed_count+i] = vPosition.x;
+            model_buffer[fixed_count+i+rows_mb*cols_mb] = vPosition.y;
+            model_buffer[fixed_count+i+2*rows_mb*cols_mb] = vPosition.z;
+            
+            // model_buffer[i] = vPosition.x;
+            // model_buffer[i+rows_mb*cols_mb] = vPosition.y;
+            // model_buffer[i+2*rows_mb*cols_mb] = vPosition.z;
+
+            atomicAdd(count, 1);
+        }
+    }
+}
+
+void normalFusion(DeviceArray<float>& model_buffer, int* h_count, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose)
+{
+    dim3 block (32, 8);
+    dim3 grid (1, 1, 1);
+    grid.x = getGridDim (depth.cols (), block.x);
+    grid.y = getGridDim (depth.rows (), block.y);
+
+    float fx = intr.fx, cx = intr.cx;
+    float fy = intr.fy, cy = intr.cy;
+
+    float * t;
+    cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
+    int *d_count, fixed_count;
+    fixed_count = *h_count;
+    cudaMalloc((void**)&d_count, sizeof(int));
+    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+    normalFusionKernel<<<grid, block>>>(model_buffer, d_count, fixed_count, depth, fx, fy, cx, cy, rows, cols, maxDepth, t);
+    cudaDeviceSynchronize();
+    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaSafeCall(cudaGetLastError());
+
+}
