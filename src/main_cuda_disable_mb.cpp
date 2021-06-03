@@ -222,7 +222,7 @@ int main(int argc, char  *argv[])
     cvw0 = 0;
     cvwm1 = 0;
 	int psize;
-
+	int update_count = 0;
 
     //debug
  //    int ib_len = 1000;
@@ -235,6 +235,7 @@ int main(int argc, char  *argv[])
 	// imagebin.upload(&imgzeros[0], width*height*ib_len);
 	// delete[] imgzeros;
 	//off
+	pose = posesub->read();
 
 	while (ros::ok())
 	{
@@ -272,7 +273,7 @@ int main(int argc, char  *argv[])
 			createNMap(vmap, nmap);
 			rgbd_odom->initFirstRGB(rgb);
 			model_buffer.upload(&vertices_mb[0], bufferSize);
-			initModelBuffer(intr, depthCutOff, model_buffer, &count, vmap, nmap, rgb);
+			initModelBuffer(intr, depthCutOff, model_buffer, pose.data(), &count, vmap, nmap, rgb);
 			tinv  = pose.inverse();
 			splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 			fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
@@ -307,10 +308,10 @@ int main(int argc, char  *argv[])
 
         // predict()
 		tinv  = pose.inverse();
-		splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
-		fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
-		fillinRgb(width, height, color_splat, rgb, false, fillin_img);
+		// splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
+		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
+		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 
 		updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
@@ -320,20 +321,23 @@ int main(int argc, char  *argv[])
 		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
-
-		splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-		fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
-		fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
-		fillinRgb(width, height, color_splat, rgb, false, fillin_img);
-
-		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		// fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
 		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		// normalFusion(model_buffer, &count, depth, intr, rows, cols, maxDepth, pose.data());
-		// normalFusionData(model_buffer, &count, frame, depth, intr, rows, cols, maxDepth, pose.data(), w, vmap_pi, ct_pi, nmap_pi, index_pi);
+		// clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
+		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
+		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
+		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
+
+		std::cout<<"udpate points :"<<up<<" unstable points :"<<usp<<std::endl;
+
+		//debug on
+			// float w = computeFusionWeight(1, pose.inverse()*lastpose);
+			// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+			// // normalFusion(model_buffer, &count, depth, intr, rows, cols, maxDepth, pose.data());
+			// normalFusionData(model_buffer, &count, &update_count, frame, depth, intr, rows, cols, maxDepth, pose.data(), w, vmap_pi, ct_pi, nmap_pi, index_pi);
+			// std::cout<<"update_count :"<<update_count<<std::endl;
 
 		// debug on
 			// float* vmap_hst = new float[height*width*4];
@@ -355,7 +359,7 @@ int main(int argc, char  *argv[])
 
 		// debug on
 			// float* vmap_hst = new float[height*width*4];
-			// vmap_splat_prev.download(vmap_hst, width*sizeof(float));
+			// vmap_pi.download(vmap_hst, width*sizeof(float));
 			// float* vmap_hst_new = new float[height*width*3];
 			// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_hst_new);
 			// delete[] vmap_hst;
@@ -397,7 +401,7 @@ int main(int argc, char  *argv[])
 		float* mb = new float[bufferSize];
 		model_buffer.download(mb);
 		// if (count < 588716)
-		psize = count;
+			psize = count;
 		float* mb_xyz = new float[psize*3];
 		std::copy(mb, mb+psize, mb_xyz);
 		std::copy(mb+(3072*3072), mb+(3072*3072)+psize, mb_xyz+psize);
@@ -413,7 +417,7 @@ int main(int argc, char  *argv[])
 		// std::cout<<"frame :"<<frame<<" update points:"<<up<<" unstable points:"<<usp<<std::endl;
 		// std::cout<<"frame :"<<frame<<" cvw0 points:"<<cvw0<<" cvwm1 points:"<<cvwm1<<std::endl;
 		// std::cout<<"pose:\n"<<pose<<std::endl;
-		std::cout<<"count :"<<count<<std::endl;
+		// std::cout<<"count :"<<count<<std::endl;
 		// if (frame > 0)
 			// break;
 		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
@@ -434,6 +438,7 @@ int main(int argc, char  *argv[])
   		cvwm1 = 0;
 		lastpose = pose;
 		frame++;		
+		update_count = 0;
 		// count = 0;	// TO DO set lastpose
 		ros::spinOnce();
 		pangolin::FinishFrame();
@@ -442,12 +447,6 @@ int main(int argc, char  *argv[])
 	}
 
     // debug
-
-	
-
-
-
-
 
 	return 0;
 }

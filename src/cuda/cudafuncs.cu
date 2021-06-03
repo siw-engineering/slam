@@ -242,7 +242,7 @@ __device__ float confidence(float cx, float cy, float x, float y, float weightin
 }
 
 
-__global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, int rows, int cols, float max_depth, float* model_buffer,  int* count, const PtrStepSz<float> vmap, const PtrStepSz<float> nmap, const float* rgb)
+__global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, int rows, int cols, float max_depth, float* model_buffer,  float *pose, int* count, const PtrStepSz<float> vmap, const PtrStepSz<float> nmap, const float* rgb)
 {
     int u = threadIdx.x + blockIdx.x * blockDim.x;
     int v = threadIdx.y + blockIdx.y * blockDim.y;
@@ -268,7 +268,14 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
         if (isnan(vert.x) || isnan(vert.y) || isnan(vert.z) || isnan(norm.x) || isnan(norm.y) || isnan(norm.z))
             return;
 
-        atomicAdd(count, 1);
+        vert.x = pose[0]*vmap.ptr(v)[u] + pose[1]*vmap.ptr(v + rows)[u] + pose[2]*vz + pose[3]*1;
+        vert.y = pose[4]*vmap.ptr(v)[u] + pose[5]*vmap.ptr(v + rows)[u] + pose[6]*vz + pose[7]*1;
+        vert.z = pose[8]*vmap.ptr(v)[u] + pose[9]*vmap.ptr(v + rows)[u] + pose[10]*vz + pose[11]*1;
+    
+        norm.x = pose[0]*nmap.ptr(v)[u] + pose[1]*nmap.ptr(v + rows)[u] + pose[2]*nmap.ptr(v + rows*2)[u];
+        norm.y = pose[4]*nmap.ptr(v)[u] + pose[5]*nmap.ptr(v + rows)[u] + pose[6]*nmap.ptr(v + rows*2)[u];
+        norm.z = pose[8]*nmap.ptr(v)[u] + pose[9]*nmap.ptr(v + rows)[u] + pose[10]*nmap.ptr(v + rows*2)[u];
+
         //writing vertex and confidence
         model_buffer[i] = vert.x;
         model_buffer[i+ rows_mb*cols_mb] = vert.y;
@@ -298,11 +305,13 @@ __global__ void initModelBufferKernel(float cx, float cy, float fx, float fy, in
         model_buffer[i+9*rows_mb*cols_mb] = norm.y;
         model_buffer[i+10*rows_mb*cols_mb] = norm.z;
         model_buffer[i+11*rows_mb*cols_mb] = getRadius(fx, fy, vmap.ptr(v + rows*2)[u], nmap.ptr(v + rows*2)[u]);
+        
+        atomicAdd(count, 1);
         // printf("initModelBuffer :vx = %f vy = %f vz = %f cx = %f cy = %f cz = %f nx = %f ny = %f nz = %f \n",model_buffer[i],model_buffer[i+ rows_mb*cols_mb], model_buffer[i+ 2*rows_mb*cols_mb], model_buffer[i+ 4*rows_mb*cols_mb], model_buffer[i+ 5*rows_mb*cols_mb], model_buffer[i+ 6*rows_mb*cols_mb], model_buffer[i+ 8*rows_mb*cols_mb], model_buffer[i+ 9*rows_mb*cols_mb], model_buffer[i+ 10*rows_mb*cols_mb]);
     }
 }
 
-void initModelBuffer(const CameraModel& intr, const float depthCutOff, DeviceArray<float> & model_buffer, int* h_count, const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb )
+void initModelBuffer(const CameraModel& intr, const float depthCutOff, DeviceArray<float> & model_buffer, float* pose, int* h_count, const DeviceArray2D<float> & vmap, const DeviceArray2D<float> & nmap, const DeviceArray<float> & rgb )
 {
     int *d_count;
     cudaMalloc((void**)&d_count, sizeof(int));
@@ -316,7 +325,11 @@ void initModelBuffer(const CameraModel& intr, const float depthCutOff, DeviceArr
     grid.x = getGridDim (cols, block.x);
     grid.y = getGridDim (rows, block.y);
 
-    initModelBufferKernel<<<grid, block>>>(intr.cx, intr.cy, intr.fx, intr.fy, rows, cols, depthCutOff, model_buffer, d_count, vmap, nmap, rgb);
+    float * t;
+    cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
+
+    initModelBufferKernel<<<grid, block>>>(intr.cx, intr.cy, intr.fx, intr.fy, rows, cols, depthCutOff, model_buffer, t, d_count, vmap, nmap, rgb);
     cudaDeviceSynchronize();
     cudaCheckError();
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
@@ -1352,7 +1365,7 @@ void projectToPointCloud(const DeviceArray2D<float> & depth,
 }
 
 
-__global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, float* tinv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
+__global__ void predictIndiciesOpenGLKernel(float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, float* tinv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
 {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1371,7 +1384,7 @@ __global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  i
     int vertexId;
     float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
 
-    if ((vz < 0 ) || (vz > maxDepth) || (time - cw > timeDelta))
+    if ((vz < 0 ) || (vz > maxDepth) /*|| (time - cw > timeDelta)*/)
     {
         vsrc.x = -10;
         vsrc.y = -10;
@@ -1413,6 +1426,119 @@ __global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  i
         fc.x = fc.x * cols;
         fc.y = fc.y * rows;
         int x = fc.x, y = fc.y;
+
+        if (x < 0 || x > cols || y < 0 || y > rows)
+            return;
+
+
+        // printf("x = %d y = %d\n", x, y);
+        vmap_pi.ptr(y)[x] = v_.x;
+        vmap_pi.ptr(y + rows)[x] = v_.y;
+        vmap_pi.ptr(y + rows * 2)[x] = v_.z;
+        vmap_pi.ptr(y + rows * 3)[x] = model_buffer[i + 3*rows_mb*cols_mb];
+
+        ct_pi.ptr(y)[x] = model_buffer[i+4*rows_mb*cols_mb];
+        ct_pi.ptr(y + rows)[x] = model_buffer[i+5*rows_mb*cols_mb];
+        ct_pi.ptr(y + rows * 2)[x] = model_buffer[i+6*rows_mb*cols_mb];
+        ct_pi.ptr(y + rows * 3)[x] = model_buffer[i+7*rows_mb*cols_mb];
+
+        nmap_pi.ptr(y)[x] = n_.x;
+        nmap_pi.ptr(y + rows)[x] = n_.y;
+        nmap_pi.ptr(y + rows * 2)[x] = n_.z;
+        nmap_pi.ptr(y + rows * 3)[x] = model_buffer[i + 11*rows_mb*cols_mb];
+
+        index_pi.ptr(y)[x] = i;
+    }
+}
+
+void predictIndiciesOpenGL(const CameraModel& intr, int rows, int cols, float maxDepth, float* pose_inv, DeviceArray<float>& model_buffer, int time, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, int count)
+{
+    int blocksize = 32*8;
+    int numblocks = (count + blocksize - 1)/ blocksize;
+    int timeDelta = 200;
+
+    float* vertices = new float[rows*cols*4];
+    memset(&vertices[0], 0, rows*cols*4);
+
+    vmap_pi.create(rows*4, cols); 
+    vmap_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+
+    ct_pi.create(rows*4, cols);
+    ct_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+
+    nmap_pi.create(rows*4, cols);
+    nmap_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
+    
+    index_pi.create(rows,cols);
+    index_pi.upload(&vertices[0], sizeof(float)*cols, rows, cols);
+
+    delete[] vertices;
+
+    float fx = intr.fx, cx = intr.cx;
+    float fy = intr.fy, cy = intr.cy;
+
+    float * tinv;
+    cudaSafeCall(cudaMalloc((void**) &tinv, sizeof(float) * 16));
+    cudaSafeCall(cudaMemcpy(tinv, pose_inv, sizeof(float) * 16, cudaMemcpyHostToDevice));
+
+    predictIndiciesOpenGLKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, tinv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
+
+}
+__global__ void predictIndiciesKernel(float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, float* tinv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
+{
+
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
+    // int i = y* rows + x;
+    float xu = 0;
+    float yv = 0;
+
+    if (i >= rows_mb*cols_mb)
+        return;
+
+    int vz = model_buffer[i + 2*rows_mb*cols_mb];
+    int cw = model_buffer[i+7*rows_mb*cols_mb];
+    int vertexId;
+    float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+    if ((vz < 0 ) || (vz > maxDepth) /*|| (time - cw > timeDelta)*/)
+    {
+        vsrc.x = 0;
+        vsrc.y = 0;
+        vertexId = -1;
+    }
+    else
+    {
+        float3 v_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+        float3 nsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+        float3 n_ = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
+
+        vsrc.x = model_buffer[i];
+        vsrc.y = model_buffer[i + rows_mb*cols_mb];
+        vsrc.z = model_buffer[i + 2*rows_mb*cols_mb];
+
+        nsrc.x = model_buffer[i+8*rows_mb*cols_mb];
+        nsrc.y = model_buffer[i+9*rows_mb*cols_mb];
+        nsrc.z = model_buffer[i+10*rows_mb*cols_mb];
+
+        v_.x = tinv[0]*vsrc.x + tinv[1]*vsrc.y + tinv[2]*vsrc.z + tinv[3]*1;
+        v_.y = tinv[4]*vsrc.x + tinv[5]*vsrc.y + tinv[6]*vsrc.z + tinv[7]*1;
+        v_.z = tinv[8]*vsrc.x + tinv[9]*vsrc.y + tinv[10]*vsrc.z + tinv[11]*1;
+
+        // xu = ((((fx* v_.x) / v_.z) + cx) - (cols * 0.5)) / (cols * 0.5);
+        // yv = ((((fy * v_.y) / v_.z) + cy) - (rows * 0.5)) / (rows * 0.5);
+        // vertexId = gl_VertexID;
+        vertexId = i;
+
+        n_.x = tinv[0]*nsrc.x + tinv[1]*nsrc.y + tinv[2]*nsrc.z;
+        n_.y = tinv[4]*nsrc.x + tinv[5]*nsrc.y + tinv[6]*nsrc.z;
+        n_.z = tinv[8]*nsrc.x + tinv[9]*nsrc.y + tinv[10]*nsrc.z;
+        n_ = normalized(n_);
+
+        int x = (((fx * v_.x) / v_.z) + cx);
+        int y = (((fy * v_.y) / v_.z) + cy);
 
         if (x < 0 || x > cols || y < 0 || y > rows)
             return;
@@ -1517,14 +1643,6 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
 
         if(z != 0 && z < maxDepth /*&& m == maskID*/) //FIXME
         {   
-            //vPosLocal = vsrc_new
-            float3 vPosLocal = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
-            // printf("vPosLocal x=%f y=%f z=%f\n",vPosLocal.x, vPosLocal.y, vPosLocal.z);
-            float4 vPosition = make_float4(0,0,0,0); //vPosition = vnew_
-            vPosition.x = pose[0]*vPosLocal.x + pose[1]*vPosLocal.y + pose[2]*vPosLocal.z + pose[3]*1;
-            vPosition.y = pose[4]*vPosLocal.x + pose[5]*vPosLocal.y + pose[6]*vPosLocal.z + pose[7]*1;
-            vPosition.z = pose[8]*vPosLocal.x + pose[9]*vPosLocal.y + pose[10]*vPosLocal.z + pose[11]*1;
-            // printf("vPosition x=%f y=%f z=%f\n",vPosition.x, vPosition.y, vPosition.z);
 
             float zf = depthf.ptr(v)[u];
 
@@ -1553,6 +1671,15 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                 cnew.z = cnew.z/255;
 
                 ec_new = encodeColor(cnew);
+
+                //vPosLocal = vsrc_new
+                float3 vPosLocal = make_float3(z * (u - cx) / fx,  z * (v - cy) / fy,  z);
+                float4 vPosition = make_float4(0,0,0,0); //vPosition = vnew_
+                vPosition.x = pose[0]*vPosLocal.x + pose[1]*vPosLocal.y + pose[2]*vPosLocal.z + pose[3]*1;
+                vPosition.y = pose[4]*vPosLocal.x + pose[5]*vPosLocal.y + pose[6]*vPosLocal.z + pose[7]*1;
+                vPosition.z = pose[8]*vPosLocal.x + pose[9]*vPosLocal.y + pose[10]*vPosLocal.z + pose[11]*1;
+                vPosition.w = confidence(cx, cy, u, v, weighting);
+
                 // printf("color x= %f y=%f z=%f encoded color = %f\n",cnew.x, cnew.y, cnew.z, ec_new);
                 // nsrc_new = vNormLocal
                 float3 vNormLocal = make_float3(0,0,0);
@@ -1565,12 +1692,7 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                 vNormRad.z = pose[8]*vNormLocal.x + pose[9]*vNormLocal.y + pose[10]*vNormLocal.z;
                 vNormRad.w = getRadius(fx, fy, vPosition_f.z, vNormLocal.z); // TO DO change vsrc_new.z to vsrc_new_f.z
                 // printf("vNormLocal x=%f y=%f z=%f\n",vNormLocal.x, vNormLocal.y, vNormLocal.z);
-                // printf("vNormRad x=%f y=%f z=%f rad=%f\n",vNormRad.x, vNormRad.y, vNormRad.z, vNormRad.w);
-
-                // //Confidence
-                vPosition.w = confidence(cx, cy, u, v, weighting);
-                // printf("vPosition.w (confidence) =%f\n",vPosition.w);
-
+                // printf("vNormRad x=%f y=%f z=%f rad=%f\n",vNormRad.x, vNormRad.y, vNormRad.z, vNormRad.w)
 
                 // float confnew = confidence(cx, cy, u, v, weighting);
                 vCw = 0;
@@ -1642,7 +1764,6 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                     }
                     if (operation == 1)
                     {
-                        // printf("operation = 1\n");
                         vCw = -1;
                         int intY = best / cols_mb;
                         int intX = best - (intY * cols_mb);
@@ -1679,7 +1800,6 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                     }
                     else
                     {
-                        // printf("operation = 0\n");
                         vCw = -2;
                         unstable_buffer.ptr(v)[u] = vPosition.x;
                         unstable_buffer.ptr(v + rows)[u] = vPosition.y;
@@ -1698,9 +1818,6 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                         atomicAdd(usp, 1);
 
                     }
-
-                    //     atomicAdd(count, 1);
-           
                 }
             }
         }
@@ -1713,8 +1830,6 @@ void fuse_data(int* up, int* usp, DeviceArray2D<float>& depth,  DeviceArray<floa
     dim3 grid (1, 1, 1);
     grid.x = getGridDim (depth.cols (), block.x);
     grid.y = getGridDim (depth.rows (), block.y);
-    // grid.x = getGridDim (1, block.x);
-    // grid.y = getGridDim (1, block.y);
 
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
@@ -2237,7 +2352,7 @@ void testcolorencoding()
     testcolorencodingKernel<<<1,1>>>();
 }
 
-__global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixed_count, int time, const PtrStepSz<float> depth, float fx, float fy, float cx, float cy, int rows, int cols, float maxDepth, float* t, float weighting, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
+__global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixed_count, int* update_count, int time, const PtrStepSz<float> depth, float fx, float fy, float cx, float cy, int rows, int cols, float maxDepth, float* t, float weighting, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
 {
     
     int u = threadIdx.x + blockIdx.x * blockDim.x;
@@ -2305,7 +2420,7 @@ __global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixe
                             vertConf.x = vmap_pi.ptr(vj)[ui];
                             vertConf.y = vmap_pi.ptr(vj + rows)[ui];
                             vertConf.z = vmap_pi.ptr(vj + rows * 2)[ui];
-                            vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
+                            // vertConf.w = vmap_pi.ptr(vj + rows * 3)[ui];
                             // printf("vertConf x=%f y=%f z=%f w=%f\n",vertConf.x, vertConf.y, vertConf.z, vertConf.w);
                              
                             float zdiff = vertConf.z - vPosLocal.z;
@@ -2323,7 +2438,7 @@ __global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixe
                                 normRad.x = nmap_pi.ptr(vj)[ui];
                                 normRad.y = nmap_pi.ptr(vj + rows)[ui];
                                 normRad.z = nmap_pi.ptr(vj + rows * 2)[ui];
-                                normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
+                                // normRad.w = nmap_pi.ptr(vj + rows * 3)[ui];
                                 // printf("normRad x=%f y=%f z=%f rad=%f\n",normRad.x, normRad.y, normRad.z, normRad.w);
                                 
                                 float abw = angleBetween(make_float3(normRad.x, normRad.y, normRad.z), make_float3(vNormLocal.x, vNormLocal.y, vNormLocal.z));
@@ -2341,8 +2456,11 @@ __global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixe
                 }
                 if (operation == 1)
                 {
-                    //newNorm = vNormRad
-                    //vNormRad = normRad
+                    
+                    atomicAdd(update_count, 1);
+
+                    // newNorm = vNormRad
+                    // vNormRad = normRad
                     float4 vConf = make_float4(vertConf.x, vertConf.y, vertConf.z, vertConf.w);
                     vConf.x = t[0]*vertConf.x + t[1]*vertConf.y + t[2]*vertConf.z + t[3]*1;
                     vConf.y = t[4]*vertConf.x + t[5]*vertConf.y + t[6]*vertConf.z + t[7]*1;
@@ -2375,16 +2493,16 @@ __global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixe
                 } 
                 else
                 {
-                        model_buffer[fixed_count+i] = vPosition.x;
-                        model_buffer[fixed_count+i+ rows_mb*cols_mb] = vPosition.y;
-                        model_buffer[fixed_count+i+2*rows_mb*cols_mb] = vPosition.z;
-                        model_buffer[fixed_count+i+3*rows_mb*cols_mb] = vPosition.w;
+                        // model_buffer[fixed_count+i] = vPosition.x;
+                        // model_buffer[fixed_count+i+ rows_mb*cols_mb] = vPosition.y;
+                        // model_buffer[fixed_count+i+2*rows_mb*cols_mb] = vPosition.z;
+                        // model_buffer[fixed_count+i+3*rows_mb*cols_mb] = vPosition.w;
 
-                        model_buffer[fixed_count+i+8*rows_mb*cols_mb] = vNormRad.x;
-                        model_buffer[fixed_count+i+9*rows_mb*cols_mb] = vNormRad.y;
-                        model_buffer[fixed_count+i+10*rows_mb*cols_mb] = vNormRad.z;
-                        model_buffer[fixed_count+i+11*rows_mb*cols_mb] = vNormRad.w;
-                        atomicAdd(count, 1);
+                        // model_buffer[fixed_count+i+8*rows_mb*cols_mb] = vNormRad.x;
+                        // model_buffer[fixed_count+i+9*rows_mb*cols_mb] = vNormRad.y;
+                        // model_buffer[fixed_count+i+10*rows_mb*cols_mb] = vNormRad.z;
+                        // model_buffer[fixed_count+i+11*rows_mb*cols_mb] = vNormRad.w;
+                        // atomicAdd(count, 1);
 
                 }
             }
@@ -2392,7 +2510,7 @@ __global__ void normalFusionDataKernel(float* model_buffer, int* count, int fixe
     }
 }
 
-void normalFusionData(DeviceArray<float>& model_buffer, int* h_count, int time, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, float weighting, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi)
+void normalFusionData(DeviceArray<float>& model_buffer, int* h_count, int* h_update_count, int time, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, float* pose, float weighting, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi)
 {
     dim3 block (32, 8);
     dim3 grid (1, 1, 1);
@@ -2405,13 +2523,17 @@ void normalFusionData(DeviceArray<float>& model_buffer, int* h_count, int time, 
     float * t;
     cudaSafeCall(cudaMalloc((void**) &t, sizeof(float) * 16));
     cudaSafeCall(cudaMemcpy(t, pose, sizeof(float) * 16, cudaMemcpyHostToDevice));
-    int *d_count, fixed_count;
+    int *d_count, fixed_count, *d_update_count;
     fixed_count = *h_count;
     cudaMalloc((void**)&d_count, sizeof(int));
+    cudaMalloc((void**)&d_update_count, sizeof(int));
     cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
-    normalFusionDataKernel<<<grid, block>>>(model_buffer, d_count, fixed_count, time, depth, fx, fy, cx, cy, rows, cols, maxDepth, t, weighting, vmap_pi, ct_pi, nmap_pi, index_pi);
+    cudaMemcpy(d_update_count, h_update_count, sizeof(int), cudaMemcpyHostToDevice);
+
+    normalFusionDataKernel<<<grid, block>>>(model_buffer, d_count, fixed_count, d_update_count, time, depth, fx, fy, cx, cy, rows, cols, maxDepth, t, weighting, vmap_pi, ct_pi, nmap_pi, index_pi);
     cudaDeviceSynchronize();
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_update_count, d_update_count, sizeof(int), cudaMemcpyDeviceToHost);
     cudaSafeCall(cudaGetLastError());
 
 }
