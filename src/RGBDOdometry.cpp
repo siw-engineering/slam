@@ -112,7 +112,7 @@ void RGBDOdometry::initICP(const std::vector<DeviceArray2D<float> >& depthPyrami
   cudaDeviceSynchronize();
 }
 
-void RGBDOdometry::initICP(DeviceArray<float>& vmaps_tmp, DeviceArray<float>& nmaps_tmp, const float depthCutoff) {
+void RGBDOdometry::initICP(DeviceArray2D<float>& vmaps_tmp, DeviceArray2D<float>& nmaps_tmp, const float depthCutoff) {
 
   copyMaps(vmaps_tmp, nmaps_tmp, vmaps_curr_[0], nmaps_curr_[0]);
 
@@ -374,7 +374,6 @@ void RGBDOdometry::getIncrementalTransformation(Eigen::Vector3f& trans, Eigen::M
                 GPUConfig::getInstance().icpStepThreads, GPUConfig::getInstance().icpStepBlocks,
                 (i == 0 && j == iterations[i] - 1) ? icpErrorSurface : 0);
       }
-
       lastICPError = sqrt(residual[0]) / residual[1];
       lastICPCount = residual[1];
 

@@ -43,10 +43,10 @@ Ferns::Ferns(int n, int maxDepth, const float photoThresh, const int resolution_
       normBuff(width, height) {
   random.seed(time(0));
   generateFerns();
-  vertFern.create(height, width);
-  vertCurrent.create(height * 4 * width);
-  normFern.create(height, width);
-  normCurrent.create(height * 4 * width);
+  vertFern.create(height * 4, width);
+  vertCurrent.create(height * 4, width);
+  normFern.create(height * 4, width);
+  normCurrent.create(height * 4, width);
 }
 
 Ferns::~Ferns() {
@@ -71,31 +71,64 @@ void Ferns::generateFerns() {
   }
 }
 
+
+Eigen::Vector4f Ferns::get(int y, int x, int width, float* data)
+{
+
+    float vert[4];
+    vert[0] = data[y * width * 4 + (x * 4) + 0];
+    vert[1] = data[y * width * 4 + (x * 4) + 1];
+    vert[2] = data[y * width * 4 + (x * 4) + 2];
+    vert[3] = data[y * width * 4 + (x * 4) + 3];
+
+    Eigen::Vector4f v(vert);
+
+    return v;
+
+}
+Eigen::Vector4f Ferns::get(int y, int x, int width, const float* data)
+{
+
+    float vert[4];
+    vert[0] = data[y * width * 4 + (x * 4) + 0];
+    vert[1] = data[y * width * 4 + (x * 4) + 1];
+    vert[2] = data[y * width * 4 + (x * 4) + 2];
+    vert[3] = data[y * width * 4 + (x * 4) + 3];
+
+    Eigen::Vector4f v(vert);
+
+    return v;
+
+}
+
+
 bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& vertexTexture, DeviceArray2D<float>& normalTexture,
           const Eigen::Matrix4f& pose, int srcTime, const float threshold) {
 
 
   Img<Eigen::Matrix<unsigned char, 3, 1>> img(height, width);
-  Img<Eigen::Vector4f> verts(height, width);
-  Img<Eigen::Vector4f> norms(height, width);
+  // Img<Eigen::Vector4f> verts(height, width);
+  // Img<Eigen::Vector4f> norms(height, width);
+  float* verts = new float[height * width * 4];
+  float* norms = new float[height * width * 4];
 
   DeviceArray<unsigned char> img_dst;
-  DeviceArray2D<unsigned char> vertexResized, normalResized;
+  DeviceArray2D<float> vertexResized, normalResized;
 
   vertexResized.create(height * 4, width);
   normalResized.create(height * 4, width);
   img_dst.create(height*width*3);
 
   Resize(height, width, imageTexture, img_dst, factor);
-  ResizeMap(vertexTexture, vertexResized);
-  ResizeMap(normalTexture, normalResized);
+  ResizeVMap(vertexTexture, vertexResized, factor);
+  ResizeNMap(normalTexture, normalResized, factor);
   img_dst.download(img.data);
-  vertexResized.download(verts.data, width*sizeof(float));
-  normalResized.download(norms.data, width*sizeof(float));
+  vertexResized.download(verts, width*sizeof(float));
+  normalResized.download(norms, width*sizeof(float));
 
 
-  Frame* frame = new Frame(num, frames.size(), pose, srcTime, width * height, (unsigned char*)img.data, (Eigen::Vector4f*)verts.data,
-                           (Eigen::Vector4f*)norms.data);
+  Frame* frame = new Frame(num, frames.size(), pose, srcTime, width * height, (unsigned char*)img.data, (float*)verts,
+                           (float*)norms);
 
   int* coOccurrences = new int[frames.size()];
 
@@ -103,14 +136,14 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
   for (int i = 0; i < num; i++) {
     unsigned char code = badCode;
 
-    if (verts.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) > 0) {
+    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, verts)(2) > 0) {
       const Eigen::Matrix<unsigned char, 3, 1>& pix =
           img.at<Eigen::Matrix<unsigned char, 3, 1>>(conservatory.at(i).pos(1), conservatory.at(i).pos(0));
 
       code =
           (pix(0) > conservatory.at(i).rgbd(0)) << 3 | (pix(1) > conservatory.at(i).rgbd(1)) << 2 |
           (pix(2) > conservatory.at(i).rgbd(2)) << 1 |
-          (int(verts.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) * 1000.0f) > conservatory.at(i).rgbd(3));
+          (int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, verts)(2) * 1000.0f) > conservatory.at(i).rgbd(3));
       frame->goodCodes++;
       for (size_t j = 0; j < conservatory.at(i).ids[code].size(); j++) {
         coOccurrences[conservatory.at(i).ids[code].at(j)]++;
@@ -157,24 +190,25 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   lastClosest = -1;
 
   Img<Eigen::Matrix<unsigned char, 3, 1>> imgSmall(height, width);
-  Img<Eigen::Vector4f> vertSmall(height, width);
-  Img<Eigen::Vector4f> normSmall(height, width);
+  // Img<Eigen::Vector4f> vertSmall(height, width);
+  // Img<Eigen::Vector4f> normSmall(height, width);
+  float* vertSmall = new float[height * width * 4];
+  float* normSmall = new float[height * width * 4];  
 
   DeviceArray<unsigned char> img_dst;
-  DeviceArray2D<unsigned char> vertexResized, normalResized;
+  DeviceArray2D<float> vertexResized, normalResized;
 
   vertexResized.create(height * 4, width);
   normalResized.create(height * 4, width);
   img_dst.create(height*width*3);
 
   Resize(height, width, imageTexture, img_dst, factor);
-  ResizeMap(vertexTexture, vertexResized);
-  ResizeMap(normalTexture, normalResized);
+  ResizeVMap(vertexTexture, vertexResized, factor);
+  ResizeNMap(normalTexture, normalResized, factor);
 
   img_dst.download(imgSmall.data);
-  vertexResized.download(vertSmall.data, width*sizeof(float));
-  normalResized.download(normSmall.data, width*sizeof(float));
-
+  vertexResized.download(vertSmall, width*sizeof(float));
+  normalResized.download(normSmall, width*sizeof(float));
 
   Frame* frame = new Frame(num, 0, Eigen::Matrix4f::Identity(), 0, width * height);
 
@@ -185,13 +219,13 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   for (int i = 0; i < num; i++) {
     unsigned char code = badCode;
 
-    if (vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) > 0) {
+    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) > 0) {
       const Eigen::Matrix<unsigned char, 3, 1>& pix =
           imgSmall.at<Eigen::Matrix<unsigned char, 3, 1>>(conservatory.at(i).pos(1), conservatory.at(i).pos(0));
 
       code = (pix(0) > conservatory.at(i).rgbd(0)) << 3 | (pix(1) > conservatory.at(i).rgbd(1)) << 2 |
              (pix(2) > conservatory.at(i).rgbd(2)) << 1 |
-             (int(vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) * 1000.0f) >
+             (int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) * 1000.0f) >
               conservatory.at(i).rgbd(3));
 
       frame->goodCodes++;
@@ -225,13 +259,11 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   if (minId != -1 && blockHDAware(frame, frames.at(minId)) > 0.3) {
     Eigen::Matrix4f fernPose = frames.at(minId)->pose;
 
+    vertFern.upload((float*)frames.at(minId)->initVerts, width * sizeof(float), height * 4, width);
+    vertCurrent.upload((float*)vertSmall, width * sizeof(float), height * 4, width);
 
-    vertFern.upload((float*)frames.at(minId)->initVerts, width * sizeof(float), height, width);
-    vertCurrent.upload((float*)vertSmall.data, width * 4 * height);
-
-    normFern.upload((float*)frames.at(minId)->initNorms, width * sizeof(float), height, width);
-    normCurrent.upload((float*)normSmall.data, width * 4 * height);
-
+    normFern.upload((float*)frames.at(minId)->initNorms, width * sizeof(float), height * 4, width);
+    normCurrent.upload((float*)normSmall, width * sizeof(float), height * 4, width);
 
     //        colorFern.texture->Upload(frames.at(minId)->initRgb, GL_RGB, GL_UNSIGNED_BYTE);
     //        colorCurrent.texture->Upload(imgSmall.data, GL_RGB, GL_UNSIGNED_BYTE);
@@ -257,23 +289,23 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
 
     int icpCountThresh = lost ? 1400 : 2400;
 
-    //        std::cout << rgbd.lastICPError << ", " << rgbd.lastICPCount << ", " << photoError << std::endl;
+           std::cout << rgbd.lastICPError << ", " << rgbd.lastICPCount << ", " << photoError << std::endl;
 
     if (rgbd.lastICPError < 0.0003 && rgbd.lastICPCount > icpCountThresh && photoError < photoThresh) {
       lastClosest = minId;
 
       for (int i = 0; i < num; i += num / 50) {
-        if (vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) > 0 &&
-            int(vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) * 1000.0f) < maxDepth) {
+        if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) > 0 &&
+            int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) * 1000.0f) < maxDepth) {
           Eigen::Vector4f worldRawPoint =
-              currPose * Eigen::Vector4f(vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(0),
-                                         vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(1),
-                                         vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2), 1.0f);
+              currPose * Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(0),
+                                         get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(1),
+                                         get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2), 1.0f);
 
           Eigen::Vector4f worldModelPoint =
-              estPose * Eigen::Vector4f(vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(0),
-                                        vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(1),
-                                        vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2), 1.0f);
+              estPose * Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(0),
+                                        get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(1),
+                                        get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2), 1.0f);
 
           constraints.push_back(SurfaceConstraint(worldRawPoint, worldModelPoint));
         }
@@ -286,7 +318,7 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   return estPose;
 }
 
-float Ferns::photometricCheck(const Img<Eigen::Vector4f>& vertSmall, const Img<Eigen::Matrix<unsigned char, 3, 1>>& imgSmall,
+float Ferns::photometricCheck(const float* vertSmall, const Img<Eigen::Matrix<unsigned char, 3, 1>>& imgSmall,
                               const Eigen::Matrix4f& estPose, const Eigen::Matrix4f& fernPose, const unsigned char* fernRgb) {
   float cx = intr_cx / factor;
   float cy = intr_cy / factor;
@@ -299,12 +331,12 @@ float Ferns::photometricCheck(const Img<Eigen::Vector4f>& vertSmall, const Img<E
   int photoCount = 0;
 
   for (int i = 0; i < num; i++) {
-    if (vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) > 0 &&
-        int(vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2) * 1000.0f) < maxDepth) {
+    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) > 0 &&
+        int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) * 1000.0f) < maxDepth) {
       Eigen::Vector4f vertPoint =
-          Eigen::Vector4f(vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(0),
-                          vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(1),
-                          vertSmall.at<Eigen::Vector4f>(conservatory.at(i).pos(1), conservatory.at(i).pos(0))(2), 1.0f);
+          Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(0),
+                          get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(1),
+                          get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2), 1.0f);
 
       Eigen::Matrix4f diff = fernPose.inverse() * estPose;
 

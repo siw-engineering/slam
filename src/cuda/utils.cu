@@ -268,19 +268,22 @@ void fillinNormal(const CameraModel& intr, int width, int height, DeviceArray2D<
 }
 
 
-
-__global__ void resizeMapKernel(int drows, int dcols, int srows, const PtrStep<float> input, PtrStep<unsigned char> output)
+template<bool normalize>
+__global__ void resizeMapKernel(int drows, int dcols, int srows, PtrStepSz<float> input, PtrStep<float> output, const int factor)
 {
     int x = threadIdx.x + blockIdx.x * blockDim.x;
     int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-    if (x >= dcols || y >= drows)
+    if (x >= dcols  || y >= drows)
         return;
 
     const float qnan = __int_as_float(0x7fffffff);
 
-    int xs = x * 2;
-    int ys = y * 2;
+    int xs = x * factor;
+    int ys = y * factor;
+
+    // if (xs > input.cols - 1 || ys + (2*srows)  > input.rows - 1 )
+    //     return;
 
     float x00 = input.ptr (ys + 0)[xs + 0];
     float x01 = input.ptr (ys + 0)[xs + 1];
@@ -313,19 +316,19 @@ __global__ void resizeMapKernel(int drows, int dcols, int srows, const PtrStep<f
 
         n.z = (z00 + z01 + z10 + z11) / 4;
 
-        // if (normalize)
-            // n = normalized (n);
+        if (normalize)
+            n = normalized (n);
         // output.ptr(y)[x] = n;
-        output.ptr (y        )[x] = (unsigned char)n.x;
-        output.ptr (y + drows)[x] = (unsigned char)n.y;
-        output.ptr (y + 2 * drows)[x] = (unsigned char)n.z;
+        output.ptr (y        )[x] = n.x;
+        output.ptr (y + drows)[x] = n.y;
+        output.ptr (y + 2 * drows)[x] = n.z;
         // output.ptr (y + 3 * drows)[x] = (unsigned char)0;
     }
 }
 
 
-
-void ResizeMap(const DeviceArray2D<float>& input, DeviceArray2D<unsigned char>& output)
+template<bool normalize>
+void ResizeMap(const DeviceArray2D<float>& input, DeviceArray2D<float>& output, const int factor)
 {
     int in_cols = input.cols ();
     int in_rows = input.rows () / 4;
@@ -337,13 +340,22 @@ void ResizeMap(const DeviceArray2D<float>& input, DeviceArray2D<unsigned char>& 
 
     dim3 block (32, 8);
     dim3 grid (getGridDim (out_cols, block.x), getGridDim (out_rows, block.y));
-    resizeMapKernel<< < grid, block>>>(out_rows, out_cols, in_rows, input, output);
+    resizeMapKernel<normalize><< < grid, block>>>(out_rows, out_cols, in_rows, input, output, factor);
     cudaCheckError();
     cudaSafeCall (cudaDeviceSynchronize ());
 }
 
+void ResizeVMap(const DeviceArray2D<float>& input, DeviceArray2D<float>& output, const int factor)
+{
+    ResizeMap<false>(input, output, factor);
+}
 
-__global__ void resizeImg(int height, int width, unsigned char * dst, const float * src, int factor)
+void ResizeNMap(const DeviceArray2D<float>& input, DeviceArray2D<float>& output, const int factor)
+{
+    ResizeMap<true>(input, output, factor);
+}
+
+__global__ void resizeImg(const int height, const int width, unsigned char * dst, float * src, const int factor)
 {
 
     int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -354,31 +366,31 @@ __global__ void resizeImg(int height, int width, unsigned char * dst, const floa
 
     // const float qnan = __int_as_float(0x7fffffff);
 
-    int xs = x * 2;
-    int ys = y * 2;
+    int xs = x * factor;
+    int ys = y * factor;
 
-    float x00 = src[(ys + 0) * (width*2) * 4 + ((xs + 0) * 4) + 0];
-    float x01 = src[(ys + 0) * (width*2) * 4 + ((xs + 1) * 4) + 0];
-    float x10 = src[(ys + 1) * (width*2) * 4 + ((xs + 0) * 4) + 0];
-    float x11 = src[(ys + 1) * (width*2) * 4 + ((xs + 1) * 4) + 0];
+    float x00 = src[(ys + 0) * (width*factor) * 4 + ((xs + 0) * 4) + 0];
+    float x01 = src[(ys + 0) * (width*factor) * 4 + ((xs + 1) * 4) + 0];
+    float x10 = src[(ys + 1) * (width*factor) * 4 + ((xs + 0) * 4) + 0];
+    float x11 = src[(ys + 1) * (width*factor) * 4 + ((xs + 1) * 4) + 0];
 
-    if (isnan (x00) || isnan (x01) || isnan (x10) || isnan (x11))
-    {
-        dst[y * width * 4 + (x * 4) + 0] = 0;
-        dst[y * width * 4 + (x * 4) + 1] = 0;
-        dst[y * width * 4 + (x * 4) + 2] = 0;
-        // dst[y * width * 4 + (x * 4) + 3] = 0;
-        return;
-    }
-    else
-    {
+    // if (isnan (x00) || isnan (x01) || isnan (x10) || isnan (x11))
+    // {
+    //     dst[y * width * 4 + (x * 4) + 0] = 0;
+    //     dst[y * width * 4 + (x * 4) + 1] = 0;
+    //     dst[y * width * 4 + (x * 4) + 2] = 0;
+    //     // dst[y * width * 4 + (x * 4) + 3] = 0;
+    //     return;
+    // }
+    // else
+    // {
         float3 out = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
         out.x = (x00 + x01 + x10 + x11) / 4;
 
-        float y00 = src[(ys + 0) * (width*2) * 4 + ((xs + 0) * 4) + 1];
-        float y01 = src[(ys + 0) * (width*2) * 4 + ((xs + 1) * 4) + 1];
-        float y10 = src[(ys + 1) * (width*2) * 4 + ((xs + 0) * 4) + 1];
-        float y11 = src[(ys + 1) * (width*2) * 4 + ((xs + 1) * 4) + 1];
+        float y00 = src[(ys + 0) * (width*factor) * 4 + ((xs + 0) * 4) + 1];
+        float y01 = src[(ys + 0) * (width*factor) * 4 + ((xs + 1) * 4) + 1];
+        float y10 = src[(ys + 1) * (width*factor) * 4 + ((xs + 0) * 4) + 1];
+        float y11 = src[(ys + 1) * (width*factor) * 4 + ((xs + 1) * 4) + 1];
         out.y = (y00 + y01 + y10 + y11) / 4;
 
 
@@ -394,14 +406,14 @@ __global__ void resizeImg(int height, int width, unsigned char * dst, const floa
         dst[y * width * 4 + (x * 4) + 2] = (unsigned char)out.z;
         // dst[y * width * 4 + (x * 4) + 3] = (unsigned char)0;
 
-    }
+    // }
     // dst[y * width * 4 + (x * 4) + 0] = src[ys * (width*2) * 4 + (xs * 4) + 0];
     // dst[y * width * 4 + (x * 4) + 1] = src[ys * (width*2) * 4 + (xs * 4) + 1];
     // dst[y * width * 4 + (x * 4) + 2] = src[ys * unsigned char(width*2) * 4 + (xs * 4) + 2];
 
 }
 
-void Resize(const int height, const int width, float* src, unsigned char* dst, int factor){
+void Resize(const int height, const int width, float* src, unsigned char* dst,const int factor){
     dim3 block(32, 8);
     dim3 grid(1, 1, 1);
     

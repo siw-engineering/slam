@@ -12,6 +12,7 @@
 #include "cuda/containers/device_array.hpp"
 #include "cuda/utils.cuh"
 #include "RGBDOdometry.h"
+#include "Render.h"
 
 
 class Ferns {
@@ -19,6 +20,10 @@ class Ferns {
   Ferns(int n, int maxDepth, const float photoThreshconst, int resolution_w,
           const int resolution_h, const CameraModel& intr);
   virtual ~Ferns();
+
+  Eigen::Vector4f get(int x, int y, int width, float* data);
+
+  Eigen::Vector4f get(int x, int y, int width, const float* data);
 
   bool addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& vertexTexture, DeviceArray2D<float>& normalTexture,
           const Eigen::Matrix4f& pose, int srcTime, const float threshold);
@@ -49,7 +54,7 @@ class Ferns {
   class Frame {
    public:
     Frame(int n, int id, const Eigen::Matrix4f& pose, const int srcTime, const int numPixels, unsigned char* rgb = 0,
-          Eigen::Vector4f* verts = 0, Eigen::Vector4f* norms = 0)
+          float* verts = 0, float* norms = 0)
         : goodCodes(0), id(id), pose(pose), srcTime(srcTime), initRgb(rgb), initVerts(verts), initNorms(norms) {
       codes = new unsigned char[n];
 
@@ -59,13 +64,13 @@ class Ferns {
       }
 
       if (verts) {
-        this->initVerts = new Eigen::Vector4f[numPixels];
-        memcpy(this->initVerts, verts, numPixels * sizeof(Eigen::Vector4f));
+        this->initVerts = new float[numPixels * 4];
+        memcpy(this->initVerts, verts, numPixels * 4 * sizeof(float));
       }
 
       if (norms) {
-        this->initNorms = new Eigen::Vector4f[numPixels];
-        memcpy(this->initNorms, norms, numPixels * sizeof(Eigen::Vector4f));
+        this->initNorms = new float[numPixels * 4];
+        memcpy(this->initNorms, norms, numPixels * 4 * sizeof(float));
       }
     }
 
@@ -85,8 +90,8 @@ class Ferns {
     Eigen::Matrix4f pose;
     const int srcTime;
     unsigned char* initRgb;
-    Eigen::Vector4f* initVerts;
-    Eigen::Vector4f* initNorms;
+    float* initVerts;
+    float* initNorms;
   };
 
   std::vector<Frame*> frames;
@@ -119,14 +124,14 @@ class Ferns {
   float blockHD(const Frame* f1, const Frame* f2);
   float blockHDAware(const Frame* f1, const Frame* f2);
 
-  float photometricCheck(const Img<Eigen::Vector4f>& vertSmall, const Img<Eigen::Matrix<unsigned char, 3, 1>>& imgSmall,
+  float photometricCheck(const float* vertSmall, const Img<Eigen::Matrix<unsigned char, 3, 1>>& imgSmall,
                          const Eigen::Matrix4f& estPose, const Eigen::Matrix4f& fernPose, const unsigned char* fernRgb);
 
   DeviceArray2D<float> vertFern;
-  DeviceArray<float> vertCurrent;
+  DeviceArray2D<float> vertCurrent;
 
   DeviceArray2D<float> normFern;
-  DeviceArray<float> normCurrent;
+  DeviceArray2D<float> normCurrent;
 
   // DeviceArray<float> colorFern;
   // DeviceArray<float> colorCurrent;

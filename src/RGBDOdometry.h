@@ -37,7 +37,7 @@ class RGBDOdometry {
   // void initICP(GPUTexture * filteredDepth, const float depthCutoff, GPUTexture * mask); // frame to model
   void initICP(const std::vector<DeviceArray2D<float> >& depthPyramid, const float depthCutoff);
                                                                  // frame to model
-  void initICP(DeviceArray<float>& vmaps_tmp, DeviceArray<float>& nmaps_tmp, const float depthCutoff);  // model to model
+  void initICP(DeviceArray2D<float>& vmaps_tmp, DeviceArray2D<float>& nmaps_tmp, const float depthCutoff);  // model to model
 
   // Prepare model data for CUDA ICP execution. Information from the last frame.
   void initICPModel(DeviceArray2D<float>& vmaps_tmp, DeviceArray2D<float>& nmaps_tmp, const float depthCutoff, const Eigen::Matrix4f& modelPose);
