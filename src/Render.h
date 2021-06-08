@@ -13,11 +13,15 @@ private:
 	unsigned int m_RenderingID;
 
 public:
+	int objects, oattrib_size;
+	int* oattrib;
 	Render(const float w, const float h):
 	width(w),
 	height(h)
 	{
-
+		objects = 1;
+		oattrib_size = 4;
+		oattrib = new int[oattrib_size];
 		pangolin::CreateWindowAndBind("Main",width, height);
 		glEnable(GL_DEPTH_TEST);
 
@@ -29,33 +33,16 @@ public:
 		     .SetHandler(new pangolin::Handler3D(s_cam));
 
 	}
-	void VertexArray()
+	void setObjects(int obj, int* oatt)
 	{
-		glGenVertexArrays(1, &m_RenderingID);
-
-	}
-	void addBuffer(int count, float size)
-	{
-	    glEnableVertexAttribArray(0);
-	    glVertexAttribPointer(0, count, GL_FLOAT, GL_FALSE, size, (void*)0);
-
-	}
-
-	void vaoBind()
-	{
-		glBindVertexArray(m_RenderingID);
+		objects = obj;
+		oattrib = oatt;
 	}
 	void vaoUnbind()
 	{
 		glBindVertexArray(0);
 	}
 
-	void VertexBuffer(const void *data, unsigned int size){
-
-		glGenBuffers(1, &m_RenderingID);
-	    glBindBuffer(GL_ARRAY_BUFFER, m_RenderingID);
-	    glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);	
-	}
 
 	void vboBind(){
 		glBindBuffer(GL_ARRAY_BUFFER, m_RenderingID);
@@ -79,9 +66,7 @@ public:
 		// set texture filtering parameters
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-
 		glBindTexture(GL_TEXTURE_2D, 0);
 
 	}
@@ -98,23 +83,23 @@ public:
 	    pangolin::OpenGlMatrix projection = s_cam.GetProjectionMatrix();
 	    pangolin::OpenGlMatrix model; //Entity->T_w_l;
 	    pangolin::OpenGlMatrix mvp =  projection * view;
-
 	    return mvp;
 	}
 
 	void bufferHandle(float vertices[], float size)
 	{
-
-		VertexArray();
-	    VertexBuffer(vertices, size);
-	    vaoBind();
-	    addBuffer(3, sizeof(float) * 3);
+		glGenVertexArrays(1, &m_RenderingID);
+		glGenBuffers(1, &m_RenderingID);
+	    glBindBuffer(GL_ARRAY_BUFFER, m_RenderingID);
+	    glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);	
+		glBindVertexArray(m_RenderingID);
+	   	glEnableVertexAttribArray(0);
+	    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void*)0);
 	}
 
 	void textureHandle()
 	{
-		VertexArray();
-
+		glGenVertexArrays(1, &m_RenderingID);
 	    float vertices[] = {
 	        // positions          // colors           // texture coords
 	         0.5f,  0.5f, 0.0f, 1.0f, 1.0f, // top right
@@ -122,13 +107,14 @@ public:
 	        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // bottom left
 	        -0.5f,  0.5f, 0.0f, 0.0f, 1.0f  // top left 
 	    };
-
-	    VertexBuffer(vertices, sizeof(vertices));
-	    vaoBind();
+		glGenBuffers(1, &m_RenderingID);
+	    glBindBuffer(GL_ARRAY_BUFFER, m_RenderingID);
+	    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);	
+		glBindVertexArray(m_RenderingID);
+		
 		// position attribute
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
-
 		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 		glEnableVertexAttribArray(1);	    
 
@@ -141,33 +127,46 @@ public:
 		vboUnbind();
 	}
 
-	void drawPrimitive(GLenum primitive, int count)
-	{	
-		glDrawArrays(primitive, 0, count);
-	}
+
+	// void draw(std::string vert, std::string frag, GLenum primitive, int count)
+	// {
+
+	//     std::shared_ptr<Shader> program;
+	//     program =  std::shared_ptr<Shader>(loadProgramFromFile(vert, frag));
+	// 	pangolin::OpenGlMatrix mvp = GetMvp();
+	// 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//     program->Bind();
+	//     program->setUniform(Uniform("MVP", mvp));
+	//    	glDrawArrays(primitive, 0, count);
+	//  	program->Unbind();
+	//  	pangolin::FinishFrame();
+
+	// }
 	void draw(std::string vert, std::string frag, GLenum primitive, int count)
 	{
 
 	    std::shared_ptr<Shader> program;
 	    program =  std::shared_ptr<Shader>(loadProgramFromFile(vert, frag));
+		pangolin::OpenGlMatrix mvp = GetMvp();
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
-		// while( !pangolin::ShouldQuit() )
-		// {
-			pangolin::OpenGlMatrix mvp = GetMvp();
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+		int first = 0;
 		    program->Bind();
-		    program->setUniform(Uniform("MVP", mvp));
-		    drawPrimitive(primitive, count);
-		 	program->Unbind();
-		 	pangolin::FinishFrame();
+		for (int i = 0 ; i < objects; i++)
+		{
+			    program->setUniform(Uniform("MVP", mvp));
+			    program->setUniform(Uniform("r", oattrib[i*oattrib_size+1]));
+			    program->setUniform(Uniform("g", oattrib[i*oattrib_size+2]));
+			    program->setUniform(Uniform("b", oattrib[i*oattrib_size+3]));
+			   	glDrawArrays(primitive, first, oattrib[i*oattrib_size]);
+		 	first += oattrib[i*oattrib_size];
 
-		// }
+		 }
+		 	program->Unbind();
 	}
 
-	void drawTexture(std::string vert, std::string frag, int height, int width,
-		unsigned char* data)
+	void drawTexture(std::string vert, std::string frag, int height, int width, unsigned char* data)
 	{
 
 	    std::shared_ptr<Shader> program;
@@ -193,12 +192,11 @@ public:
 	    	program->Unbind();
 	        pangolin::FinishFrame();
 
-
 	}
 
 }
 	
-	void glCoord(float data[], float vertices[], int size){
+	void xxxtoxyz(float data[], float vertices[], int size){
 
 		for (int i = 0; i < size; i++){
 			vertices[3 * i + 0] = data[i];
