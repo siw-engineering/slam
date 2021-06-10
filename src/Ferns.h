@@ -12,7 +12,6 @@
 #include "cuda/containers/device_array.hpp"
 #include "cuda/utils.cuh"
 #include "RGBDOdometry.h"
-#include "Render.h"
 
 
 class Ferns {

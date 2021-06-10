@@ -342,7 +342,6 @@ void ResizeMap(const DeviceArray2D<float>& input, DeviceArray2D<float>& output, 
     dim3 grid (getGridDim (out_cols, block.x), getGridDim (out_rows, block.y));
     resizeMapKernel<normalize><< < grid, block>>>(out_rows, out_cols, in_rows, input, output, factor);
     cudaCheckError();
-    cudaSafeCall (cudaDeviceSynchronize ());
 }
 
 void ResizeVMap(const DeviceArray2D<float>& input, DeviceArray2D<float>& output, const int factor)
@@ -422,4 +421,51 @@ void Resize(const int height, const int width, float* src, unsigned char* dst,co
 
     resizeImg<<<grid, block>>>(height, width, dst, src, factor);
     cudaSafeCall(cudaGetLastError());
+}
+
+__global__ void sampleGraphGen(float* model_buffer, int count, float* sample_points, int* d_count)
+{
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int rows_mb, cols_mb;
+    rows_mb = cols_mb = 3072;
+
+    if (i >= cols_mb * rows_mb)
+        return;
+    if (i >= count)
+        return;
+
+    if((i % 5000) != 0)
+        return;
+    int j = (i / 5000) - 1;
+    if (j < 1024)
+    {
+
+        sample_points[j] = model_buffer[i];
+        sample_points[j + 1] = model_buffer[i + rows_mb*cols_mb];
+        sample_points[j + 2] = model_buffer[i + 2*rows_mb*cols_mb];
+        sample_points[j + 3] = model_buffer[i + 7*rows_mb*cols_mb];
+
+        atomicAdd(d_count, 1);
+
+    }
+
+}
+
+void SampleGraph(DeviceArray<float>& model_buffer, int count, DeviceArray<float>& sample_points, int* h_count)
+{
+
+    int blocksize = 32*8;
+    int numblocks = (count + blocksize - 1)/ blocksize;
+
+    int *d_count;
+    cudaMalloc((void**)&d_count, sizeof(int));
+    cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
+
+    sampleGraphGen<<<numblocks, blocksize>>>(model_buffer, count, sample_points, d_count);
+
+    cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+    cudaCheckError();
+
+
 }

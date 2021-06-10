@@ -28,5 +28,7 @@ void ResizeNMap(const DeviceArray2D<float>& input, DeviceArray2D<float>& output,
 
 void Resize(const int height, const int width, float* src, unsigned char* dst, const int factor);
 
+void SampleGraph(DeviceArray<float>& model_buffer, int count, DeviceArray<float>& sample_points, int* h_count);
+
 #endif /* CUDA_CUDAFUNCS_CUH_ */
 
