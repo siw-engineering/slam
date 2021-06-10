@@ -86,7 +86,7 @@ public:
 	    return mvp;
 	}
 
-	void bufferHandle(float vertices[], float size)
+	void bufferHandle(float vertices[], int size)
 	{
 		glGenVertexArrays(1, &m_RenderingID);
 		glGenBuffers(1, &m_RenderingID);
@@ -143,7 +143,7 @@ public:
 	//  	pangolin::FinishFrame();
 
 	// }
-	void draw(std::string vert, std::string frag, GLenum primitive, int count)
+	void draw(std::string vert, std::string frag, GLenum primitive)
 	{
 
 	    std::shared_ptr<Shader> program;
@@ -160,7 +160,7 @@ public:
 			    program->setUniform(Uniform("g", oattrib[i*oattrib_size+2]));
 			    program->setUniform(Uniform("b", oattrib[i*oattrib_size+3]));
 			   	glDrawArrays(primitive, first, oattrib[i*oattrib_size]);
-		 	first += oattrib[i*oattrib_size];
+		 		first += oattrib[i*oattrib_size];
 
 		 }
 		 	program->Unbind();

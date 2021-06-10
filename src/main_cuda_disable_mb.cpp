@@ -10,7 +10,7 @@
 #include "RGBDOdometry.h"
 #include <unistd.h>
 #include "Render.h"
-
+#include <cstdlib>
 
 using namespace std;
 
@@ -138,6 +138,7 @@ int main(int argc, char  *argv[])
 	DeviceArray2D<float> vmap_pi, nmap_pi, ct_pi;
     DeviceArray2D<unsigned int> time_splat;
 	DeviceArray2D<unsigned int> index_pi;
+	DeviceArray2D<float> neighbours_and_vert;
 	
 
 	DeviceArray<float> model_buffer, model_buffer_rs;
@@ -161,6 +162,12 @@ int main(int argc, char  *argv[])
     time_splat.upload(&vertices_splat[0], sizeof(float)*cols, rows, cols);
 
     delete[] vertices_splat;	
+
+    float* init_nv = new float[17*3];
+    memset(&init_nv[0], 0, 17*3);
+
+    neighbours_and_vert.create(17,3);
+    neighbours_and_vert.upload(&init_nv[0], sizeof(float)*3, 17, 3);
 
 	depthPyr.resize(3);
 	for (int i = 0; i < 3; ++i) 
@@ -236,20 +243,7 @@ int main(int argc, char  *argv[])
 	//off
 	pose = posesub->read();
 
-	//render.h stuff
-		// Render view(640, 480);
-		// int objects;
-		// objects = 2;
-		// int oattrib[objects*4];
-		// oattrib[0] = width*height;
-		// oattrib[1] = 255;
-		// oattrib[2] = 0;
-		// oattrib[3] = 0;
-		// oattrib[4] = width*height;;
-		// oattrib[5] = 0;
-		// oattrib[6] = 255;
-		// oattrib[7] = 0;
-		// view.setObjects(objects, oattrib);
+
 
 
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Rcam = pose.topLeftCorner(3, 3);
@@ -263,6 +257,52 @@ int main(int argc, char  *argv[])
 	mat33 device_Rcam_inv;
 	float3 device_tcam_inv;
 
+
+
+
+	int windowsize = 8;
+	int window_multiplier = 2;
+	int windowarea = pow(2*windowsize*window_multiplier,2);
+
+	DeviceArray2D<float> outframe, piframe;
+	outframe.create(3*2*windowsize*window_multiplier, 2*windowsize*window_multiplier);
+	piframe.create(3*2*windowsize*window_multiplier, 2*windowsize*window_multiplier);
+	DeviceArray<float> vmap_mb;
+//render.h stuff
+	Render view(640, 480);
+	int objects;
+	objects = 2;
+	int oattrib[objects*4];
+
+	int point_count[objects];
+	// point_count[0] = windowarea;
+	// point_count[1] = windowarea;
+
+	int obj_rgb[3*objects];
+
+	// obj_rgb[0] = 255;
+	// obj_rgb[1] = 255;	
+	// obj_rgb[2] = 255;	
+
+	// obj_rgb[3] = 255;	
+	// obj_rgb[4] = 0;	
+	// obj_rgb[5] = 0;	
+
+	// // obj_rgb[6] = 0;	
+	// // obj_rgb[7] = 255;	
+	// // obj_rgb[8] = 0;	
+
+	// for (int i = 0; i < objects; ++i)
+	// {
+	// 	oattrib[i*4] = point_count[i];
+	// 	oattrib[i*4 + 1] = obj_rgb[i*3];
+	// 	oattrib[i*4 + 2] = obj_rgb[i*3 + 1];
+	// 	oattrib[i*4 + 3] = obj_rgb[i*3 + 2];
+
+	// }
+	// view.setObjects(objects, oattrib);
+
+	int pc=0;
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -278,20 +318,6 @@ int main(int argc, char  *argv[])
 		depth.upload((float*)dimg.data, width*sizeof(float), height, width);
         computeBilateralFilter(depth, depthf, depthCutOff);
 
-        //debug
-		// {
-		//     if (ibcount < ib_len)
-		//     {
-		//     	testimagecopy(rgb, imagebin, width, height, ibcount);
-		//     	ibcount++;
-		//     }
-		//     else
-		//     	ibcount = 1;	
-		// 	// rgb.release();
-		// 	// depth.release();
-		// 	// testimageprint(imagebin, width, height, ibcount);
-		// }
-        //off
 
 		if (frame==0)
 		{
@@ -307,10 +333,10 @@ int main(int argc, char  *argv[])
 			device_Rcam_inv = Rcam_inv;
 			device_tcam_inv = *reinterpret_cast<float3*>(tcam_inv.data());
 
-			// splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
-			// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
-			// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
-			// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
+			splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, device_Rcam_inv, device_tcam_inv, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+			fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
+			fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
+			fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 			ros::spinOnce();
 			frame++;
 			continue;
@@ -335,6 +361,7 @@ int main(int argc, char  *argv[])
 		// if(!(isnan(transObject[0])))
 		// 	pose.topRightCorner(3, 1) = transObject;
 		// pose.topLeftCorner(3, 3) = rotObject;
+
 		pose = posesub->read();
 		Rcam = pose.topLeftCorner(3, 3);
 		tcam = pose.topRightCorner(3, 1);
@@ -346,76 +373,56 @@ int main(int argc, char  *argv[])
 		tcam_inv = tinv.topRightCorner(3,1);
 		device_Rcam_inv = Rcam_inv;
 		device_tcam_inv = *reinterpret_cast<float3*>(tcam_inv.data());
-        // predict()
-		// splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, tinv.data(), count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
+
+		// splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, device_Rcam_inv, device_tcam_inv, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
 		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 
-		// updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		// updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		// updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		// unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
+		updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+		unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
  
-		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		// float w = computeFusionWeight(1, pose.inverse()*lastpose);
-		// fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, pose.data(), model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer);       // predict indices
-		// fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, pose.data(), model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		// predictIndicies(intr, rows, cols, maxDepth, tinv.data(), model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		// clean(depthf, intr, rows, cols, maxDepth, tinv.data(), model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+		predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		float w = computeFusionWeight(1, pose.inverse()*lastpose);
+		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer); // predict indices
+		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer_rs, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		clean(depthf, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
 		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
 		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 
-		// std::cout<<"udpate points :"<<up<<" unstable points :"<<usp<<std::endl;
+		// std::cout<<"udpate points :"<<up<<" unstable points :"<<usp<<" count:"<<count<<std::endl;
+		// std::cout<<"cvw0 :"<<cvw0<<" cvwm1 :"<<cvwm1<<std::endl;
+
 
 		//debug on
 			createVMap(intr, depth, vmap, depthCutOff);
-			createNMap(vmap, nmap);
-			float w = computeFusionWeight(1, pose.inverse()*lastpose);
-			predictIndicies(intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-			// normalFusion(model_buffer, &count, depth, intr, rows, cols, maxDepth, pose.data());
-			normalFusionData(model_buffer, &count, &update_count, frame, depth, intr, rows, cols, maxDepth, device_Rcam, device_tcam, w, vmap_pi, ct_pi, nmap_pi, index_pi);
-			std::cout<<"update_count :"<<update_count<<" count :"<<count<<std::endl;
-
-
-		// debug on
-			// float* vmap_hst = new float[height*width*4];
-			// vmaps_tmp.download(vmap_hst);
-			// float* vmap_hst_new = new float[height*width*3];
-			// for (int i = 0; i <width*height; i++)
-			// {
-			// 	vmap_hst_new[i*3] = vmap_hst[i*4 + 0];
-			// 	vmap_hst_new[i*3 + 1] = vmap_hst[i*4 + 1];
-			// 	vmap_hst_new[i*3 + 2] = vmap_hst[i*4 + 2];
-
-			// }
-			// // delete[] vmap_hst;
-			// float plot[width*height*3];
-			// // view.glCoord(vmap_hst_new, plot, width*height);
-			// view.bufferHandle(vmap_hst_new, sizeof(vmap_hst_new)*width*height);
-			// view.draw("vertex.vert", "draw.frag", GL_POINTS, width*height);
-		//off
+			// createNMap(vmap, nmap);
+			// float w = computeFusionWeight(1, pose.inverse()*lastpose);
+			// predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+			// // normalFusion(model_buffer, &count, depth, intr, rows, cols, maxDepth, pose.data());
+			// normalFusionData(model_buffer, &count, &update_count, frame, depth, intr, rows, cols, maxDepth, device_Rcam, device_tcam, w, vmap_pi, ct_pi, nmap_pi, index_pi, neighbours_and_vert);
+			// // exp(depth, vmap_pi, outframe, piframe, intr, rows, cols, maxDepth);
+			// std::cout<<"update_count :"<<update_count<<" count :"<<count<<std::endl;
 
 		// debug on
-			
-			// //vmap_pi download
-			// 	float* vmap_pi_hst = new float[height*width*4];
-			// 	vmap_pi.download(vmap_pi_hst, width*sizeof(float));
+			//vmap_pi download
+				// float* vmap_pi_hst = new float[height*width*4];
+				// vmap_pi.download(vmap_pi_hst, width*sizeof(float));
 				
-			// //modelbuffer download
-			// 	// float* mb = new float[bufferSize];
-			// 	// model_buffer.download(mb);
-			// 	// float* mb_xxx = new float[height*width*3];
-			// 	// std::copy(mb, mb+height*width, mb_xxx);
-			// 	// std::copy(mb+(3072*3072), mb+(3072*3072)+height*width, mb_xxx+height*width);
-			// 	// std::copy(mb+2*(3072*3072), mb+2*(3072*3072)+height*width, mb_xxx+(2*height*width));
+			//modelbuffer download
+				extractVmap(model_buffer, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
+				float* vmap_mb_hst = new float[count*3];
+				vmap_mb.download(vmap_mb_hst);
 
-			// //vmap download
-			// 	float* vmap_hst = new float[height*width*3];
-			// 	vmap.download(vmap_hst, width*sizeof(float));
+			// // //vmap download
+				float* vmap_hst = new float[height*width*3];
+				vmap.download(vmap_hst, width*sizeof(float));
 
 			// float* points = new float[2*height*width*3];
 			// std::copy(vmap_pi_hst, vmap_pi_hst+(height*width), points);
@@ -434,12 +441,63 @@ int main(int argc, char  *argv[])
 			// delete[] vmap_pi_hst;
 			// delete[] vmap_hst;
 
-			// float plot[2*width*height*3];
-			// view.xxxtoxyz(points, plot, 2*width*height);
-			// view.bufferHandle(plot, sizeof(plot));
-			// view.draw("vertex.vert", "draw.frag", GL_POINTS, 2*width*height);
+			float plot[3*width*height+3*count];
+			view.xxxtoxyz(vmap_hst, plot, width*height);
+			std::copy(vmap_mb_hst, vmap_mb_hst+count*3, plot+(height*width*3));
 
-		//off
+			objects = 2;
+			point_count[0] = height*width;
+			point_count[1] = count;
+
+			obj_rgb[0] = 255;
+			obj_rgb[1] = 255;	
+			obj_rgb[2] = 255;	
+
+			obj_rgb[3] = 0;
+			obj_rgb[4] = 255;	
+			obj_rgb[5] = 0;	
+
+			for (int i = 0; i < objects; ++i)
+			{
+				oattrib[i*4] = point_count[i];
+				oattrib[i*4 + 1] = obj_rgb[i*3];
+				oattrib[i*4 + 2] = obj_rgb[i*3 + 1];
+				oattrib[i*4 + 3] = obj_rgb[i*3 + 2];
+
+			}
+			view.setObjects(objects, oattrib);
+			view.bufferHandle(plot, sizeof(plot));
+			view.draw("vertex.vert", "draw.frag", GL_POINTS);
+
+		// off
+
+		//debug on
+			// float* outframe_hst = new float[windowarea*3];
+			// outframe.download(outframe_hst, 2*windowsize*window_multiplier*sizeof(float));
+
+			// float* piframe_hst = new float[windowarea*3];
+			// piframe.download(piframe_hst, 2*windowsize*window_multiplier*sizeof(float));
+			
+			// float* points = new float[2*windowarea*3];
+
+			// std::copy(outframe_hst, outframe_hst+(windowarea), points);
+			// std::copy(piframe_hst, piframe_hst+(windowarea), points+(windowarea));
+
+			// std::copy(outframe_hst+(windowarea), outframe_hst+(2*windowarea), points+2*(windowarea));
+			// std::copy(piframe_hst+(windowarea), piframe_hst+(2*windowarea), points+3*(windowarea));
+
+			// std::copy(outframe_hst+(2*windowarea), outframe_hst+(3*windowarea), points+4*(windowarea));
+			// std::copy(piframe_hst+(2*windowarea), piframe_hst+(3*windowarea), points+5*(windowarea));
+
+			// float* plot = new float[2*windowarea*3];
+			// view.xxxtoxyz(points, plot, 2*windowarea);
+
+			// // for (int i = 0; i < windowarea; ++i)
+			// // {
+			// // 	std::cout<<points[i*3]<<" "<<points[i*3+1]<<" "<<points[i*3+2]<<std::endl;
+			// // }
+			// view.bufferHandle(plot, 2*windowarea*3*sizeof(float));
+			// view.draw("vertex.vert", "draw.frag", GL_POINTS);
 
 		//debug on
 			// float* r = new float[width*height*4];
@@ -453,20 +511,6 @@ int main(int argc, char  *argv[])
 			// }
 			// cv::Mat save_img(rows, cols, CV_8UC1, out);
 			// cv::imwrite("src/testr.jpg", save_img);
-		//off
-
-		//debug on
-			// float* r = new float[width*height/4];
-			// unsigned char* out = new unsigned char[width*height/4];
-			// depthPyr[1].download(r, width/2*sizeof(float));
-			// for (int ii =0; ii<width*height/4; ii++)
-			// {	
-			// 		// out[ii] = (unsigned char)r[ii];
-			// 		std::cout<<r[ii]<<"*";
-			// }
-			// cv::Mat save_img(rows, cols, CV_8UC1, out);
-			// cv::imwrite("src/testdepth.jpg", save_img);
-			// exit(0);
 		//off
 
 
@@ -504,7 +548,11 @@ int main(int argc, char  *argv[])
 		// glLineWidth(1);
 		
 		// std::cout<<pose<<std::endl;
+		// std::cout<<"pc :"<<pc<<std::endl;
+		// std::cout<<"count :"<<count<<std::endl;
 
+
+		pc = 0;
 		up = 0;
 		usp = 0;
 		cvw0 = 0;
@@ -514,12 +562,11 @@ int main(int argc, char  *argv[])
 		update_count = 0;
 		// count = 0;	// TO DO set lastpose
 		ros::spinOnce();
-		// pangolin::FinishFrame();
-
+		pangolin::FinishFrame();
 
 	}
 
     // debug
 
 	return 0;
-}
+}	
