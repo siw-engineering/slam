@@ -1526,8 +1526,13 @@ __global__ void predictIndiciesKernel(int* pic, float cx, float cy, float fx, fl
         n_ = Rmat_inv * nsrc;
         n_ = normalized(n_);
 
-        int x = ((fx * v_.x) / v_.z) + cx;
-        int y = ((fy * v_.y) / v_.z) + cy;
+        float3 fc;
+        fc = projectPoint(v_, rows, cols, cx, cy, fx, fy, maxDepth);
+        fc.x = fc.x * 0.5f + 0.5f; 
+        fc.y = fc.y * 0.5f + 0.5f; 
+        fc.x = fc.x * cols;
+        fc.y = fc.y * rows;
+        int x = fc.x, y = fc.y;
 
         if (x < 0 || x > cols || y < 0 || y > rows)
             return;
@@ -1560,30 +1565,33 @@ void predictIndicies(int* pc, const CameraModel& intr, int rows, int cols, float
     int numblocks = (count + blocksize - 1)/ blocksize;
     int timeDelta = 200;
 
-    float* vertices = new float[rows*cols*4];
-    memset(&vertices[0], 0, rows*cols*4);
-
-    vmap_pi.create(rows*4, cols); 
-    vmap_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
-
-    ct_pi.create(rows*4, cols);
-    ct_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
-
-    nmap_pi.create(rows*4, cols);
-    nmap_pi.upload(&vertices[0], sizeof(float)*cols, 4*rows, cols);
-    
-    index_pi.create(rows,cols);
-    index_pi.upload(&vertices[0], sizeof(float)*cols, rows, cols);
-
-    delete[] vertices;
-
     float fx = intr.fx, cx = intr.cx;
     float fy = intr.fy, cy = intr.cy;
+
+    float* vertices_pi;
+    vertices_pi = new float[rows*cols*4];
+    memset(&vertices_pi[0], 0, rows*cols*4);
+
+    vmap_pi.create(rows*4, cols); 
+    vmap_pi.upload(&vertices_pi[0], sizeof(float)*cols, 4*rows, cols);
+
+    ct_pi.create(rows*4, cols);
+    ct_pi.upload(&vertices_pi[0], sizeof(float)*cols, 4*rows, cols);
+
+    nmap_pi.create(rows*4, cols);
+    nmap_pi.upload(&vertices_pi[0], sizeof(float)*cols, 4*rows, cols);
+
+    index_pi.create(rows,cols);
+    index_pi.upload(&vertices_pi[0], sizeof(float)*cols, rows, cols);
+    
+    delete[] vertices_pi;
+
 
     int *d_pc;
     cudaMalloc((void**)&d_pc, sizeof(int));
     cudaMemcpy(d_pc, pc, sizeof(int), cudaMemcpyHostToDevice);
     predictIndiciesKernel<<<numblocks, blocksize>>>(d_pc, cx, cy, fx, fy, rows, cols, maxDepth, Rmat_inv, tvec_inv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
+    cudaSafeCall(cudaDeviceSynchronize());
     cudaMemcpy(pc, d_pc, sizeof(int), cudaMemcpyDeviceToHost);
 
 }
@@ -2000,7 +2008,7 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
 
                         float cond = sqrt(dot(make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0), make_float3(vertConf.x-localPos.x, vertConf.y-localPos.y, 0)));
 
-                       if((colorTime.z < vColor.z) && // Surfel in map is older (init-time)
+                       if(/*(colorTime.z < vColor.z) && */// Surfel in map is older (init-time)
                           (vertConf.w > confThreshold) && // Surfel in map is good (high conf)
                           (vertConf.z > localPos.z) && // Surfel in map is behind vertex
                           (vertConf.z - localPos.z < 0.01) && // Close to each other
@@ -2008,7 +2016,7 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
                            count++;
                        }
                        
-                       if((colorTime.w == time) && // Only possible if lost?
+                       if(/*(colorTime.w == time) && */// Only possible if lost?
                           (vertConf.w > confThreshold) && // Surfel in map is good (high conf)
                           (vertConf.z > localPos.z) && // Surfel in map is behind vertex
                           (vertConf.z - localPos.z > 0.01) && // Not too close
@@ -2220,8 +2228,8 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
     int blocksize = 32*8;
     int numblocks = (*h_count + blocksize - 1)/ blocksize;
     float fx = intr.fx, fy = intr.fy, cx = intr.cx, cy = intr.cy;
-    cleanKernel1D<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, Rmat_inv, tvec_inv, model_buffer, model_buffer_rs, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
-    cudaSafeCall(cudaGetLastError());
+    // cleanKernel1D<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, Rmat_inv, tvec_inv, model_buffer, model_buffer_rs, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
+    // cudaSafeCall(cudaGetLastError());
     dim3 grid (1, 1, 1);
     grid.x = getGridDim (depthf.cols (), 32);
     grid.y = getGridDim (depthf.rows (), 8);
@@ -2233,7 +2241,6 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
     cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, Rmat_inv, tvec_inv, model_buffer, d_count, fixed_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
-
 }
 
 

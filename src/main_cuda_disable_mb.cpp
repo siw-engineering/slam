@@ -88,7 +88,7 @@ int main(int argc, char  *argv[])
 	Eigen::Matrix4f tinv;
 	int count = 0;
 	float depthCutOff, maxDepth;
-	maxDepth = depthCutOff = 5;
+	maxDepth = depthCutOff = 15;
 	float confThreshold = 9;
 	int timeDelta = 200;
 
@@ -182,12 +182,12 @@ int main(int argc, char  *argv[])
 	depth.create(height, width);
 	lastNextImage.create(height, width);
 
-	// model_buffer.create(bufferSize);
-	// model_buffer_rs.create(bufferSize);
-	// unstable_buffer.create(width, height*VSIZE*3);
-	// updateVConf.create(TEXTURE_DIMENSION, TEXTURE_DIMENSION*4);
-	// updateNormRad.create(TEXTURE_DIMENSION, TEXTURE_DIMENSION*4);
-	// updateColTime.create(TEXTURE_DIMENSION, TEXTURE_DIMENSION*4);
+	model_buffer.create(bufferSize);
+	model_buffer_rs.create(bufferSize);
+	unstable_buffer.create(height*VSIZE*3, width);
+	updateVConf.create(TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+	updateNormRad.create(TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
+	updateColTime.create(TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 
 
 	// initialize model buffers
@@ -210,9 +210,6 @@ int main(int argc, char  *argv[])
 	posesub = new PoseSubscriber("/X1/odom", nh);
 
 
-	// float* dval = new float[width*height*3];
-
-	// FillIn fillin(width, height);
 	DeviceArray<float> fillin_img;
 	DeviceArray2D<float> fillin_vt, fillin_nt;
 
@@ -230,20 +227,7 @@ int main(int argc, char  *argv[])
 	int psize;
 	int update_count = 0;
 
-    //debug
- //    int ib_len = 1000;
-	// DeviceArray<float> imagebin;
-	// imagebin.create(width*height*ib_len);
-	// int ibcount = 0;
-
-	// float* imgzeros = new float[width*height*ib_len];
-	// memset(&imgzeros[0], 0, width*height*ib_len);
-	// imagebin.upload(&imgzeros[0], width*height*ib_len);
-	// delete[] imgzeros;
-	//off
 	pose = posesub->read();
-
-
 
 
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Rcam = pose.topLeftCorner(3, 3);
@@ -258,8 +242,6 @@ int main(int argc, char  *argv[])
 	float3 device_tcam_inv;
 
 
-
-
 	int windowsize = 8;
 	int window_multiplier = 2;
 	int windowarea = pow(2*windowsize*window_multiplier,2);
@@ -268,10 +250,11 @@ int main(int argc, char  *argv[])
 	outframe.create(3*2*windowsize*window_multiplier, 2*windowsize*window_multiplier);
 	piframe.create(3*2*windowsize*window_multiplier, 2*windowsize*window_multiplier);
 	DeviceArray<float> vmap_mb;
+
 //render.h stuff
 	Render view(640, 480);
 	int objects;
-	objects = 2;
+	objects = 1;
 	int oattrib[objects*4];
 
 	int point_count[objects];
@@ -303,6 +286,7 @@ int main(int argc, char  *argv[])
 	// view.setObjects(objects, oattrib);
 
 	int pc=0;
+
 	while (ros::ok())
 	{
 		img  = rgbsub->read();
@@ -401,7 +385,7 @@ int main(int argc, char  *argv[])
 
 
 		//debug on
-			createVMap(intr, depth, vmap, depthCutOff);
+			// createVMap(intr, depth, vmap, depthCutOff);
 			// createNMap(vmap, nmap);
 			// float w = computeFusionWeight(1, pose.inverse()*lastpose);
 			// predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
@@ -414,48 +398,57 @@ int main(int argc, char  *argv[])
 			//vmap_pi download
 				// float* vmap_pi_hst = new float[height*width*4];
 				// vmap_pi.download(vmap_pi_hst, width*sizeof(float));
+				// float* vpi_xxx = new float[pc*3];
+				// float* vpi_xyz = new float[pc*3];
+				// std::copy(vmap_pi_hst, vmap_pi_hst+pc, vpi_xxx);
+				// std::copy(vmap_pi_hst+height*width, vmap_pi_hst+height*width+pc, vpi_xxx+pc);
+				// std::copy(vmap_pi_hst+2*height*width, vmap_pi_hst+2*height*width+pc, vpi_xxx+2*pc);
+				// view.xxxtoxyz(vpi_xxx, vpi_xyz, pc);
 				
 			//modelbuffer download
-				extractVmap(model_buffer, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
+				extractVmap(model_buffer_rs, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
 				float* vmap_mb_hst = new float[count*3];
 				vmap_mb.download(vmap_mb_hst);
 
-			// // //vmap download
-				float* vmap_hst = new float[height*width*3];
-				vmap.download(vmap_hst, width*sizeof(float));
+			//vmap download
+				// float* vmap_hst = new float[height*width*3];
+				// vmap.download(vmap_hst, width*sizeof(float));
 
-			// float* points = new float[2*height*width*3];
-			// std::copy(vmap_pi_hst, vmap_pi_hst+(height*width), points);
-			// std::copy(vmap_hst, vmap_hst+(height*width), points+(height*width));
+			//unstable_buffer download
+			// float* ub_hst = new float[height*width*12];
+			// unstable_buffer.download(ub_hst, width*sizeof(float));
+			// float* ub_xxx = new float[usp*3];
+			// float* ub_xyz = new float[usp*3];
+			// std::copy(ub_hst, ub_hst+usp, ub_xxx);
+			// std::copy(ub_hst+height*width, ub_hst+height*width+usp, ub_xxx+usp);
+			// std::copy(ub_hst+2*height*width, ub_hst+2*height*width+usp, ub_xxx+2*usp);
+			// view.xxxtoxyz(ub_xxx, ub_xyz, usp);
+				
+
+			// float* vmap_xxx = new float[height*width*3];
+			// float* vmap_xyz = new float[height*width*3];
+			// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_xxx);
+			// view.xxxtoxyz(vmap_xxx, vmap_xyz, width*height);
+
+
+			// float plot[2*3*width*height];
 			
-			// std::copy(vmap_pi_hst+(height*width), vmap_pi_hst+(2*height*width), points+2*(height*width));
-			// std::copy(vmap_hst+(height*width), vmap_hst+(2*height*width), points+3*(height*width));
+			// std::copy(vpi_xyz, vpi_xyz+(height*width*3), plot);
+			// std::copy(vmap_xyz, vmap_xyz+(height*width*3), plot+(height*width*3));
 
-			// std::copy(vmap_pi_hst+(2*height*width), vmap_pi_hst+(3*height*width), points+4*(height*width));
-			// std::copy(vmap_hst+(2*height*width), vmap_hst+(3*height*width), points+5*(height*width));
+			// std::copy(vmap_mb_hst, vmap_mb_hst+count*3, plot+(height*width*3));
 
-			// // std::copy(mb_xxx, mb_xxx+(height*width*3), points+(height*width*3));
-			// // std::copy(vmap_hst, vmap_hst+(height*width*3), points+(height*width*3));
+			objects = 1;
+			point_count[0] = count;
+			// point_count[1] = height*width;
 
-
-			// delete[] vmap_pi_hst;
-			// delete[] vmap_hst;
-
-			float plot[3*width*height+3*count];
-			view.xxxtoxyz(vmap_hst, plot, width*height);
-			std::copy(vmap_mb_hst, vmap_mb_hst+count*3, plot+(height*width*3));
-
-			objects = 2;
-			point_count[0] = height*width;
-			point_count[1] = count;
-
-			obj_rgb[0] = 255;
-			obj_rgb[1] = 255;	
+			obj_rgb[0] = 0;
+			obj_rgb[1] = 0;	
 			obj_rgb[2] = 255;	
 
-			obj_rgb[3] = 0;
-			obj_rgb[4] = 255;	
-			obj_rgb[5] = 0;	
+			// obj_rgb[3] = 255;
+			// obj_rgb[4] = 255;	
+			// obj_rgb[5] = 255;	
 
 			for (int i = 0; i < objects; ++i)
 			{
@@ -466,7 +459,7 @@ int main(int argc, char  *argv[])
 
 			}
 			view.setObjects(objects, oattrib);
-			view.bufferHandle(plot, sizeof(plot));
+			view.bufferHandle(vmap_mb_hst, count*3*sizeof(vmap_mb_hst));
 			view.draw("vertex.vert", "draw.frag", GL_POINTS);
 
 		// off
@@ -548,8 +541,8 @@ int main(int argc, char  *argv[])
 		// glLineWidth(1);
 		
 		// std::cout<<pose<<std::endl;
-		// std::cout<<"pc :"<<pc<<std::endl;
-		// std::cout<<"count :"<<count<<std::endl;
+		std::cout<<"pc :"<<pc<<std::endl;
+		std::cout<<"count :"<<count<<std::endl;
 
 
 		pc = 0;
