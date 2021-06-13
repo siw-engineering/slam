@@ -1479,7 +1479,7 @@ void predictIndiciesOpenGL(const CameraModel& intr, int rows, int cols, float ma
     predictIndiciesOpenGLKernel<<<numblocks, blocksize>>>(cx, cy, fx, fy, rows, cols, maxDepth, tinv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
 
 }
-__global__ void predictIndiciesKernel(int* pic, float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, const mat33 Rmat_inv, const float3 tvec_inv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
+__global__ void predictIndiciesKernel(int* pic, int count, float cx, float cy, float fx, float fy,  int rows, int cols, float maxDepth, const mat33 Rmat_inv, const float3 tvec_inv, float* model_buffer, int time, int timeDelta, PtrStepSz<float> vmap_pi, PtrStepSz<float> ct_pi, PtrStepSz<float> nmap_pi, PtrStepSz<unsigned int> index_pi)
 {
 
     int i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1490,9 +1490,12 @@ __global__ void predictIndiciesKernel(int* pic, float cx, float cy, float fx, fl
     float xu = 0;
     float yv = 0;
 
+    if (i >=count)
+        return;
 
     if (i >= rows_mb*cols_mb)
         return;
+
 
     int vz = model_buffer[i + 2*rows_mb*cols_mb];
     int cw = model_buffer[i+7*rows_mb*cols_mb];
@@ -1503,7 +1506,6 @@ __global__ void predictIndiciesKernel(int* pic, float cx, float cy, float fx, fl
     {
         vsrc.x = 0;
         vsrc.y = 0;
-        vertexId = -1;
 
     }
     else
@@ -1522,7 +1524,6 @@ __global__ void predictIndiciesKernel(int* pic, float cx, float cy, float fx, fl
         nsrc.z = model_buffer[i+10*rows_mb*cols_mb];
 
         v_ = Rmat_inv * vsrc + tvec_inv;
-        vertexId = i;
         n_ = Rmat_inv * nsrc;
         n_ = normalized(n_);
 
@@ -1540,7 +1541,7 @@ __global__ void predictIndiciesKernel(int* pic, float cx, float cy, float fx, fl
         atomicAdd(pic, 1);
 
         // printf("x = %d y = %d\n", x, y);
-        vmap_pi.ptr(y)[x] = v_.x;
+        vmap_pi.ptr(y)[x] = v_.x + 1;
         vmap_pi.ptr(y + rows)[x] = v_.y;
         vmap_pi.ptr(y + rows * 2)[x] = v_.z ;
         vmap_pi.ptr(y + rows * 3)[x] = model_buffer[i + 3*rows_mb*cols_mb];
@@ -1584,13 +1585,11 @@ void predictIndicies(int* pc, const CameraModel& intr, int rows, int cols, float
     index_pi.create(rows,cols);
     index_pi.upload(&vertices_pi[0], sizeof(float)*cols, rows, cols);
     
-    delete[] vertices_pi;
-
-
     int *d_pc;
     cudaMalloc((void**)&d_pc, sizeof(int));
     cudaMemcpy(d_pc, pc, sizeof(int), cudaMemcpyHostToDevice);
-    predictIndiciesKernel<<<numblocks, blocksize>>>(d_pc, cx, cy, fx, fy, rows, cols, maxDepth, Rmat_inv, tvec_inv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
+    predictIndiciesKernel<<<numblocks, blocksize>>>(d_pc, count, cx, cy, fx, fy, rows, cols, maxDepth, Rmat_inv, tvec_inv, model_buffer, time, timeDelta, vmap_pi, ct_pi, nmap_pi, index_pi);
+    delete[] vertices_pi;
     cudaSafeCall(cudaDeviceSynchronize());
     cudaMemcpy(pc, d_pc, sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -1750,26 +1749,26 @@ __global__ void fusedataKernel(int* up, int* usp, const PtrStepSz<float> depth, 
                         updateColTime.ptr(intY + rows_mb * 2)[intX] = time;
                         updateColTime.ptr(intY + rows_mb * 3)[intX] = vCw;
 
-                        unstable_buffer.ptr(v)[u] = vPosition.x;
-                        unstable_buffer.ptr(v + rows)[u] = vPosition.y;
-                        unstable_buffer.ptr(v + rows * 2)[u] = vPosition.z;
-                        unstable_buffer.ptr(v + rows * 3)[u] = vPosition.w;
+                        // unstable_buffer.ptr(v)[u] = vPosition.x;
+                        // unstable_buffer.ptr(v + rows)[u] = vPosition.y;
+                        // unstable_buffer.ptr(v + rows * 2)[u] = vPosition.z;
+                        // unstable_buffer.ptr(v + rows * 3)[u] = vPosition.w;
 
-                        unstable_buffer.ptr(v + rows * 4)[u] = vNormRad.x;
-                        unstable_buffer.ptr(v + rows * 5)[u] = vNormRad.y;
-                        unstable_buffer.ptr(v + rows * 6)[u] = vNormRad.z;
-                        unstable_buffer.ptr(v + rows * 7)[u] = vNormRad.w;
+                        // unstable_buffer.ptr(v + rows * 4)[u] = vNormRad.x;
+                        // unstable_buffer.ptr(v + rows * 5)[u] = vNormRad.y;
+                        // unstable_buffer.ptr(v + rows * 6)[u] = vNormRad.z;
+                        // unstable_buffer.ptr(v + rows * 7)[u] = vNormRad.w;
 
-                        unstable_buffer.ptr(v + rows * 8)[u] = ec_new;
-                        unstable_buffer.ptr(v + rows * 9)[u] = 0;
-                        unstable_buffer.ptr(v + rows * 10)[u] = time;
-                        unstable_buffer.ptr(v + rows * 11)[u] = vCw;
+                        // unstable_buffer.ptr(v + rows * 8)[u] = ec_new;
+                        // unstable_buffer.ptr(v + rows * 9)[u] = 0;
+                        // unstable_buffer.ptr(v + rows * 10)[u] = time;
+                        // unstable_buffer.ptr(v + rows * 11)[u] = vCw;
                         atomicAdd(up, 1);
                     }
                     else
                     {
                         vCw = -2;
-                        unstable_buffer.ptr(v)[u] = vPosition.x;
+                        unstable_buffer.ptr(v)[u] = vPosition.x + 2;
                         unstable_buffer.ptr(v + rows)[u] = vPosition.y;
                         unstable_buffer.ptr(v + rows * 2)[u] = vPosition.z;
                         unstable_buffer.ptr(v + rows * 3)[u] = vPosition.w;       
@@ -1810,6 +1809,7 @@ void fuse_data(int* up, int* usp, DeviceArray2D<float>& depth,  DeviceArray<floa
 
     fusedataKernel<<<grid, block>>>(d_up, d_usp, depth, rgb, depthf, cx, cy, fx, fy, rows, cols, maxDepth, Rmat, tvec, model_buffer, time, vmap_pi, ct_pi, nmap_pi, index_pi, weighting, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
+    cudaSafeCall(cudaDeviceSynchronize());
     cudaMemcpy(up, d_up, sizeof(int), cudaMemcpyDeviceToHost);
     cudaMemcpy(usp, d_usp, sizeof(int), cudaMemcpyDeviceToHost);
 

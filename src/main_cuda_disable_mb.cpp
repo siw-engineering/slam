@@ -229,7 +229,6 @@ int main(int argc, char  *argv[])
 
 	pose = posesub->read();
 
-
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Rcam = pose.topLeftCorner(3, 3);
 	Eigen::Vector3f tcam = pose.topRightCorner(3, 1);
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Rcam_inv;
@@ -253,15 +252,7 @@ int main(int argc, char  *argv[])
 
 //render.h stuff
 	Render view(640, 480);
-	int objects;
-	objects = 1;
-	int oattrib[objects*4];
 
-	int point_count[objects];
-	// point_count[0] = windowarea;
-	// point_count[1] = windowarea;
-
-	int obj_rgb[3*objects];
 
 	// obj_rgb[0] = 255;
 	// obj_rgb[1] = 255;	
@@ -366,21 +357,21 @@ int main(int argc, char  *argv[])
 		updateVConf.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 		updateNormRad.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
 		updateColTime.upload(vertices, TEXTURE_DIMENSION*sizeof(float), TEXTURE_DIMENSION*4, TEXTURE_DIMENSION);
-		unstable_buffer.upload(ub_vertices, width*sizeof(float), height*4, width);
+		unstable_buffer.upload(ub_vertices, width*sizeof(float), height*VSIZE*3, width);
  
 		predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer); // predict indices
-		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer_rs, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		clean(depthf, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+		// fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		// predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer_rs, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		// clean(depthf, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
 		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
 		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 
-		// std::cout<<"udpate points :"<<up<<" unstable points :"<<usp<<" count:"<<count<<std::endl;
+		std::cout<<"udpate points :"<<up<<" unstable points :"<<usp<<" count:"<<count<<std::endl;
 		// std::cout<<"cvw0 :"<<cvw0<<" cvwm1 :"<<cvwm1<<std::endl;
 
 
@@ -395,61 +386,58 @@ int main(int argc, char  *argv[])
 			// std::cout<<"update_count :"<<update_count<<" count :"<<count<<std::endl;
 
 		// debug on
-			//vmap_pi download
-				// float* vmap_pi_hst = new float[height*width*4];
-				// vmap_pi.download(vmap_pi_hst, width*sizeof(float));
-				// float* vpi_xxx = new float[pc*3];
-				// float* vpi_xyz = new float[pc*3];
-				// std::copy(vmap_pi_hst, vmap_pi_hst+pc, vpi_xxx);
-				// std::copy(vmap_pi_hst+height*width, vmap_pi_hst+height*width+pc, vpi_xxx+pc);
-				// std::copy(vmap_pi_hst+2*height*width, vmap_pi_hst+2*height*width+pc, vpi_xxx+2*pc);
-				// view.xxxtoxyz(vpi_xxx, vpi_xyz, pc);
-				
-			//modelbuffer download
-				extractVmap(model_buffer_rs, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
-				float* vmap_mb_hst = new float[count*3];
-				vmap_mb.download(vmap_mb_hst);
 
 			//vmap download
-				// float* vmap_hst = new float[height*width*3];
-				// vmap.download(vmap_hst, width*sizeof(float));
+				float* vmap_hst = new float[height*width*3];
+				vmap.download(vmap_hst, width*sizeof(float));
+				float* vmap_xxx = new float[height*width*3];
+				float* vmap_xyz = new float[height*width*3];
+				std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_xxx);
+				view.xxxtoxyz(vmap_xxx, vmap_xyz, width*height);
+
+			//modelbuffer download
+				// extractVmap(model_buffer_rs, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
+				// float* vmap_mb_hst = new float[count*3];
+				// vmap_mb.download(vmap_mb_hst);
+
+			//vmap_pi download
+				float* vmap_pi_hst = new float[height*width*4];
+				vmap_pi.download(vmap_pi_hst, width*sizeof(float));
+				float* vpi_xxx = new float[pc*3];
+				float* vpi_xyz = new float[pc*3];
+				std::copy(vmap_pi_hst, vmap_pi_hst+pc, vpi_xxx);
+				std::copy(vmap_pi_hst+height*width, vmap_pi_hst+height*width+pc, vpi_xxx+pc);
+				std::copy(vmap_pi_hst+2*height*width, vmap_pi_hst+2*height*width+pc, vpi_xxx+2*pc);
+				view.xxxtoxyz(vpi_xxx, vpi_xyz, pc);
 
 			//unstable_buffer download
-			// float* ub_hst = new float[height*width*12];
-			// unstable_buffer.download(ub_hst, width*sizeof(float));
-			// float* ub_xxx = new float[usp*3];
-			// float* ub_xyz = new float[usp*3];
-			// std::copy(ub_hst, ub_hst+usp, ub_xxx);
-			// std::copy(ub_hst+height*width, ub_hst+height*width+usp, ub_xxx+usp);
-			// std::copy(ub_hst+2*height*width, ub_hst+2*height*width+usp, ub_xxx+2*usp);
-			// view.xxxtoxyz(ub_xxx, ub_xyz, usp);
-				
+				float* ub_hst = new float[height*width*12];
+				unstable_buffer.download(ub_hst, width*sizeof(float));
+				float* ub_xxx = new float[height*width*3];
+				float* ub_xyz = new float[height*width*3];
+				std::copy(ub_hst, ub_hst+3*height*width, ub_xxx);
+				view.xxxtoxyz(ub_xxx, ub_xyz, height*width);
 
-			// float* vmap_xxx = new float[height*width*3];
-			// float* vmap_xyz = new float[height*width*3];
-			// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_xxx);
-			// view.xxxtoxyz(vmap_xxx, vmap_xyz, width*height);
-
-
-			// float plot[2*3*width*height];
+			//merge points and plot
+			//edit
+			int point_count[] = {count, pc, height*width};
+			int objects = sizeof(point_count)/sizeof(point_count[0]);
+			int total_points  = 0;
+			for (int i = 0; i < objects; i++)total_points += point_count[i];
+			float* plot = new float[total_points*3];
 			
-			// std::copy(vpi_xyz, vpi_xyz+(height*width*3), plot);
-			// std::copy(vmap_xyz, vmap_xyz+(height*width*3), plot+(height*width*3));
+			//edit
+			float* floats[objects] = {vmap_xyz, vpi_xyz, ub_xyz};
+			int offset = 0;
+			for (int i = 0; i < objects; i++)
+			{			
+				std::copy(floats[i], floats[i]+point_count[i]*3, plot+offset);
+				offset += point_count[i]*3;
+			}
 
-			// std::copy(vmap_mb_hst, vmap_mb_hst+count*3, plot+(height*width*3));
-
-			objects = 1;
-			point_count[0] = count;
-			// point_count[1] = height*width;
-
-			obj_rgb[0] = 0;
-			obj_rgb[1] = 0;	
-			obj_rgb[2] = 255;	
-
-			// obj_rgb[3] = 255;
-			// obj_rgb[4] = 255;	
-			// obj_rgb[5] = 255;	
-
+			int oattrib[objects*4];
+			//edit
+			int obj_rgb[] = {255,255,255  ,0,255,0 ,255,0,0};
 			for (int i = 0; i < objects; ++i)
 			{
 				oattrib[i*4] = point_count[i];
@@ -459,38 +447,9 @@ int main(int argc, char  *argv[])
 
 			}
 			view.setObjects(objects, oattrib);
-			view.bufferHandle(vmap_mb_hst, count*3*sizeof(vmap_mb_hst));
+			view.bufferHandle(plot, total_points*3*sizeof(float));
 			view.draw("vertex.vert", "draw.frag", GL_POINTS);
-
 		// off
-
-		//debug on
-			// float* outframe_hst = new float[windowarea*3];
-			// outframe.download(outframe_hst, 2*windowsize*window_multiplier*sizeof(float));
-
-			// float* piframe_hst = new float[windowarea*3];
-			// piframe.download(piframe_hst, 2*windowsize*window_multiplier*sizeof(float));
-			
-			// float* points = new float[2*windowarea*3];
-
-			// std::copy(outframe_hst, outframe_hst+(windowarea), points);
-			// std::copy(piframe_hst, piframe_hst+(windowarea), points+(windowarea));
-
-			// std::copy(outframe_hst+(windowarea), outframe_hst+(2*windowarea), points+2*(windowarea));
-			// std::copy(piframe_hst+(windowarea), piframe_hst+(2*windowarea), points+3*(windowarea));
-
-			// std::copy(outframe_hst+(2*windowarea), outframe_hst+(3*windowarea), points+4*(windowarea));
-			// std::copy(piframe_hst+(2*windowarea), piframe_hst+(3*windowarea), points+5*(windowarea));
-
-			// float* plot = new float[2*windowarea*3];
-			// view.xxxtoxyz(points, plot, 2*windowarea);
-
-			// // for (int i = 0; i < windowarea; ++i)
-			// // {
-			// // 	std::cout<<points[i*3]<<" "<<points[i*3+1]<<" "<<points[i*3+2]<<std::endl;
-			// // }
-			// view.bufferHandle(plot, 2*windowarea*3*sizeof(float));
-			// view.draw("vertex.vert", "draw.frag", GL_POINTS);
 
 		//debug on
 			// float* r = new float[width*height*4];
@@ -541,8 +500,8 @@ int main(int argc, char  *argv[])
 		// glLineWidth(1);
 		
 		// std::cout<<pose<<std::endl;
-		std::cout<<"pc :"<<pc<<std::endl;
-		std::cout<<"count :"<<count<<std::endl;
+		// std::cout<<"pc :"<<pc<<std::endl;
+		// std::cout<<"count :"<<count<<std::endl;
 
 
 		pc = 0;
