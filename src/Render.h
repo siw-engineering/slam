@@ -25,7 +25,7 @@ public:
 		pangolin::CreateWindowAndBind("Main",width, height);
 		glEnable(GL_DEPTH_TEST);
 
-	    s_cam = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(width, height, 420, 420, width / 2.0f, height / 2.0f, 0.1, 1000),
+	    s_cam = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(width, height, 277, 277, width / 2.0f, height / 2.0f, 0.1, 1000),
 	                                        pangolin::ModelViewLookAt(0, 0, -1, 0, 0, 1, pangolin::AxisNegY));
 
 		pangolin::View& d_cam = pangolin::CreateDisplay()
