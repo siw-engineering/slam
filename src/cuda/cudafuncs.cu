@@ -1502,7 +1502,7 @@ __global__ void predictIndiciesKernel(int* pic, int count, float cx, float cy, f
     int vertexId;
     float3 vsrc = make_float3(__int_as_float(0x7fffffff), __int_as_float(0x7fffffff), __int_as_float(0x7fffffff));
 
-    if (/*(vz < 0 ) ||*/ (vz > maxDepth) /*|| (time - cw > timeDelta)*/)
+    if ((vz < 0 ) || (vz > maxDepth) || (time - cw > timeDelta))
     {
         vsrc.x = 0;
         vsrc.y = 0;
@@ -1988,7 +1988,7 @@ __global__ void cleanKernel2D(const PtrStepSz<float> depthf, float cx, float cy,
         float avgViolation = 0;
         float outlierCoeff = 0.9;
 
-        if(/*(time - vColor.w < timeDelta) &&*/ (localPos.z > 0) && (x > 0) && (y > 0) && (x < cols) && (y < rows))
+        if((time - vColor.w < timeDelta) && (localPos.z > 0) && (x > 0) && (y > 0) && (x < cols) && (y < rows))
         {
             for(int ui = x - 2; ui < x + 2; ui++){
                 for(int vj = y - 2; vj < y + 2; vj++){
@@ -2129,7 +2129,7 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
         float avgViolation = 0;
         float outlierCoeff = 0.9;
 
-        if(/*(time - vColor.w < timeDelta) && */(localPos.z > 0) && (x > 0) && (y > 0) && (x < cols) && (y < rows))
+        if((time - vColor.w < timeDelta) && (localPos.z > 0) && (x > 0) && (y > 0) && (x < cols) && (y < rows))
         {
             for(int ui = x - 2; ui < x + 2; ui++){
                 for(int vj = y - 2; vj < y + 2; vj++){
@@ -2223,7 +2223,6 @@ __global__ void cleanKernel1D(const PtrStepSz<float> depthf, float cx, float cy,
             model_buffer[i+6*rows_mb*cols_mb] = vColor.z;
             model_buffer[i+7*rows_mb*cols_mb] = vColor.w;
             // printf("vx = %f vy = %f vz = %f vw = %f cx = %f cy = %f cz = %f cw = %f nx = %f ny = %f nz = %f nw = %f\n",model_buffer[i],model_buffer[i+ rows_mb*cols_mb], model_buffer[i+ 2*rows_mb*cols_mb], model_buffer[i+ 3*rows_mb*cols_mb], model_buffer[i+4*rows_mb*cols_mb], model_buffer[i+5*rows_mb*cols_mb], model_buffer[i+6*rows_mb*cols_mb], model_buffer[i+ 7*rows_mb*cols_mb], model_buffer[i+8*rows_mb*cols_mb], model_buffer[i+9*rows_mb*cols_mb], model_buffer[i+10*rows_mb*cols_mb], model_buffer[i+11*rows_mb*cols_mb]);
-
         }
 
     }
@@ -2237,15 +2236,16 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
     float fx = intr.fx, fy = intr.fy, cx = intr.cx, cy = intr.cy;
     cleanKernel1D<<<numblocks, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols,  maxDepth, Rmat_inv, tvec_inv, model_buffer, model_buffer_rs, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime);
     cudaSafeCall(cudaGetLastError());
+    dim3 block (32, 8);
     dim3 grid (1, 1, 1);
-    grid.x = getGridDim (depthf.cols (), 32);
-    grid.y = getGridDim (depthf.rows (), 8);
+    grid.x = getGridDim (depthf.cols (), block.x);
+    grid.y = getGridDim (depthf.rows (), block.y);
     //check count TO DO
     int *d_count, fixed_count;
     fixed_count = *h_count;
     cudaMalloc((void**)&d_count, sizeof(int));
     cudaMemcpy(d_count, h_count, sizeof(int), cudaMemcpyHostToDevice);
-    cleanKernel2D<<<grid, blocksize>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, Rmat_inv, tvec_inv, model_buffer, d_count, fixed_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+    cleanKernel2D<<<grid, block>>>(depthf, cx, cy, fx, fy, rows, cols, maxDepth, Rmat_inv, tvec_inv, model_buffer, d_count, fixed_count, time, timeDelta, confThreshold, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
     cudaSafeCall(cudaGetLastError());
     cudaSafeCall(cudaDeviceSynchronize());
     cudaMemcpy(h_count, d_count, sizeof(int), cudaMemcpyDeviceToHost);
