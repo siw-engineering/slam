@@ -227,7 +227,16 @@ int main(int argc, char  *argv[])
 	int psize;
 	int update_count = 0;
 
-	pose = posesub->read();
+
+
+	std::cout<<"catching pose..";
+	while(ros::ok())
+	{
+		pose = posesub->read();
+		if (pose.mean()!=.25f)
+			break;
+		ros::spinOnce();
+	}
 
 	Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Rcam = pose.topLeftCorner(3, 3);
 	Eigen::Vector3f tcam = pose.topRightCorner(3, 1);
@@ -250,33 +259,10 @@ int main(int argc, char  *argv[])
 	piframe.create(3*2*windowsize*window_multiplier, 2*windowsize*window_multiplier);
 	DeviceArray<float> vmap_mb;
 
-//render.h stuff
 	Render view(640, 480);
 
-
-	// obj_rgb[0] = 255;
-	// obj_rgb[1] = 255;	
-	// obj_rgb[2] = 255;	
-
-	// obj_rgb[3] = 255;	
-	// obj_rgb[4] = 0;	
-	// obj_rgb[5] = 0;	
-
-	// // obj_rgb[6] = 0;	
-	// // obj_rgb[7] = 255;	
-	// // obj_rgb[8] = 0;	
-
-	// for (int i = 0; i < objects; ++i)
-	// {
-	// 	oattrib[i*4] = point_count[i];
-	// 	oattrib[i*4 + 1] = obj_rgb[i*3];
-	// 	oattrib[i*4 + 2] = obj_rgb[i*3 + 1];
-	// 	oattrib[i*4 + 3] = obj_rgb[i*3 + 2];
-
-	// }
-	// view.setObjects(objects, oattrib);
-
 	int pc=0;
+	int pc_rs=0;
 
 	while (ros::ok())
 	{
@@ -301,7 +287,6 @@ int main(int argc, char  *argv[])
 			rgbd_odom->initFirstRGB(rgb);
 			model_buffer.upload(&vertices_mb[0], bufferSize);
 			initModelBuffer(intr, depthCutOff, model_buffer, device_Rcam, device_tcam, &count, vmap, nmap, rgb);
-			
 			tinv  = pose.inverse();
 			Rcam_inv = tinv.topLeftCorner(3,3);
 			tcam_inv = tinv.topRightCorner(3,1);
@@ -316,6 +301,8 @@ int main(int argc, char  *argv[])
 			frame++;
 			continue;
 		}
+
+
 
 		// generateCUDATextures
 		copyDMaps(depth, depthPyr[0]);
@@ -349,6 +336,8 @@ int main(int argc, char  *argv[])
 		device_Rcam_inv = Rcam_inv;
 		device_tcam_inv = *reinterpret_cast<float3*>(tcam_inv.data());
 
+
+
 		// splatDepthPredict(intr, height, width, model_buffer, maxDepth, confThreshold, frame, frame, timeDelta, device_Rcam_inv, device_tcam_inv, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
@@ -362,16 +351,17 @@ int main(int argc, char  *argv[])
 		predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
 		float w = computeFusionWeight(1, pose.inverse()*lastpose);
 		fuse_data(&up, &usp, depth, rgb, depthf, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, frame, vmap_pi, ct_pi, nmap_pi, index_pi, w, updateVConf, updateNormRad, updateColTime, unstable_buffer); // predict indices
-		// fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
-		// predictIndicies(&pc, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer_rs, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
-		// clean(depthf, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
+		fuse_update(&cvw0, &cvwm1, intr, rows, cols, maxDepth, device_Rcam, device_tcam, model_buffer, model_buffer_rs, frame, &count, updateVConf, updateNormRad, updateColTime);       // predict indices
+		predictIndicies(&pc_rs, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer_rs, frame/*time*/, vmap_pi, ct_pi, nmap_pi, index_pi, count);
+		clean(depthf, intr, rows, cols, maxDepth, device_Rcam_inv, device_tcam_inv, model_buffer, model_buffer_rs, frame, timeDelta, confThreshold, &count, vmap_pi, ct_pi, nmap_pi, index_pi, updateVConf, updateNormRad, updateColTime, unstable_buffer);
 
 		// splatDepthPredict(intr, height, width,  maxDepth, tinv.data(), model_buffer, count, color_splat, vmap_splat_prev, nmap_splat_prev, time_splat);
 		// fillinVertex(intr, width, height, vmap_splat_prev, depth, false, fillin_vt);
 		// fillinNormal(intr, width, height, nmap_splat_prev, depth, false, fillin_nt);
 		// fillinRgb(width, height, color_splat, rgb, false, fillin_img);
 
-		std::cout<<"udpate points :"<<up<<" unstable points :"<<usp<<" count:"<<count<<std::endl;
+		// std::cout<<"udpate points :"<<up<<" unstable points :"<<usp
+		std::cout<<" count:"<<count<<std::endl;
 		// std::cout<<"cvw0 :"<<cvw0<<" cvwm1 :"<<cvwm1<<std::endl;
 
 
@@ -388,17 +378,17 @@ int main(int argc, char  *argv[])
 		// debug on
 
 			//vmap download
-				float* vmap_hst = new float[height*width*3];
-				vmap.download(vmap_hst, width*sizeof(float));
-				float* vmap_xxx = new float[height*width*3];
-				float* vmap_xyz = new float[height*width*3];
-				std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_xxx);
-				view.xxxtoxyz(vmap_xxx, vmap_xyz, width*height);
+				// float* vmap_hst = new float[height*width*3];
+				// vmap.download(vmap_hst, width*sizeof(float));
+				// float* vmap_xxx = new float[height*width*3];
+				// float* vmap_xyz = new float[height*width*3];
+				// std::copy(vmap_hst, vmap_hst+(height*width*3), vmap_xxx);
+				// view.xxxtoxyz(vmap_xxx, vmap_xyz, width*height);
 
 			//modelbuffer download
-				// extractVmap(model_buffer_rs, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
-				// float* vmap_mb_hst = new float[count*3];
-				// vmap_mb.download(vmap_mb_hst);
+				extractVmap(model_buffer, count, vmap_mb, device_Rcam_inv, device_tcam_inv);
+				float* vmap_mb_hst = new float[count*3];
+				vmap_mb.download(vmap_mb_hst);
 
 			//vmap_pi download
 				float* vmap_pi_hst = new float[height*width*4];
@@ -419,7 +409,7 @@ int main(int argc, char  *argv[])
 				view.xxxtoxyz(ub_xxx, ub_xyz, height*width);
 
 			//merge points and plot
-			//edit
+			// edit
 			int point_count[] = {count, pc, height*width};
 			int objects = sizeof(point_count)/sizeof(point_count[0]);
 			int total_points  = 0;
@@ -427,7 +417,7 @@ int main(int argc, char  *argv[])
 			float* plot = new float[total_points*3];
 			
 			//edit
-			float* floats[objects] = {vmap_xyz, vpi_xyz, ub_xyz};
+			float* floats[objects] = {vmap_mb_hst, vpi_xyz, ub_xyz};
 			int offset = 0;
 			for (int i = 0; i < objects; i++)
 			{			
@@ -437,7 +427,7 @@ int main(int argc, char  *argv[])
 
 			int oattrib[objects*4];
 			//edit
-			int obj_rgb[] = {255,255,255  ,0,255,0 ,255,0,0};
+			int obj_rgb[] = {255,255,255  ,0,255,0 ,255,255,0};
 			for (int i = 0; i < objects; ++i)
 			{
 				oattrib[i*4] = point_count[i];
@@ -451,44 +441,11 @@ int main(int argc, char  *argv[])
 			view.draw("vertex.vert", "draw.frag", GL_POINTS);
 		// off
 
-		//debug on
-			// float* r = new float[width*height*4];
-			// unsigned char* out = new unsigned char[width*height];
-			// fillin_img.download(r);
-			// int jj = 0;
-			// for (int ii =0; ii<width*height; ii++)
-			// {	
-			// 		out[ii] = (unsigned char)r[jj];
-			// 		jj+=4;
-			// }
-			// cv::Mat save_img(rows, cols, CV_8UC1, out);
-			// cv::imwrite("src/testr.jpg", save_img);
-		//off
-
-
-		// float* mb = new float[bufferSize];
-		// model_buffer.download(mb);
-		// // if (count < 588716)
-		// 	psize = count;
-		// float* mb_xyz = new float[psize*3];
-		// std::copy(mb, mb+psize, mb_xyz);
-		// std::copy(mb+(3072*3072), mb+(3072*3072)+psize, mb_xyz+psize);
-		// std::copy(mb+2*(3072*3072), mb+2*(3072*3072)+psize, mb_xyz+(2*psize));
-		// // std::copy(mb+(8*3072*3072), mb+(8*3072*3072)+(height*width), mb_xyz);
-		// // std::copy(mb+(9*3072*3072), mb+(9*3072*3072)+(height*width), mb_xyz+(height*width));
-		// // std::copy(mb+(10*3072*3072), mb+(10*3072*3072)+(height*width), mb_xyz+(2*height*width));
-		// delete[] mb;
-		// float plot[psize*3];
-		// view.glCoord(mb_xyz, plot, psize);
-		// view.bufferHandle(plot, sizeof(plot));
-		// view.draw("vertex.vert", "draw.frag", GL_POINTS, psize);
 
 		// std::cout<<"frame :"<<frame<<" update points:"<<up<<" unstable points:"<<usp<<std::endl;
 		// std::cout<<"frame :"<<frame<<" cvw0 points:"<<cvw0<<" cvwm1 points:"<<cvwm1<<std::endl;
 		// std::cout<<"pose:\n"<<pose<<std::endl;
 		// std::cout<<"count :"<<count<<std::endl;
-		// if (frame > 0)
-			// break;
 		// std::cout<< "\ntrans :"<<transObject<<std::endl<<"rot :"<<rotObject<<std::endl;
 
 
@@ -505,6 +462,7 @@ int main(int argc, char  *argv[])
 
 
 		pc = 0;
+		pc_rs = 0;
 		up = 0;
 		usp = 0;
 		cvw0 = 0;
