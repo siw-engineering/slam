@@ -72,29 +72,30 @@ void Ferns::generateFerns() {
 }
 
 
-Eigen::Vector4f Ferns::get(int y, int x, int width, float* data)
+Eigen::Vector4f Ferns::get(int y, int x, float* data)
 {
 
     float vert[4];
-    vert[0] = data[y * width * 4 + (x * 4) + 0];
-    vert[1] = data[y * width * 4 + (x * 4) + 1];
-    vert[2] = data[y * width * 4 + (x * 4) + 2];
-    vert[3] = data[y * width * 4 + (x * 4) + 3];
+    int i = y * width + x;
+    vert[0] = data[i];
+    vert[1] = data[i + (width*height)];
+    vert[2] = data[i + 2*(width*height)]; 
+    vert[3] = data[i + 3*(width*height)];
 
     Eigen::Vector4f v(vert);
 
     return v;
 
 }
-Eigen::Vector4f Ferns::get(int y, int x, int width, const float* data)
+Eigen::Vector4f Ferns::get(int y, int x, const float* data)
 {
 
     float vert[4];
-    vert[0] = data[y * width * 4 + (x * 4) + 0];
-    vert[1] = data[y * width * 4 + (x * 4) + 1];
-    vert[2] = data[y * width * 4 + (x * 4) + 2];
-    vert[3] = data[y * width * 4 + (x * 4) + 3];
-
+    int i = y * width + x;
+    vert[0] = data[i];
+    vert[1] = data[i + (width*height)];
+    vert[2] = data[i + 2*(width*height)]; 
+    vert[3] = data[i + 3*(width*height)];
     Eigen::Vector4f v(vert);
 
     return v;
@@ -126,7 +127,6 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
   vertexResized.download(verts, width*sizeof(float));
   normalResized.download(norms, width*sizeof(float));
 
-
   Frame* frame = new Frame(num, frames.size(), pose, srcTime, width * height, (unsigned char*)img.data, (float*)verts,
                            (float*)norms);
 
@@ -136,14 +136,14 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
   for (int i = 0; i < num; i++) {
     unsigned char code = badCode;
 
-    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, verts)(2) > 0) {
+    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), verts)(2) > 0) {
       const Eigen::Matrix<unsigned char, 3, 1>& pix =
           img.at<Eigen::Matrix<unsigned char, 3, 1>>(conservatory.at(i).pos(1), conservatory.at(i).pos(0));
 
       code =
           (pix(0) > conservatory.at(i).rgbd(0)) << 3 | (pix(1) > conservatory.at(i).rgbd(1)) << 2 |
           (pix(2) > conservatory.at(i).rgbd(2)) << 1 |
-          (int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, verts)(2) * 1000.0f) > conservatory.at(i).rgbd(3));
+          (int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), verts)(2) * 1000.0f) > conservatory.at(i).rgbd(3));
       frame->goodCodes++;
       for (size_t j = 0; j < conservatory.at(i).ids[code].size(); j++) {
         coOccurrences[conservatory.at(i).ids[code].at(j)]++;
@@ -158,7 +158,6 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
   if (frame->goodCodes > 0) {
     for (size_t i = 0; i < frames.size(); i++) {
       float maxCo = std::min(frame->goodCodes, frames.at(i)->goodCodes);
-
       float dissim = (float)(maxCo - coOccurrences[i]) / (float)maxCo;
 
       if (dissim < minimum) {
@@ -166,9 +165,7 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
       }
     }
   }
-
   delete[] coOccurrences;
-
   if ((minimum > threshold || frames.size() == 0) && frame->goodCodes > 0) {
     for (int i = 0; i < num; i++) {
       if (frame->codes[i] != badCode) {
@@ -180,7 +177,6 @@ bool Ferns::addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& ver
     return true;
   } else {
     delete frame;
-
     return false;
   }
 }
@@ -207,10 +203,12 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   ResizeNMap(normalTexture, normalResized, factor);
 
   img_dst.download(imgSmall.data);
+ 
   vertexResized.download(vertSmall, width*sizeof(float));
   normalResized.download(normSmall, width*sizeof(float));
 
   Frame* frame = new Frame(num, 0, Eigen::Matrix4f::Identity(), 0, width * height);
+
 
   int* coOccurrences = new int[frames.size()];
 
@@ -219,13 +217,13 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   for (int i = 0; i < num; i++) {
     unsigned char code = badCode;
 
-    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) > 0) {
+    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) > 0) {
       const Eigen::Matrix<unsigned char, 3, 1>& pix =
           imgSmall.at<Eigen::Matrix<unsigned char, 3, 1>>(conservatory.at(i).pos(1), conservatory.at(i).pos(0));
 
       code = (pix(0) > conservatory.at(i).rgbd(0)) << 3 | (pix(1) > conservatory.at(i).rgbd(1)) << 2 |
              (pix(2) > conservatory.at(i).rgbd(2)) << 1 |
-             (int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) * 1000.0f) >
+             (int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) * 1000.0f) >
               conservatory.at(i).rgbd(3));
 
       frame->goodCodes++;
@@ -257,8 +255,8 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
   Eigen::Matrix4f estPose = Eigen::Matrix4f::Identity();
 
   if (minId != -1 && blockHDAware(frame, frames.at(minId)) > 0.3) {
-    Eigen::Matrix4f fernPose = frames.at(minId)->pose;
 
+    Eigen::Matrix4f fernPose = frames.at(minId)->pose;
     vertFern.upload((float*)frames.at(minId)->initVerts, width * sizeof(float), height * 4, width);
     vertCurrent.upload((float*)vertSmall, width * sizeof(float), height * 4, width);
 
@@ -289,23 +287,28 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
 
     int icpCountThresh = lost ? 1400 : 2400;
 
-           std::cout << rgbd.lastICPError << ", " << rgbd.lastICPCount << ", " << photoError << std::endl;
+       std::cout <<  "  fern : odom   "  <<rgbd.lastICPError << ", " << rgbd.lastICPCount << ", " << photoError << std::endl;
+
+
 
     if (rgbd.lastICPError < 0.0003 && rgbd.lastICPCount > icpCountThresh && photoError < photoThresh) {
       lastClosest = minId;
 
+      int cd;
+      std::cin>>cd;
+
       for (int i = 0; i < num; i += num / 50) {
-        if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) > 0 &&
-            int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) * 1000.0f) < maxDepth) {
+        if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) > 0 &&
+            int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) * 1000.0f) < maxDepth) {
           Eigen::Vector4f worldRawPoint =
-              currPose * Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(0),
-                                         get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(1),
-                                         get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2), 1.0f);
+              currPose * Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(0),
+                                         get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(1),
+                                         get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2), 1.0f);
 
           Eigen::Vector4f worldModelPoint =
-              estPose * Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(0),
-                                        get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(1),
-                                        get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2), 1.0f);
+              estPose * Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(0),
+                                        get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(1),
+                                        get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2), 1.0f);
 
           constraints.push_back(SurfaceConstraint(worldRawPoint, worldModelPoint));
         }
@@ -326,17 +329,17 @@ float Ferns::photometricCheck(const float* vertSmall, const Img<Eigen::Matrix<un
   float invfy = 1.0f / float(intr_fy / factor);
 
   Img<Eigen::Matrix<unsigned char, 3, 1>> imgFern(height, width, (Eigen::Matrix<unsigned char, 3, 1>*)fernRgb);
-
+      
   float photoSum = 0;
   int photoCount = 0;
 
   for (int i = 0; i < num; i++) {
-    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) > 0 &&
-        int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2) * 1000.0f) < maxDepth) {
+    if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) > 0 &&
+        int(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) * 1000.0f) < maxDepth) {
       Eigen::Vector4f vertPoint =
-          Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(0),
-                          get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(1),
-                          get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), width, vertSmall)(2), 1.0f);
+          Eigen::Vector4f(get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(0),
+                          get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(1),
+                          get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2), 1.0f);
 
       Eigen::Matrix4f diff = fernPose.inverse() * estPose;
 

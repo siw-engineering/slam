@@ -13,6 +13,9 @@
 #include "cuda/utils.cuh"
 #include "RGBDOdometry.h"
 
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include "opencv2/opencv.hpp"
 
 class Ferns {
  public:
@@ -20,9 +23,11 @@ class Ferns {
           const int resolution_h, const CameraModel& intr);
   virtual ~Ferns();
 
-  Eigen::Vector4f get(int x, int y, int width, float* data);
+  Eigen::Vector4f get(int x, int y, float* data);
 
-  Eigen::Vector4f get(int x, int y, int width, const float* data);
+  Eigen::Vector4f get(int x, int y, const float* data);
+
+  Eigen::Vector4f get(int y, int x, int h, int w, float* data);
 
   bool addFrame(DeviceArray<float>& imageTexture, DeviceArray2D<float>& vertexTexture, DeviceArray2D<float>& normalTexture,
           const Eigen::Matrix4f& pose, int srcTime, const float threshold);

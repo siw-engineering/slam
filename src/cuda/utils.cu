@@ -322,7 +322,7 @@ __global__ void resizeMapKernel(int drows, int dcols, int srows, PtrStepSz<float
         output.ptr (y        )[x] = n.x;
         output.ptr (y + drows)[x] = n.y;
         output.ptr (y + 2 * drows)[x] = n.z;
-        // output.ptr (y + 3 * drows)[x] = (unsigned char)0;
+        output.ptr (y + 3 * drows)[x] = 0;
     }
 }
 
@@ -393,16 +393,16 @@ __global__ void resizeImg(const int height, const int width, unsigned char * dst
         out.y = (y00 + y01 + y10 + y11) / 4;
 
 
-        float z00 = src[(ys + 0) * (width*2) * 4 + ((xs + 0) * 4) + 2];
-        float z01 = src[(ys + 0) * (width*2) * 4 + ((xs + 1) * 4) + 2];
-        float z10 = src[(ys + 1) * (width*2) * 4 + ((xs + 0) * 4) + 2];
-        float z11 = src[(ys + 1) * (width*2) * 4 + ((xs + 1) * 4) + 2];
+        float z00 = src[(ys + 0) * (width*factor) * 4 + ((xs + 0) * 4) + 2];
+        float z01 = src[(ys + 0) * (width*factor) * 4 + ((xs + 1) * 4) + 2];
+        float z10 = src[(ys + 1) * (width*factor) * 4 + ((xs + 0) * 4) + 2];
+        float z11 = src[(ys + 1) * (width*factor) * 4 + ((xs + 1) * 4) + 2];
         out.z = (z00 + z01 + z10 + z11) / 4;
 
 
-        dst[y * width * 4 + (x * 4) + 0] = (unsigned char)out.x;
-        dst[y * width * 4 + (x * 4) + 1] = (unsigned char)out.y;
-        dst[y * width * 4 + (x * 4) + 2] = (unsigned char)out.z;
+        dst[y * width * 3 + (x * 3) + 0] = (unsigned char)out.x;
+        dst[y * width * 3 + (x * 3) + 1] = (unsigned char)out.y;
+        dst[y * width * 3 + (x * 3) + 2] = (unsigned char)out.z;
         // dst[y * width * 4 + (x * 4) + 3] = (unsigned char)0;
 
     // }
