@@ -214,8 +214,10 @@ void clean(DeviceArray2D<float>& depthf, const CameraModel& intr, int rows, int 
 void testcolorencoding();
 void testimagecopy(DeviceArray<float> rgb, DeviceArray<float> imagebin,  int cols, int rows, int ibcount);
 void testimageprint(DeviceArray<float> imagebin, int cols, int rows, int ibcount);
-void exp(DeviceArray2D<float>& depth, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& outframe, DeviceArray2D<float>& piframe, const CameraModel& intr, int rows, int cols, float maxDepth);
+void exp(const CameraModel& intr, int rows, int cols, float maxDepth, DeviceArray<float>& model_buffer, int count, const mat33 Rmat_inv, const float3 tvec_inv, DeviceArray2D<float>& vmap_ms);
 void normalFusionData(DeviceArray<float>& model_buffer, int* h_count, int* h_update_count, int time, DeviceArray2D<float>& depth, const CameraModel& intr, int rows, int cols, float maxDepth, const mat33& Rmat, const float3& tvec, float weighting, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& ct_pi, DeviceArray2D<float>& nmap_pi, DeviceArray2D<unsigned int>& index_pi, DeviceArray2D<float>& neighbours_and_vert);
 void extractVmap(DeviceArray<float>& model_buffer, int count, DeviceArray<float>& vmap_mb, const mat33 Rmat_inv, const float3 tvec_inv);
+void transformPoints(int rows, int cols, DeviceArray2D<float>& vmap_pi, DeviceArray2D<float>& vmap_pi_store, const mat33 Rmat, const float3 tvec);
+
 #endif /* CUDA_CUDAFUNCS_CUH_ */
 
