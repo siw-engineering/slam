@@ -13,9 +13,6 @@
 #include "cuda/utils.cuh"
 #include "RGBDOdometry.h"
 
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include "opencv2/opencv.hpp"
 
 class Ferns {
  public:

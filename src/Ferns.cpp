@@ -71,7 +71,7 @@ void Ferns::generateFerns() {
   }
 }
 
-
+// need to handle more efficiently
 Eigen::Vector4f Ferns::get(int y, int x, float* data)
 {
 
@@ -87,6 +87,8 @@ Eigen::Vector4f Ferns::get(int y, int x, float* data)
     return v;
 
 }
+
+// need to handle more efficiently
 Eigen::Vector4f Ferns::get(int y, int x, const float* data)
 {
 
@@ -285,17 +287,16 @@ Eigen::Matrix4f Ferns::findFrame(std::vector<SurfaceConstraint>& constraints, co
 
     float photoError = photometricCheck(vertSmall, imgSmall, estPose, fernPose, frames.at(minId)->initRgb);
 
-    int icpCountThresh = lost ? 1400 : 2400;
+    // int icpCountThresh = lost ? 1400 : 2400;
+    // need to find proper threshold
+    int icpCountThresh = lost ? 1100 : 2400;
 
-       std::cout <<  "  fern : odom   "  <<rgbd.lastICPError << ", " << rgbd.lastICPCount << ", " << photoError << std::endl;
+       // std::cout <<  "  fern : odom   "  <<rgbd.lastICPError << ", " << rgbd.lastICPCount << ", " << photoError << std::endl;
 
 
 
     if (rgbd.lastICPError < 0.0003 && rgbd.lastICPCount > icpCountThresh && photoError < photoThresh) {
       lastClosest = minId;
-
-      int cd;
-      std::cin>>cd;
 
       for (int i = 0; i < num; i += num / 50) {
         if (get(conservatory.at(i).pos(1), conservatory.at(i).pos(0), vertSmall)(2) > 0 &&
