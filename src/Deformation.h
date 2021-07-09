@@ -10,10 +10,12 @@
 class Deformation {
  public:
   Deformation();
-  // virtual ~Deformation();
+  virtual ~Deformation();
 
   std::vector<GraphNode*>& getGraph();
   
+  void sampleGraphFrom(Deformation & other);
+
   void sampleGraphModel(DeviceArray<float>& model_buffer, int count/**, int* g_count**/);
 
   class Constraint {
@@ -38,6 +40,16 @@ class Deformation {
     int srcPointPoolId;
     int tarPointPoolId;
   };
+     float * getVertices()
+      {
+          return sample_hst;
+      }
+
+      int getCount()
+      {
+          return int(graph_count);
+      }
+
 
   private:
     DeformationGraph def;
@@ -45,12 +57,14 @@ class Deformation {
     std::vector<Eigen::Vector3f> pointPool;
 
     DeviceArray<float> sample_points;
-  
+    float* sample_hst; // vertices
+    
     std::vector<std::pair<uint64_t, Eigen::Vector3f> > poseGraphPoints;
     std::vector<unsigned long long int> graphPoseTimes;
-    std::vector<Eigen::Vector3f>* graphPosePoints;
+    std::vector<Eigen::Vector3f> * graphPosePoints;
   
     std::vector<Constraint> constraints;
     int lastDeformTime;
+    int graph_count;
 
 };
