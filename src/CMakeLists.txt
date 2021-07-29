@@ -3,7 +3,6 @@ project(slam)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(Pangolin_DIR "/home/developer/co-fusion/deps/Pangolin/build")
-
 #find_package(cv_bridge_1_13 REQUIRED)
 
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
@@ -11,13 +10,10 @@ set(Pangolin_DIR "/home/developer/co-fusion/deps/Pangolin/build")
 
 find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg cv_bridge image_transport)  
 include_directories(${catkin_INCLUDE_DIRS}) 
-
 catkin_package()
 
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
-
-
 # find_package(RealSense2 REQUIRED)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -54,27 +50,19 @@ find_package(Pangolin 0.1 REQUIRED)
 message("Pangolin_INCLUDE_DIRS: ${Pangolin_INCLUDE_DIRS}")
 include_directories(${Pangolin_INCLUDE_DIRS})
 
-#libconfig
-set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib")
-set(libconfig_LIBRARY_DIRS "/usr/local/lib/")
-find_package(libconfig REQUIRED)
-message("libconfig_INCLUDE_DIRS: ${libconfig_INCLUDE_DIRS}")
-include_directories(${libconfig_INCLUDE_DIRS})
-link_directories(${libconfig_LIBRARY_DIRS})
-
-
 # project-wide paths
 include_directories(${PROJECT_SOURCE_DIR})
 
+find_package(SuiteSparse REQUIRED)
+include_directories(${SUITESPARSE_INCLUDE_DIRS})
 
-file(GLOB apps apps/*.cpp)
-file(GLOB gl gl/*.cpp)
+
+file(GLOB srcs *.cpp)
+file(GLOB inputs_ros inputs/ros/*.cpp)
 file(GLOB inputs inputs/*.cpp)
-file(GLOB odom odom/*.cpp)
-file(GLOB tools tools/*.cpp)
-file(GLOB ui ui/*.cpp)
 file(GLOB cuda cuda/*.cu)
 file(GLOB cuda_containers cuda/containers/*.cpp)
+# file(GLOB shaders shaders/*.cpp)
 
 
 
@@ -89,13 +77,13 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 CUDA_COMPILE(cuda_objs ${cuda})
 
+
 add_executable(${PROJECT_NAME}
-               ${apps}
-               ${gl}
+               ${srcs}
+               ${Fern.cpp}
+#                ${shaders}
+               ${inputs_ros}
                ${inputs}
-      			   ${odom}
-      			   ${tools}
-      			   ${ui}
                ${cuda}
                ${cuda_objs}
                ${cuda_containers}
@@ -107,7 +95,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${OpenCV_INCLUDE_DIRS}
     ${BOOST_INCLUDE_DIRS}
     ${Pangolin_INCLUDE_DIRS}
-    ${libconfig_LIBRARY_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -117,12 +104,10 @@ target_link_libraries(${PROJECT_NAME}
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
     ${Pangolin_LIBRARIES}
-    ${libconfig_LIBRARIES}
-
+    ${SUITESPARSE_LIBRARIES}
     # ${REALSENSE2_LIBRARY}
     boost_filesystem
     boost_system
     pthread
-    config++
 	)
 
