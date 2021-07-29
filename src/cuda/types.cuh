@@ -58,12 +58,6 @@
 #include <Eigen/Core>
 #endif
 
-// struct vec3
-// {
-//     float x,y,z;
-//     vec3(float x, float y, float z) {}
-// };
-
 struct mat33
 {
     mat33() {}
@@ -86,23 +80,7 @@ struct DataTerm
     bool valid;
 };
 
-struct CameraModel
-{
-    float fx, fy, cx, cy;
-    CameraModel()
-     : fx(0), fy(0), cx(0), cy(0)
-    {}
 
-    CameraModel(float fx_, float fy_, float cx_, float cy_)
-     : fx(fx_), fy(fy_), cx(cx_), cy(cy_)
-    {}
-
-    CameraModel operator()(int level) const
-    {
-        int div = 1 << level;
-        return (CameraModel (fx / div, fy / div, cx / div, cy / div));
-    }
-};
 
 struct JtJJtrSE3
 {

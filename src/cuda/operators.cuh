@@ -53,6 +53,7 @@
 
 #ifndef CUDA_OPERATORS_CUH_
 #define CUDA_OPERATORS_CUH_
+
 __device__ __host__ __forceinline__ float3 operator-(const float3& a, const float3& b)
 {
     return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
