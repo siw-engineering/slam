@@ -1,6 +1,7 @@
 #include "inputs/KlgLogReader.h"
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
+#include "../odom/RGBDOdometryef.h"
 
 using namespace libconfig;
 
@@ -47,8 +48,18 @@ int main(int argc, char const *argv[])
 	root["gui"].lookupValue("width", width);
 	root["gui"].lookupValue("height", height);
 
-	EFGUI gui(width, height, intr);
+	EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy);
+	RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
+	std::map<std::string, GPUTexture*> textures;
+
+	//createtextures
+	textures[GPUTexture::RGB] = new GPUTexture(width, height, GL_RGBA, GL_RGB, GL_UNSIGNED_BYTE, true, true);
+    textures[GPUTexture::DEPTH_RAW] = new GPUTexture(width, height, GL_LUMINANCE16UI_EXT, GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT);
+    textures[GPUTexture::DEPTH_FILTERED] = new GPUTexture(width, height, GL_LUMINANCE16UI_EXT, GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT, false, true);
+    textures[GPUTexture::DEPTH_METRIC] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
+    textures[GPUTexture::DEPTH_METRIC_FILTERED] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
+    textures[GPUTexture::DEPTH_NORM] = new GPUTexture(width, height, GL_LUMINANCE, GL_LUMINANCE, GL_FLOAT, true);
 
 
 	return 0;

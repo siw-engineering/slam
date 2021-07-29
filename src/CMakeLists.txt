@@ -73,7 +73,8 @@ file(GLOB inputs inputs/*.cpp)
 file(GLOB odom odom/*.cpp)
 file(GLOB tools tools/*.cpp)
 file(GLOB ui ui/*.cpp)
-file(GLOB cuda cuda/*.cu)
+# file(GLOB cuda cuda/*.cu)
+file(GLOB odom_cuda odom/*.cu)
 file(GLOB cuda_containers cuda/containers/*.cpp)
 
 
@@ -88,6 +89,8 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 CUDA_COMPILE(cuda_objs ${cuda})
+CUDA_COMPILE(odom_cuda_objs ${odom_cuda})
+
 
 add_executable(${PROJECT_NAME}
                ${apps}
@@ -98,6 +101,8 @@ add_executable(${PROJECT_NAME}
       			   ${ui}
                ${cuda}
                ${cuda_objs}
+               ${odom_cuda}
+               ${odom_cuda_objs}
                ${cuda_containers}
 )
 
