@@ -1,3 +1,5 @@
+#ifndef CAM_MODEL_TYPE
+#define CAM_MODEL_TYPE
 struct CameraModel
 {
     float fx, fy, cx, cy, width, height;
@@ -15,3 +17,4 @@ struct CameraModel
         return (CameraModel (fx / div, fy / div, cx / div, cy / div, width, height));
     }
 };
+#endif CAM_MODEL_TYPE

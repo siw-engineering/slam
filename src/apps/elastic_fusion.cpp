@@ -2,6 +2,7 @@
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
 #include "../odom/RGBDOdometryef.h"
+#include "../gl/FeedbackBuffer.h"
 
 using namespace libconfig;
 
