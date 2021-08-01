@@ -1,8 +1,12 @@
-#include "inputs/KlgLogReader.h"
+#include "inputs/RawLogReader.h"
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
 #include "../odom/RGBDOdometryef.h"
 #include "../gl/FeedbackBuffer.h"
+#include "../gl/ComputePack.h"
+#include "../gl/FillIn.h"
+#include "../model/GlobalModel.h"
+#include "../model/IndexMap.h"
 
 using namespace libconfig;
 
@@ -52,7 +56,17 @@ int main(int argc, char const *argv[])
 	EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy);
 	RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
+
+	//data
+  	std::string logFile;
+	root["data"].lookupValue("path", logFile);
+	LogReader * logReader;
+    logReader = new RawLogReader(logFile, false, width, height);
+
 	std::map<std::string, GPUTexture*> textures;
+	std::map<std::string, ComputePack*> computePacks;
+	std::map<std::string, FeedbackBuffer*> feedbackBuffers;
+
 
 	//createtextures
 	textures[GPUTexture::RGB] = new GPUTexture(width, height, GL_RGBA, GL_RGB, GL_UNSIGNED_BYTE, true, true);
@@ -61,6 +75,21 @@ int main(int argc, char const *argv[])
     textures[GPUTexture::DEPTH_METRIC] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
     textures[GPUTexture::DEPTH_METRIC_FILTERED] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
     textures[GPUTexture::DEPTH_NORM] = new GPUTexture(width, height, GL_LUMINANCE, GL_LUMINANCE, GL_FLOAT, true);
+
+    //createcompute
+    computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("/home/developer/slam/src/gl/shaders/empty.vert", "/home/developer/slam/src/gl/shaders/depth_norm.frag", "/home/developer/slam/src/gl/shaders/quad.geom"), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
+    computePacks[ComputePack::FILTER] = new ComputePack(loadProgramFromFile("/home/developer/slam/src/gl/shaders/empty.vert", "/home/developer/slam/src/gl/shaders/depth_bilateral.frag", "/home/developer/slam/src/gl/shaders/quad.geom"), textures[GPUTexture::DEPTH_FILTERED]->texture, width, height);
+    computePacks[ComputePack::METRIC] = new ComputePack(loadProgramFromFile("/home/developer/slam/src/gl/shaders/empty.vert", "/home/developer/slam/src/gl/shaders/depth_metric.frag", "/home/developer/slam/src/gl/shaders/quad.geom"), textures[GPUTexture::DEPTH_METRIC]->texture, width, height);
+    computePacks[ComputePack::METRIC_FILTERED] = new ComputePack(loadProgramFromFile("/home/developer/slam/src/gl/shaders/empty.vert", "/home/developer/slam/src/gl/shaders/depth_metric.frag", "/home/developer/slam/src/gl/shaders/quad.geom"), textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, width, height);
+
+    //createfeedbackbuffers
+    feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("/home/developer/slam/src/gl/shaders/vertex_feedback.vert", "/home/developer/slam/src/gl/shaders/vertex_feedback.geom"), width, height, intr);
+    feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("/home/developer/slam/src/gl/shaders/vertex_feedback.vert", "/home/developer/slam/src/gl/shaders/vertex_feedback.geom"), width, height, intr);
+	
+
+    // IndexMap indexMap(width, height, intr);
+    // GlobalModel globalModel(width, height, intr);
+    // FillIn fillIn(width, height, intr);
 
 
 	return 0;

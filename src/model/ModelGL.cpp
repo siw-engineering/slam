@@ -8,7 +8,7 @@
 // 6:Metadata
 
 
-class ModelGL
-{
+// class ModelGL
+// {
 	
-}
+// }

@@ -63,9 +63,9 @@ static inline std::shared_ptr<Shader> loadProgramGeomFromFile(const std::string&
   std::shared_ptr<Shader> program = std::make_shared<Shader>();
 
   program->AddShaderFromFile(pangolin::GlSlVertexShader, vertex_shader_file, {},
-                             {});
+                             {"/home/developer/slam/src/gl/shaders"});
   program->AddShaderFromFile(pangolin::GlSlGeometryShader,geometry_shader_file, {},
-                             {});
+                             {"/home/developer/slam/src/gl/shaders"});
   program->Link();
 
   return program;

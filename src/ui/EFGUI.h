@@ -1,26 +1,22 @@
+
 #include <pangolin/pangolin.h>
 #include <pangolin/gl/gl.h>
 #include <pangolin/gl/gldraw.h>
 #include <map>
+#include "../gl/Shaders.h"
+
+#ifndef EFGUI_H
+#define EFGUI_H
 
 class EFGUI
 {
-public:
-	EFGUI(float width, float height, float cx, float cy, float fx, float fy)
-	{
+	public:
+		EFGUI(float width, float height, float cx, float cy, float fx, float fy);
+		// ~EFGUI();
+		pangolin::OpenGlMatrix getMVP();
+		void render(const std::pair<GLuint, GLuint>& vbos, int vs);
 		pangolin::OpenGlRenderState s_cam;
-		pangolin::CreateWindowAndBind("Main",width, height);
-		glEnable(GL_DEPTH_TEST);
-		s_cam = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(width, height, fx, fy, cx, cy, 0.1, 1000),
-		                                    pangolin::ModelViewLookAt(0, 0, -1, 0, 0, 1, pangolin::AxisNegY));
-		pangolin::View& d_cam = pangolin::CreateDisplay()
-		     .SetBounds(0.0, 1.0, 0.0, 1.0, -width*height)
-		     .SetHandler(new pangolin::Handler3D(s_cam));
-
-	}
-	~EFGUI()
-	{
-		
-	}
-	
+		std::shared_ptr<Shader> draw_program;
 };
+
+#endif //EFGUI_H

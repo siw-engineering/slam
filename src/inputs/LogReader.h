@@ -16,68 +16,84 @@
  *
  */
 
-#pragma once
+#ifndef LOGREADER_H_
+#define LOGREADER_H_
 
+#ifdef WIN32
+#  include <cstdint>
+#endif
 #include <string>
+#if (defined WIN32) && (defined FAR)
+#  undef FAR
+#endif
 #include <zlib.h>
-#include <poll.h>
+#ifndef WIN32
+#  include <poll.h>
+#endif
 #include "Img.h"
-
-#include "FrameData.h"
 #include "JPEGLoader.h"
 
-class LogReader {
- public:
-  LogReader(std::string file, bool flipColors, int w, int h)
-      : flipColors(flipColors),
-        currentFrame(0),
-        file(file),
-        width(w),
-        height(h),
-        numPixels(width * height) {}
+class LogReader
+{
+    public:
+        LogReader(std::string file, bool flipColors, int width, int height)
+         : flipColors(flipColors),
+           timestamp(0),
+           depth(0),
+           rgb(0),
+           currentFrame(0),
+           decompressionBufferDepth(0),
+           decompressionBufferImage(0),
+           file(file),
+           width(width),
+           height(height),
+           numPixels(width * height)
+        {}
 
-  virtual ~LogReader() {}
+        virtual ~LogReader()
+        {}
 
-  virtual void getNext() = 0;
+        virtual void getNext() = 0;
 
-  virtual int getNumFrames() = 0;
+        virtual int getNumFrames() = 0;
 
-  virtual bool hasMore() = 0;
+        virtual bool hasMore() = 0;
 
-  virtual bool rewind() = 0;
+        virtual bool rewound() = 0;
 
-  virtual void getPrevious() = 0;
+        virtual void rewind() = 0;
 
-  virtual void fastForward(int frame) = 0;
+        virtual void getBack() = 0;
 
-  virtual const std::string getFile() = 0;
+        virtual void fastForward(int frame) = 0;
 
-  virtual void setAuto(bool value) = 0;
+        virtual const std::string getFile() = 0;
 
-  bool flipColors;
+        virtual void setAuto(bool value) = 0;
 
-  virtual FrameData getFrameData() = 0;
+        bool flipColors;
+        int64_t timestamp;
 
-  virtual bool hasIntrinsics() const { return calibrationFile != ""; }
-  virtual std::string getIntinsicsFile() const { return calibrationFile; }
+        unsigned short * depth;
+        unsigned char * rgb;
+        int currentFrame;
 
-  virtual bool hasMasks() const { return hasMasksGT; }
+    protected:
+        Bytef * decompressionBufferDepth;
+        Bytef * decompressionBufferImage;
+        unsigned char * depthReadBuffer;
+        unsigned char * imageReadBuffer;
+        int32_t depthSize;
+        int32_t imageSize;
 
-  int currentFrame;
+        const std::string file;
+        FILE * fp;
+        int32_t numFrames;
+        int width;
+        int height;
+        int numPixels;
 
- protected:
-  int32_t depthImageSize;
-  int32_t rgbImageSize;
-
-  const std::string file;
-  FILE* fp;
-  int numFrames;
-  int width;
-  int height;
-  int numPixels;
-
-  std::string calibrationFile = "";
-  bool hasMasksGT = false;
-
-  JPEGLoader jpeg;
+        JPEGLoader jpeg;
 };
+
+#endif /* LOGREADER_H_ */

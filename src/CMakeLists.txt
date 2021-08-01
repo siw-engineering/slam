@@ -70,6 +70,7 @@ include_directories(${PROJECT_SOURCE_DIR})
 file(GLOB apps apps/*.cpp)
 file(GLOB gl gl/*.cpp)
 file(GLOB inputs inputs/*.cpp)
+file(GLOB model model/*.cpp)
 file(GLOB odom odom/*.cpp)
 file(GLOB tools tools/*.cpp)
 file(GLOB ui ui/*.cpp)
@@ -93,12 +94,13 @@ CUDA_COMPILE(odom_cuda_objs ${odom_cuda})
 
 
 add_executable(${PROJECT_NAME}
+               ${ui}
                ${apps}
                ${gl}
                ${inputs}
+               ${model}
       			   ${odom}
       			   ${tools}
-      			   ${ui}
                ${cuda}
                ${cuda_objs}
                ${odom_cuda}

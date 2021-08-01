@@ -16,7 +16,8 @@
  *
  */
 
-#pragma once
+#ifndef RAWLOGREADER_H_
+#define RAWLOGREADER_H_
 
 #include <pangolin/utils/file_utils.h>
 
@@ -29,38 +30,37 @@
 #include <string>
 #include <stack>
 
-class KlgLogReader : public LogReader {
- public:
-  KlgLogReader(std::string file, bool flipColors, int w, int h);
+class RawLogReader : public LogReader
+{
+    public:
+        RawLogReader(std::string file, bool flipColors, int width, int height);
 
-  virtual ~KlgLogReader();
+        virtual ~RawLogReader();
 
-  void getNext();
+        void getNext();
 
-  void getPrevious();
+        void getBack();
 
-  int getNumFrames();
+        int getNumFrames();
 
-  bool hasMore();
+        bool hasMore();
 
-  bool rewind();
+        bool rewound();
 
-  void fastForward(int frame);
+        void rewind();
 
-  const std::string getFile();
+        void fastForward(int frame);
 
-  FrameData getFrameData();
+        const std::string getFile();
 
-  void setAuto(bool value);
+        void setAuto(bool value);
 
-  std::stack<int> filePointers;
+        std::stack<int> filePointers;
 
- private:
-  void getCore();
-  FrameData data;
+        int numPixels;
 
-  cv::Mat depthDecompressionBuffer;
-  cv::Mat rgbDecompressionBuffer;
-  cv::Mat depthBuffer;
-  cv::Mat rgbBuffer;
+    private:
+        void getCore();
 };
+
+#endif /* RAWLOGREADER_H_ */

@@ -17,4 +17,4 @@ struct CameraModel
         return (CameraModel (fx / div, fy / div, cx / div, cy / div, width, height));
     }
 };
-#endif CAM_MODEL_TYPE
+#endif //CAM_MODEL_TYPE

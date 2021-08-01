@@ -3,6 +3,9 @@
 #include <cuda_gl_interop.h>
 #include <cuda_runtime_api.h>
 
+#ifndef GL_TYPES
+#define GL_TYPES
+
 class GPUTexture
 {
     public:
@@ -32,3 +35,5 @@ class GPUTexture
         const GLenum format;
         const GLenum dataType;
 };
+
+#endif //GL_TYPES
