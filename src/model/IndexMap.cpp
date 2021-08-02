@@ -21,7 +21,7 @@
 const int IndexMap::FACTOR = 1;
 
 IndexMap::IndexMap(int width, int height, CameraModel intr)
-: indexProgram(loadProgramFromFile("index_map.vert", "index_map.frag")),
+: indexProgram(loadProgramFromFile("index_map.vert", "index_map.frag", "/home/developer/slam/src/model/shaders/")),
   indexRenderBuffer(width * IndexMap::FACTOR, height * IndexMap::FACTOR),
   indexTexture(width * IndexMap::FACTOR,
                height * IndexMap::FACTOR,
@@ -37,7 +37,7 @@ IndexMap::IndexMap(int width, int height, CameraModel intr)
   normalRadTexture(width * IndexMap::FACTOR,
                    height * IndexMap::FACTOR,
                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
-  drawDepthProgram(loadProgramFromFile("empty.vert", "visualise_textures.frag", "quad.geom")),
+  // drawDepthProgram(loadProgramFromFile("empty.vert", "visualise_textures.frag", "quad.geom", "/home/developer/slam/src/model/shaders/")),
   drawRenderBuffer(width, height),
   drawTexture(width,
               height,
@@ -45,7 +45,7 @@ IndexMap::IndexMap(int width, int height, CameraModel intr)
               GL_RGB,
               GL_UNSIGNED_BYTE,
               false),
-  depthProgram(loadProgramFromFile("splat.vert", "depth_splat.frag")),
+  depthProgram(loadProgramFromFile("splat.vert", "depth_splat.frag", "/home/developer/slam/src/model/shaders/")),
   depthRenderBuffer(width, height),
   depthTexture(width,
                height,
@@ -54,7 +54,7 @@ IndexMap::IndexMap(int width, int height, CameraModel intr)
                GL_FLOAT,
                false,
                true),
-  combinedProgram(loadProgramFromFile("splat.vert", "combo_splat.frag")),
+  combinedProgram(loadProgramFromFile("splat.vert", "combo_splat.frag", "/home/developer/slam/src/model/shaders/")),
   combinedRenderBuffer(width, height),
   imageTexture(width,
                height,

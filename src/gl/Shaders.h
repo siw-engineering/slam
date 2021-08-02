@@ -59,50 +59,50 @@ class Shader : public pangolin::GlSlProgram {
 };
 
 static inline std::shared_ptr<Shader> loadProgramGeomFromFile(const std::string& vertex_shader_file,
-                                                              const std::string& geometry_shader_file) {
+                                                              const std::string& geometry_shader_file, const std::string& shader_dir) {
   std::shared_ptr<Shader> program = std::make_shared<Shader>();
 
-  program->AddShaderFromFile(pangolin::GlSlVertexShader, vertex_shader_file, {},
-                             {"/home/developer/slam/src/gl/shaders"});
-  program->AddShaderFromFile(pangolin::GlSlGeometryShader,geometry_shader_file, {},
-                             {"/home/developer/slam/src/gl/shaders"});
+  program->AddShaderFromFile(pangolin::GlSlVertexShader, shader_dir+vertex_shader_file, {},
+                             {shader_dir});
+  program->AddShaderFromFile(pangolin::GlSlGeometryShader,shader_dir+geometry_shader_file, {},
+                             {shader_dir});
   program->Link();
 
   return program;
 }
 
-static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& vertex_shader_file) {
+static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& vertex_shader_file, const std::string& shader_dir) {
   std::shared_ptr<Shader> program = std::make_shared<Shader>();
 
-  program->AddShaderFromFile(pangolin::GlSlVertexShader, vertex_shader_file,  {},
-                             {});
+  program->AddShaderFromFile(pangolin::GlSlVertexShader, shader_dir+vertex_shader_file,  {},
+                             {shader_dir});
   program->Link();
 
   return program;
 }
 
-static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& vertex_shader_file, const std::string& fragment_shader_file) {
+static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& vertex_shader_file, const std::string& fragment_shader_file, const std::string& shader_dir) {
   std::shared_ptr<Shader> program = std::make_shared<Shader>();
 
-  program->AddShaderFromFile(pangolin::GlSlVertexShader,vertex_shader_file,  {},
-                             {});
-  program->AddShaderFromFile(pangolin::GlSlFragmentShader,fragment_shader_file, {},
-                             {});
+  program->AddShaderFromFile(pangolin::GlSlVertexShader,shader_dir+vertex_shader_file,  {},
+                             {shader_dir});
+  program->AddShaderFromFile(pangolin::GlSlFragmentShader,shader_dir+fragment_shader_file, {},
+                             {shader_dir});
   program->Link();
 
   return program;
 }
 
 static inline std::shared_ptr<Shader> loadProgramFromFile(const std::string& vertex_shader_file, const std::string& fragment_shader_file,
-                                                          const std::string& geometry_shader_file) {
+                                                          const std::string& geometry_shader_file, const std::string& shader_dir) {
   std::shared_ptr<Shader> program = std::make_shared<Shader>();
 
-  program->AddShaderFromFile(pangolin::GlSlVertexShader,vertex_shader_file,  {},
-                             {});
-  program->AddShaderFromFile(pangolin::GlSlGeometryShader,geometry_shader_file,  {},
-                             {});
-  program->AddShaderFromFile(pangolin::GlSlFragmentShader,fragment_shader_file,  {},
-                             {});
+  program->AddShaderFromFile(pangolin::GlSlVertexShader,shader_dir+vertex_shader_file,  {},
+                             {shader_dir});
+  program->AddShaderFromFile(pangolin::GlSlGeometryShader,shader_dir+geometry_shader_file,  {},
+                             {shader_dir});
+  program->AddShaderFromFile(pangolin::GlSlFragmentShader,shader_dir+fragment_shader_file,  {},
+                             {shader_dir});
   program->Link();
 
   return program;

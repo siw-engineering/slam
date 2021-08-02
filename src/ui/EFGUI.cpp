@@ -3,13 +3,15 @@
 
 EFGUI::EFGUI(float width, float height, float cx, float cy, float fx, float fy)
 {
-	pangolin::CreateWindowAndBind("Main",width, height);
-	glEnable(GL_DEPTH_TEST);
-	s_cam = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(width, height, fx, fy, cx, cy, 0.1, 1000),
-	                                    pangolin::ModelViewLookAt(0, 0, -1, 0, 0, 1, pangolin::AxisNegY));
-	pangolin::View& d_cam = pangolin::CreateDisplay()
-		     .SetBounds(0.0, 1.0, 0.0, 1.0, -width*height)
-		     .SetHandler(new pangolin::Handler3D(s_cam));
+    pangolin::CreateWindowAndBind("Main",width, height);
+    glEnable(GL_DEPTH_TEST);
+    s_cam = pangolin::OpenGlRenderState(pangolin::ProjectionMatrix(width, height, 277, 277, width / 2.0f, height / 2.0f, 0.1, 1000),
+                                        pangolin::ModelViewLookAt(0, 0, -1, 0, 0, 1, pangolin::AxisNegY));
+    pangolin::View& d_cam = pangolin::CreateDisplay()
+         .SetBounds(0.0, 1.0, 0.0, 1.0, -2*width*height)
+         .SetHandler(new pangolin::Handler3D(s_cam));
+
+    draw_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_global_surface_.vert","draw_global_surface_.frag", "/home/developer/slam/src/ui/shaders/"));
 
 }
 
@@ -23,7 +25,6 @@ pangolin::OpenGlMatrix EFGUI::getMVP()
 
 void EFGUI::render(const std::pair<GLuint, GLuint>& vbos, int vs)
 {
-	draw_program =  std::shared_ptr<Shader>(loadProgramFromFile("/home/developer/slam/src/ui/shaders/draw_global_surface_.vert","/home/developer/slam/src/ui/shaders/draw_global_surface_.frag"));
     draw_program->Bind();
     draw_program->setUniform(Uniform("MVP", getMVP()));
 
@@ -47,5 +48,7 @@ void EFGUI::render(const std::pair<GLuint, GLuint>& vbos, int vs)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     draw_program->Unbind();
+
+    pangolin::FinishFrame();
 
 }
