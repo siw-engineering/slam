@@ -3,26 +3,31 @@ project(slam)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(Pangolin_DIR "/home/developer/co-fusion/deps/Pangolin/build")
+SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
+SET(RS 0 CACHE INT "Some user-specified option")
 
 #find_package(cv_bridge_1_13 REQUIRED)
-
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
 #set(cv_bridge_DIR "/home/developer/packages/vision_opencv/cv_bridge/install/share/cv_bridge/cmake")
 
 find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg cv_bridge image_transport)  
 include_directories(${catkin_INCLUDE_DIRS}) 
-
 catkin_package()
 
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
 
-
-# find_package(RealSense2 REQUIRED)
+#realsense
+if(${RS})
+  find_package(RealSense2 REQUIRED)
+endif()
 
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
-# include_directories(${REALSENSE2_INCLUDE_DIR})
+if(${RS})
+  include_directories(${REALSENSE2_INCLUDE_DIR})
+endif()
+
 
 
 # Warnings / Errors
@@ -67,7 +72,7 @@ link_directories(${libconfig_LIBRARY_DIRS})
 include_directories(${PROJECT_SOURCE_DIR})
 
 
-file(GLOB apps apps/*.cpp)
+# file(GLOB apps apps/*.cpp)
 file(GLOB gl gl/*.cpp)
 file(GLOB inputs inputs/*.cpp)
 file(GLOB model model/*.cpp)
@@ -95,7 +100,8 @@ CUDA_COMPILE(odom_cuda_objs ${odom_cuda})
 
 add_executable(${PROJECT_NAME}
                ${ui}
-               ${apps}
+               # ${apps}
+               ${APP}
                ${gl}
                ${inputs}
                ${model}
@@ -125,11 +131,11 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBRARIES}
     ${Pangolin_LIBRARIES}
     ${libconfig_LIBRARIES}
-
-    # ${REALSENSE2_LIBRARY}
+    ${REALSENSE2_LIBRARY}
     boost_filesystem
     boost_system
     pthread
     config++
+    realsense2
 	)
 
