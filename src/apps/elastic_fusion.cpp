@@ -119,7 +119,6 @@ int main(int argc, char const *argv[])
 	root["ef"].lookupValue("depthCutoff", depthCutoff);
 	root["ef"].lookupValue("maxDepthProcessed", maxDepthProcessed);
 
-	std::cout<<confidence<<std::endl<<depth<<std::endl<<icp<<std::endl<<icpErrThresh<<std::endl<<covThresh<<std::endl<<photoThresh<<std::endl<<fernThresh<<std::endl<<depthCutoff<<std::endl<<maxDepthProcessed;
 	//Camera Params
 	CameraModel intr(0,0,0,0,0,0);
 	root["camera"].lookupValue("width", intr.width);
