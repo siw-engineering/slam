@@ -77,6 +77,7 @@ file(GLOB gl gl/*.cpp)
 file(GLOB inputs inputs/*.cpp)
 file(GLOB model model/*.cpp)
 file(GLOB odom odom/*.cpp)
+file(GLOB lc lc/*.cpp)
 file(GLOB tools tools/*.cpp)
 file(GLOB ui ui/*.cpp)
 # file(GLOB cuda cuda/*.cu)
@@ -106,6 +107,7 @@ add_executable(${PROJECT_NAME}
                ${inputs}
                ${model}
       			   ${odom}
+               ${lc}
       			   ${tools}
                ${cuda}
                ${cuda_objs}
