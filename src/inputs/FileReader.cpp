@@ -21,14 +21,14 @@ height(height)
     fp_rgb = fopen(rgb_info.c_str(), "r");
     fp_depth = fopen(depth_info.c_str(), "r");
 
-    char tmp[100];
-    fscanf(fp_rgb,"%s %s %s", tmp, tmp, tmp);
-    fscanf(fp_rgb,"%s %s %s", tmp, tmp, tmp);
-    fscanf(fp_rgb,"%s %s %s", tmp, tmp, tmp);
+    // char tmp[100];
+    // fscanf(fp_rgb,"%s %s %s", tmp, tmp, tmp);
+    // fscanf(fp_rgb,"%s %s %s", tmp, tmp, tmp);
+    // fscanf(fp_rgb,"%s %s %s", tmp, tmp, tmp);
 
-    fscanf(fp_depth,"%s %s %s", tmp, tmp, tmp);
-    fscanf(fp_depth,"%s %s %s", tmp, tmp, tmp);
-    fscanf(fp_depth,"%s %s %s", tmp, tmp, tmp);
+    // fscanf(fp_depth,"%s %s %s", tmp, tmp, tmp);
+    // fscanf(fp_depth,"%s %s %s", tmp, tmp, tmp);
+    // fscanf(fp_depth,"%s %s %s", tmp, tmp, tmp);
 
 }
 
@@ -49,6 +49,7 @@ void FileReader::getNext()
         rgb = cv::imread(dataset_dir+file_rgb, CV_LOAD_IMAGE_ANYCOLOR);
         depth = cv::imread(dataset_dir+file_depth, CV_LOAD_IMAGE_ANYDEPTH);
         currentFrame++;
+
     }
 
 }
