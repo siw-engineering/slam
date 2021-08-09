@@ -68,6 +68,10 @@ include_directories(${libconfig_INCLUDE_DIRS})
 link_directories(${libconfig_LIBRARY_DIRS})
 
 
+#SuiteSparse
+find_package(SuiteSparse REQUIRED)
+include_directories(${SUITESPARSE_INCLUDE_DIRS})
+
 # project-wide paths
 include_directories(${PROJECT_SOURCE_DIR})
 
@@ -133,6 +137,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBRARIES}
     ${Pangolin_LIBRARIES}
     ${libconfig_LIBRARIES}
+    ${SUITESPARSE_LIBRARIES}
     ${REALSENSE2_LIBRARY}
     boost_filesystem
     boost_system
