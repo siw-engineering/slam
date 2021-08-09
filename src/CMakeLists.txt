@@ -138,6 +138,11 @@ target_link_libraries(${PROJECT_NAME}
     boost_system
     pthread
     config++
-    realsense2
 	)
+
+if(${RS})
+target_link_libraries(${PROJECT_NAME}
+    realsense2
+    )
+endif()
 
