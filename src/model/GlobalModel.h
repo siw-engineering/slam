@@ -19,14 +19,9 @@
 #ifndef GLOBALMODEL_H_
 #define GLOBALMODEL_H_
 
-#include "../gl/Shaders.h"
-#include "../gl/Uniform.h"
 #include "../gl/FeedbackBuffer.h"
-#include "../gl/types.h"
 #include "IndexMap.h"
-#include <pangolin/gl/gl.h>
 #include <Eigen/LU>
-#include "../sensors/Camera.h"
 
 class GlobalModel
 {

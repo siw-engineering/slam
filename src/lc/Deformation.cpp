@@ -122,14 +122,12 @@ bool Deformation::constrain(std::vector<Ferns::Frame*> & ferns,
         def.setPosesSeq(&times, poses);
 
         int originalPointPool = pointPool.size();
-        // std::cout << "point pool size :  "<< pointPool.size() << std::endl;
         //Target to source
         for(size_t i = 0; i < constraints.size(); i++)
         {
             pointPool.push_back(constraints.at(i).src);
             vertexTimes.push_back(constraints.at(i).srcTime);
             constraints.at(i).srcPointPoolId = pointPool.size() - 1;
-            // std::cout << " point : " << (pointPool.size() - 1) << std::endl;
             if(constraints.at(i).relative)
             {
                 pointPool.push_back(constraints.at(i).target);
@@ -139,7 +137,6 @@ bool Deformation::constrain(std::vector<Ferns::Frame*> & ferns,
         }
         def.appendVertices(&vertexTimes, originalPointPool);
         def.clearConstraints();
-        // std::cout << " constraints size : " << constraints.size() << std::endl;
 
         for(size_t i = 0; i < constraints.size(); i++)
         {
@@ -292,8 +289,6 @@ void Deformation::sampleGraphModel(const std::pair<GLuint, GLuint> & model)
     sampleProgram->Unbind();
 
     glFinish();
-
-    // std::cout << " Deformation graph node : " << (int)count << std::endl;
 
     if((int)count > def.k)
     {
