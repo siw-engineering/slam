@@ -13,4 +13,4 @@ catkin
 ## Benchmark
 Metrics | ATE | RPE |
 --- | --- | --- |
-Score | 301 | 283 |
+Score | 2.098243 | 3.0375425651 |
