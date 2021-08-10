@@ -15,7 +15,7 @@ height(height)
         if ('\n' == ch)
             ++numFrames;
 
-    numFrames = numFrames - 3;
+    // numFrames = numFrames - 3;
     fclose(fp_rgb);
 
     fp_rgb = fopen(rgb_info.c_str(), "r");
