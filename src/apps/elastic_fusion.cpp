@@ -1,13 +1,13 @@
 #include "inputs/RawLogReader.h"
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
-// #include "../odom/RGBDOdometryef.h"
+#include "../odom/RGBDOdometryef.h"
+#include "../gl/FeedbackBuffer.h"
 #include "../gl/ComputePack.h"
 #include "../gl/FillIn.h"
 #include "../model/GlobalModel.h"
-#include "../lc/Deformation.h"
-#include "../lc/PoseMatch.h"
-
+#include "../model/IndexMap.h"
+#include "../gl/Vertex.h"
 
 using namespace libconfig;
 
@@ -105,8 +105,7 @@ int main(int argc, char const *argv[])
 
     // ElasticFusion Params
     float confidence, depth, icp, icpErrThresh, covThresh, photoThresh, fernThresh, depthCutoff, maxDepthProcessed;
-    int timeDelta, icpCountThresh, deforms, fernDeforms;
-    bool closeLoops, pyramid, fastOdom;
+    int timeDelta, icpCountThresh;
     const Setting& root = cfg.getRoot();
     root["ef"].lookupValue("confidence", confidence);
     root["ef"].lookupValue("depth", depth);
@@ -119,9 +118,6 @@ int main(int argc, char const *argv[])
     root["ef"].lookupValue("icpCountThresh", icpCountThresh);
     root["ef"].lookupValue("depthCutoff", depthCutoff);
     root["ef"].lookupValue("maxDepthProcessed", maxDepthProcessed);
-    root["ef"].lookupValue("closeLoops", closeLoops);
-    root["ef"].lookupValue("pyramid", pyramid);
-    root["ef"].lookupValue("fastOdom", fastOdom);
 
     //Camera Params
     CameraModel intr(0,0,0,0,0,0);
@@ -141,26 +137,6 @@ int main(int argc, char const *argv[])
 
     EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy);
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
-
-    // LC
-    RGBDOdometryef modelToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
-    Ferns ferns(500, depthCutoff * 1000, photoThresh, intr, width, height);
-
-    Deformation localDeformation;
-    Deformation globalDeformation;
-
-    std::vector<PoseMatch> poseMatches;
-    std::vector<Deformation::Constraint> relativeCons;
-
-    std::vector<std::pair<unsigned long long int, Eigen::Matrix4f> > poseGraph;
-    std::vector<unsigned long long int> poseLogTimes;
-    Resize resize(width,
-              height,
-              width / 20,
-              height / 20);
-
-    Img<Eigen::Vector4f> consBuff(height / 20, width / 20);
-    Img<unsigned short> timesBuff(height / 20, width / 20);
 
 
     //data
@@ -199,14 +175,12 @@ int main(int argc, char const *argv[])
 
 
     int tick = 1;
-    int64_t timestamp;
-    fernDeforms = 0;
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
 
     while (logReader->hasMore())
     {
         logReader->getNext();
-        timestamp = logReader->timestamp;
+
         textures[GPUTexture::DEPTH_RAW]->texture->Upload(logReader->depth, GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT);
         textures[GPUTexture::RGB]->texture->Upload(logReader->rgb, GL_RGB, GL_UNSIGNED_BYTE);
 
@@ -263,155 +237,6 @@ int main(int argc, char const *argv[])
             predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
             Eigen::Matrix4f recoveryPose = currPose;
 
-
-            std::vector<Ferns::SurfaceConstraint> constraints;
-
-            if (closeLoops){
-
-                recoveryPose = ferns.findFrame(constraints,
-                                               currPose,
-                                               &fillIn.vertexTexture,
-                                               &fillIn.normalTexture,
-                                               &fillIn.imageTexture,
-                                               tick,
-                                               false);
-            }
-
-            bool fernAccepted = false;      
-            if (ferns.lastClosest != -1 && closeLoops ){
-
-                for(size_t i = 0; i < constraints.size(); i++)
-                {
-                    globalDeformation.addConstraint(constraints.at(i).sourcePoint,
-                                                    constraints.at(i).targetPoint,
-                                                    tick,
-                                                    ferns.frames.at(ferns.lastClosest)->srcTime,
-                                                    true);
-                }
-                // std::cout << " loop closure detected -------------" << std::endl;
-
-                for(size_t i = 0; i < relativeCons.size(); i++)
-                {
-                    globalDeformation.addConstraint(relativeCons.at(i));
-                }
-
-                if(globalDeformation.constrain(ferns.frames, rawGraph, tick, true, poseGraph, true))
-                {
-
-                    currPose = recoveryPose;
-
-                    poseMatches.push_back(PoseMatch(ferns.lastClosest, ferns.frames.size(), ferns.frames.at(ferns.lastClosest)->pose, currPose, constraints, true));
-
-                    fernDeforms += rawGraph.size() > 0;
-
-                    fernAccepted = true;
-                }
-
-            }   
-
-
-
-            if(closeLoops && rawGraph.size()==0)
-            {
-                indexMap.combinedPredict(currPose,
-                                         globalModel.model(),
-                                         maxDepthProcessed,
-                                         confidence,
-                                         0,
-                                         tick - timeDelta,
-                                         timeDelta,
-                                         IndexMap::INACTIVE);
-
-                //WARNING initICP* must be called before initRGB*
-                modelToModel.initICPModel(indexMap.oldVertexTex(), indexMap.oldNormalTex(), maxDepthProcessed, currPose);
-                modelToModel.initRGBModel(indexMap.oldImageTex());
-
-                modelToModel.initICP(indexMap.vertexTex(), indexMap.normalTex(), maxDepthProcessed);
-                modelToModel.initRGB(indexMap.imageTex());
-
-                Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
-                Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
-
-                modelToModel.getIncrementalTransformation(trans,
-                                                          rot,
-                                                          false,
-                                                          10,
-                                                          pyramid,
-                                                          fastOdom,
-                                                          false);
-
-                Eigen::MatrixXd covar = modelToModel.getCovariance();
-                bool covOk = true;
-
-                for(int i = 0; i < 6; i++)
-                {
-                    if(covar(i, i) > covThresh)
-                    {
-                        covOk = false;
-                        break;
-                    }
-                }
-
-                Eigen::Matrix4f estPose = Eigen::Matrix4f::Identity();
-
-                estPose.topRightCorner(3, 1) = trans;
-                estPose.topLeftCorner(3, 3) = rot;
-
-
-
-                if(covOk && modelToModel.lastICPCount > icpCountThresh && modelToModel.lastICPError < icpErrThresh)
-                {
-                    resize.vertex(indexMap.vertexTex(), consBuff);
-                    resize.time(indexMap.oldTimeTex(), timesBuff);
-
-                    for(int i = 0; i < consBuff.cols; i++)
-                    {
-                        for(int j = 0; j < consBuff.rows; j++)
-                        {
-                            if(consBuff.at<Eigen::Vector4f>(j, i)(2) > 0 &&
-                               consBuff.at<Eigen::Vector4f>(j, i)(2) < maxDepthProcessed &&
-                               timesBuff.at<unsigned short>(j, i) > 0)
-                            {
-                                Eigen::Vector4f worldRawPoint = currPose * Eigen::Vector4f(consBuff.at<Eigen::Vector4f>(j, i)(0),
-                                                                                           consBuff.at<Eigen::Vector4f>(j, i)(1),
-                                                                                           consBuff.at<Eigen::Vector4f>(j, i)(2),
-                                                                                           1.0f);
-
-                                Eigen::Vector4f worldModelPoint = estPose * Eigen::Vector4f(consBuff.at<Eigen::Vector4f>(j, i)(0),
-                                                                                            consBuff.at<Eigen::Vector4f>(j, i)(1),
-                                                                                            consBuff.at<Eigen::Vector4f>(j, i)(2),
-                                                                                            1.0f);
-                                constraints.push_back(Ferns::SurfaceConstraint(worldRawPoint, worldModelPoint));
-
-                                localDeformation.addConstraint(worldRawPoint,
-                                                               worldModelPoint,
-                                                               tick,
-                                                               timesBuff.at<unsigned short>(j, i),
-                                                               deforms == 0);
-                            }
-                        }
-                    }
-
-                    std::vector<Deformation::Constraint> newRelativeCons;
-                    if(localDeformation.constrain(ferns.frames, rawGraph, tick, false, poseGraph, false, &newRelativeCons))
-                    {
-
-                        poseMatches.push_back(PoseMatch(ferns.frames.size() - 1, ferns.frames.size(), estPose, currPose, constraints, false));
-
-                        deforms += rawGraph.size() > 0;
-
-                        currPose = estPose;
-
-                        for(size_t i = 0; i < newRelativeCons.size(); i += newRelativeCons.size() / 3)
-                        {
-                            relativeCons.push_back(newRelativeCons.at(i));
-                        }
-
-                    }
-                }
-
-            }
-
             if (trackingOk)
             {
                 indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
@@ -430,18 +255,6 @@ int main(int argc, char const *argv[])
 
                 indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
 
-                if(rawGraph.size() > 0 && !fernAccepted)
-                {
-                    indexMap.synthesizeDepth(currPose,
-                                             globalModel.model(),
-                                             maxDepthProcessed,
-                                             confidence,
-                                             tick,
-                                             tick - timeDelta,
-                                             std::numeric_limits<unsigned short>::max());
-                }
-
-
                 globalModel.clean(currPose,
                                   tick,
                                   indexMap.indexTex(),
@@ -457,15 +270,9 @@ int main(int argc, char const *argv[])
             }
         }
 
-        poseGraph.push_back(std::pair<unsigned long long int, Eigen::Matrix4f>(tick, currPose));
-        poseLogTimes.push_back(timestamp);
-        localDeformation.sampleGraphModel(globalModel.model());
-        globalDeformation.sampleGraphFrom(localDeformation);
-
         predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
-        ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
-
         gui.render(globalModel.model(), Vertex::SIZE);
+
         tick++;
 
     }

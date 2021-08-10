@@ -60,7 +60,7 @@ message("Pangolin_INCLUDE_DIRS: ${Pangolin_INCLUDE_DIRS}")
 include_directories(${Pangolin_INCLUDE_DIRS})
 
 #libconfig
-set(libconfig_INCLUDE_DIRS "/home/developer/other/libconfig-1.7.3/lib")
+set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib")
 set(libconfig_LIBRARY_DIRS "/usr/local/lib/")
 find_package(libconfig REQUIRED)
 message("libconfig_INCLUDE_DIRS: ${libconfig_INCLUDE_DIRS}")

@@ -30,7 +30,7 @@
 #ifndef WIN32
 #  include <poll.h>
 #endif
-#include "../gl/Img.h"
+#include "Img.h"
 #include "JPEGLoader.h"
 
 class LogReader
