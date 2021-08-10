@@ -22,7 +22,7 @@ Deformation::Deformation()
  : def(4, &pointPool),
    originalPointPool(0),
    firstGraphNode(0),
-   sampleProgram(loadProgramGeomFromFile("sample.vert", "sample.geom", "/home/developer/slam/src/lc/shaders/")),
+   sampleProgram(loadProgramGeomFromFile("sample.vert", "sample.geom", "/home/developer/work/git_push/new/slam/src/lc/shaders/")),
    bufferSize(1024), //max nodes basically
    count(0),
    vertices(new Eigen::Vector4f[bufferSize]),

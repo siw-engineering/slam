@@ -11,7 +11,7 @@ EFGUI::EFGUI(float width, float height, float cx, float cy, float fx, float fy)
          .SetBounds(0.0, 1.0, 0.0, 1.0, -2*width*height)
          .SetHandler(new pangolin::Handler3D(s_cam));
 
-    draw_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_global_surface_.vert","draw_global_surface_.frag", "/home/developer/slam/src/ui/shaders/"));
+    draw_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_global_surface_.vert","draw_global_surface_.frag", "/home/developer/work/git_push/new/slam/src/ui/shaders/"));
 
 }
 
