@@ -95,7 +95,7 @@ int main(int argc, char const *argv[])
     Config cfg;
     try
     {
-        cfg.readFile("/home/developer/work/git_push/new/slam/src/configs/ef.cfg");
+        cfg.readFile("/home/developer/slam/src/configs/ef.cfg");
     }
     catch(const FileIOException &fioex)
     {
@@ -183,14 +183,14 @@ int main(int argc, char const *argv[])
     textures[GPUTexture::DEPTH_NORM] = new GPUTexture(width, height, GL_LUMINANCE, GL_LUMINANCE, GL_FLOAT, true);
 
     //createcompute
-    computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("empty.vert", "depth_norm.frag", "quad.geom", "/home/developer/work/git_push/new/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
-    computePacks[ComputePack::FILTER] = new ComputePack(loadProgramFromFile("empty.vert", "depth_bilateral.frag", "quad.geom", "/home/developer/work/git_push/new/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_FILTERED]->texture, width, height);
-    computePacks[ComputePack::METRIC] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", "/home/developer/work/git_push/new/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_METRIC]->texture, width, height);
-    computePacks[ComputePack::METRIC_FILTERED] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", "/home/developer/work/git_push/new/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, width, height);
+    computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("empty.vert", "depth_norm.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
+    computePacks[ComputePack::FILTER] = new ComputePack(loadProgramFromFile("empty.vert", "depth_bilateral.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_FILTERED]->texture, width, height);
+    computePacks[ComputePack::METRIC] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_METRIC]->texture, width, height);
+    computePacks[ComputePack::METRIC_FILTERED] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, width, height);
 
     //createfeedbackbuffers
-    feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/work/git_push/new/slam/src/gl/shaders/"), width, height, intr);
-    feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/work/git_push/new/slam/src/gl/shaders/"), width, height, intr);
+    feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/slam/src/gl/shaders/"), width, height, intr);
+    feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/slam/src/gl/shaders/"), width, height, intr);
     
 
     IndexMap indexMap(width, height, intr);
