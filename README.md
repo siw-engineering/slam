@@ -9,3 +9,8 @@ catkin
 * CUDA
 * [[https://github.com/stevenlovegrove/Pangolin]]
 * [[https://github.com/hyperrealm/libconfig.git]]
+
+## Benchmark
+Metrics | ATE | RPE |
+--- | --- | --- |
+Score | 301 | 283 |
