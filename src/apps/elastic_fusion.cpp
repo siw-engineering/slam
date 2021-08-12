@@ -137,23 +137,29 @@ int main(int argc, char const *argv[])
     root["gui"].lookupValue("width", width);
     root["gui"].lookupValue("height", height);
 
+    std::string gl_shaders, model_shaders, lc_shaders, ui_shaders;
+    root["shaders"].lookupValue("gl", gl_shaders);
+    root["shaders"].lookupValue("model", model_shaders);
+    root["shaders"].lookupValue("lc", lc_shaders);
+    root["shaders"].lookupValue("ui", ui_shaders);
 
-    EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, "/home/developer/slam/src/ui/shaders/");
+
+    EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, ui_shaders);
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
     // LC
     RGBDOdometryef modelToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
-    Ferns ferns(500, depthCutoff * 1000, photoThresh, intr, width, height, "/home/developer/slam/src/gl/shaders/");
+    Ferns ferns(500, depthCutoff * 1000, photoThresh, intr, width, height, gl_shaders);
 
-    Deformation localDeformation("/home/developer/slam/src/lc/shaders/");
-    Deformation globalDeformation("/home/developer/slam/src/lc/shaders/");
+    Deformation localDeformation(lc_shaders);
+    Deformation globalDeformation(lc_shaders);
 
     std::vector<PoseMatch> poseMatches;
     std::vector<Deformation::Constraint> relativeCons;
 
     std::vector<std::pair<unsigned long long int, Eigen::Matrix4f> > poseGraph;
     std::vector<unsigned long long int> poseLogTimes;
-    Resize resize(width, height, width / 20, height / 20, "/home/developer/slam/src/gl/shaders/");
+    Resize resize(width, height, width / 20, height / 20, gl_shaders);
 
     Img<Eigen::Vector4f> consBuff(height / 20, width / 20);
     Img<unsigned short> timesBuff(height / 20, width / 20);
@@ -179,19 +185,19 @@ int main(int argc, char const *argv[])
     textures[GPUTexture::DEPTH_NORM] = new GPUTexture(width, height, GL_LUMINANCE, GL_LUMINANCE, GL_FLOAT, true);
 
     //createcompute
-    computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("empty.vert", "depth_norm.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
-    computePacks[ComputePack::FILTER] = new ComputePack(loadProgramFromFile("empty.vert", "depth_bilateral.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_FILTERED]->texture, width, height);
-    computePacks[ComputePack::METRIC] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_METRIC]->texture, width, height);
-    computePacks[ComputePack::METRIC_FILTERED] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/"), textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, width, height);
+    computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("empty.vert", "depth_norm.frag", "quad.geom", gl_shaders), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
+    computePacks[ComputePack::FILTER] = new ComputePack(loadProgramFromFile("empty.vert", "depth_bilateral.frag", "quad.geom", gl_shaders), textures[GPUTexture::DEPTH_FILTERED]->texture, width, height);
+    computePacks[ComputePack::METRIC] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", gl_shaders), textures[GPUTexture::DEPTH_METRIC]->texture, width, height);
+    computePacks[ComputePack::METRIC_FILTERED] = new ComputePack(loadProgramFromFile("empty.vert", "depth_metric.frag", "quad.geom", gl_shaders), textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, width, height);
 
     //createfeedbackbuffers
-    feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/slam/src/gl/shaders/"), width, height, intr);
-    feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/slam/src/gl/shaders/"), width, height, intr);
+    feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
+    feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
     
 
-    IndexMap indexMap(width, height, intr, "/home/developer/slam/src/model/shaders/");
-    GlobalModel globalModel(width, height, intr, "/home/developer/slam/src/model/shaders/");
-    FillIn fillIn(width, height, intr, "/home/developer/slam/src/gl/shaders/");
+    IndexMap indexMap(width, height, intr, model_shaders);
+    GlobalModel globalModel(width, height, intr, model_shaders);
+    FillIn fillIn(width, height, intr, gl_shaders);
 
 
     int tick = 1;
