@@ -20,7 +20,7 @@
 
 const int IndexMap::FACTOR = 1;
 
-IndexMap::IndexMap(int width, int height, CameraModel intr, std::string shader_dir)
+IndexMap::IndexMap(float width, float height, CameraModel intr, std::string shader_dir)
 : indexProgram(loadProgramFromFile("index_map.vert", "index_map.frag", shader_dir)),
   indexRenderBuffer(width * IndexMap::FACTOR, height * IndexMap::FACTOR),
   indexTexture(width * IndexMap::FACTOR,

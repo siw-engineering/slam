@@ -31,9 +31,9 @@
 class IndexMap
 {
     public:
-        IndexMap(int width, int height, CameraModel intr, std::string shader_dir);
+        IndexMap(float width, float height, CameraModel intr, std::string shader_dir);
         virtual ~IndexMap();
-        int width, height;
+        float width, height;
         CameraModel intr;
         void predictIndices(const Eigen::Matrix4f & pose,
                             const int & time,
