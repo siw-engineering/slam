@@ -5,6 +5,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(Pangolin_DIR "/home/developer/co-fusion/deps/Pangolin/build")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
+set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE STRING "libconfig iclude dir")
+
 
 #find_package(cv_bridge_1_13 REQUIRED)
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
@@ -60,7 +62,6 @@ message("Pangolin_INCLUDE_DIRS: ${Pangolin_INCLUDE_DIRS}")
 include_directories(${Pangolin_INCLUDE_DIRS})
 
 #libconfig
-set(libconfig_INCLUDE_DIRS "/home/developer/other/libconfig-1.7.3/lib")
 set(libconfig_LIBRARY_DIRS "/usr/local/lib/")
 find_package(libconfig REQUIRED)
 message("libconfig_INCLUDE_DIRS: ${libconfig_INCLUDE_DIRS}")
