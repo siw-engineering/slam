@@ -89,13 +89,116 @@ Eigen::Vector3f rodrigues2(const Eigen::Matrix3f& matrix)
 }
 
 
+void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenceThreshold)
+{
+    std::string filename = saveFilename;
+    filename.append(".ply");
+
+    // Open file
+    std::ofstream fs;
+    fs.open (filename.c_str ());
+
+    Eigen::Vector4f * mapData = globalModel.downloadMap();
+
+    int validCount = 0;
+
+    for(unsigned int i = 0; i < globalModel.lastCount(); i++)
+    {
+        Eigen::Vector4f pos = mapData[(i * 3) + 0];
+
+        if(pos[3] > confidenceThreshold)
+        {
+            validCount++;
+        }
+    }
+
+    // Write header
+    fs << "ply";
+    fs << "\nformat " << "binary_little_endian" << " 1.0";
+
+    // Vertices
+    fs << "\nelement vertex "<< validCount;
+    fs << "\nproperty float x"
+          "\nproperty float y"
+          "\nproperty float z";
+
+    fs << "\nproperty uchar red"
+          "\nproperty uchar green"
+          "\nproperty uchar blue";
+
+    fs << "\nproperty float nx"
+          "\nproperty float ny"
+          "\nproperty float nz";
+
+    fs << "\nproperty float radius";
+
+    fs << "\nend_header\n";
+
+    // Close the file
+    fs.close ();
+
+    // Open file in binary appendable
+    std::ofstream fpout (filename.c_str (), std::ios::app | std::ios::binary);
+
+    for(unsigned int i = 0; i < globalModel.lastCount(); i++)
+    {
+        Eigen::Vector4f pos = mapData[(i * 3) + 0];
+
+        if(pos[3] > confidenceThreshold)
+        {
+            Eigen::Vector4f col = mapData[(i * 3) + 1];
+            Eigen::Vector4f nor = mapData[(i * 3) + 2];
+
+            nor[0] *= -1;
+            nor[1] *= -1;
+            nor[2] *= -1;
+
+            float value;
+            memcpy (&value, &pos[0], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+
+            memcpy (&value, &pos[1], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+
+            memcpy (&value, &pos[2], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+
+            unsigned char r = int(col[0]) >> 16 & 0xFF;
+            unsigned char g = int(col[0]) >> 8 & 0xFF;
+            unsigned char b = int(col[0]) & 0xFF;
+
+            fpout.write (reinterpret_cast<const char*> (&r), sizeof (unsigned char));
+            fpout.write (reinterpret_cast<const char*> (&g), sizeof (unsigned char));
+            fpout.write (reinterpret_cast<const char*> (&b), sizeof (unsigned char));
+
+            memcpy (&value, &nor[0], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+
+            memcpy (&value, &nor[1], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+
+            memcpy (&value, &nor[2], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+
+            memcpy (&value, &nor[3], sizeof (float));
+            fpout.write (reinterpret_cast<const char*> (&value), sizeof (float));
+        }
+    }
+
+    // Close file
+    fs.close ();
+
+    delete [] mapData;
+}
+
+
 int main(int argc, char const *argv[])
 {
 
     Config cfg;
     try
     {
-        cfg.readFile("/home/developer/slam/src/configs/ef.cfg");
+        cfg.readFile("/home/developer/slam/src/configs/ef_iclnuim.cfg");
     }
     catch(const FileIOException &fioex)
     {
@@ -137,12 +240,17 @@ int main(int argc, char const *argv[])
     root["gui"].lookupValue("width", width);
     root["gui"].lookupValue("height", height);
 
+    //Shaders
     std::string gl_shaders, model_shaders, lc_shaders, ui_shaders;
     root["shaders"].lookupValue("gl", gl_shaders);
     root["shaders"].lookupValue("model", model_shaders);
     root["shaders"].lookupValue("lc", lc_shaders);
     root["shaders"].lookupValue("ui", ui_shaders);
 
+    bool sply;
+    std::string saveply_file;
+    root["saveply"].lookupValue("save", sply);
+    root["saveply"].lookupValue("file", saveply_file);
 
     EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, ui_shaders);
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
@@ -470,6 +578,12 @@ int main(int argc, char const *argv[])
         gui.render(globalModel.model(), Vertex::SIZE);
         tick++;
 
+    }
+
+    if (sply)
+    {
+        std::cout<<"saving ply..";
+        savePly(globalModel, saveply_file, confidence);
     }
 
     return 0;
