@@ -138,26 +138,22 @@ int main(int argc, char const *argv[])
     root["gui"].lookupValue("height", height);
 
 
-
-    EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy);
+    EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, "/home/developer/slam/src/ui/shaders/");
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
     // LC
     RGBDOdometryef modelToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
-    Ferns ferns(500, depthCutoff * 1000, photoThresh, intr, width, height);
+    Ferns ferns(500, depthCutoff * 1000, photoThresh, intr, width, height, "/home/developer/slam/src/gl/shaders/");
 
-    Deformation localDeformation;
-    Deformation globalDeformation;
+    Deformation localDeformation("/home/developer/slam/src/lc/shaders/");
+    Deformation globalDeformation("/home/developer/slam/src/lc/shaders/");
 
     std::vector<PoseMatch> poseMatches;
     std::vector<Deformation::Constraint> relativeCons;
 
     std::vector<std::pair<unsigned long long int, Eigen::Matrix4f> > poseGraph;
     std::vector<unsigned long long int> poseLogTimes;
-    Resize resize(width,
-              height,
-              width / 20,
-              height / 20);
+    Resize resize(width, height, width / 20, height / 20, "/home/developer/slam/src/gl/shaders/");
 
     Img<Eigen::Vector4f> consBuff(height / 20, width / 20);
     Img<unsigned short> timesBuff(height / 20, width / 20);
@@ -193,9 +189,9 @@ int main(int argc, char const *argv[])
     feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", "/home/developer/slam/src/gl/shaders/"), width, height, intr);
     
 
-    IndexMap indexMap(width, height, intr);
-    GlobalModel globalModel(width, height, intr);
-    FillIn fillIn(width, height, intr);
+    IndexMap indexMap(width, height, intr, "/home/developer/slam/src/model/shaders/");
+    GlobalModel globalModel(width, height, intr, "/home/developer/slam/src/model/shaders/");
+    FillIn fillIn(width, height, intr, "/home/developer/slam/src/gl/shaders/");
 
 
     int tick = 1;

@@ -23,17 +23,17 @@ const int GlobalModel::MAX_VERTICES = GlobalModel::TEXTURE_DIMENSION * GlobalMod
 const int GlobalModel::NODE_TEXTURE_DIMENSION = 16384;
 const int GlobalModel::MAX_NODES = GlobalModel::NODE_TEXTURE_DIMENSION / 16; //16 floats per node
 
-GlobalModel::GlobalModel(int width, int height, CameraModel intr)
+GlobalModel::GlobalModel(int width, int height, CameraModel intr, std::string shader_dir)
  : target(0),
    renderSource(1),
    bufferSize(MAX_VERTICES * Vertex::SIZE),
    count(0),
-   initProgram(loadProgramFromFile("init_unstable.vert", "/home/developer/slam/src/model/shaders/")),
-   // drawProgram(loadProgramFromFile("draw_feedback.vert", "draw_feedback.frag", "/home/developer/slam/src/model/shaders/")),
-   // drawSurfelProgram(loadProgramFromFile("draw_global_surface.vert", "draw_global_surface.frag", "draw_global_surface.geom", "/home/developer/slam/src/model/shaders/")),
-   dataProgram(loadProgramFromFile("data.vert", "data.frag", "data.geom", "/home/developer/slam/src/model/shaders/")),
-   updateProgram(loadProgramFromFile("update.vert", "/home/developer/slam/src/model/shaders/")),
-   unstableProgram(loadProgramGeomFromFile("copy_unstable.vert", "copy_unstable.geom", "/home/developer/slam/src/model/shaders/")),
+   initProgram(loadProgramFromFile("init_unstable.vert", shader_dir)),
+   // drawProgram(loadProgramFromFile("draw_feedback.vert", "draw_feedback.frag", shader_dir)),
+   // drawSurfelProgram(loadProgramFromFile("draw_global_surface.vert", "draw_global_surface.frag", "draw_global_surface.geom", shader_dir)),
+   dataProgram(loadProgramFromFile("data.vert", "data.frag", "data.geom", shader_dir)),
+   updateProgram(loadProgramFromFile("update.vert", shader_dir)),
+   unstableProgram(loadProgramGeomFromFile("copy_unstable.vert", "copy_unstable.geom", shader_dir)),
    renderBuffer(TEXTURE_DIMENSION, TEXTURE_DIMENSION),
    updateMapVertsConfs(TEXTURE_DIMENSION, TEXTURE_DIMENSION, GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
    updateMapColorsTime(TEXTURE_DIMENSION, TEXTURE_DIMENSION, GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),

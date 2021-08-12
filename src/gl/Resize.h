@@ -30,7 +30,8 @@ class Resize
         Resize(int srcWidth,
                int srcHeight,
                int destWidth,
-               int destHeight);
+               int destHeight,
+               std::string shader_dir);
         virtual ~Resize();
 
         void image(GPUTexture * source, Img<Eigen::Matrix<unsigned char, 3, 1>> & dest);
@@ -52,6 +53,7 @@ class Resize
         std::shared_ptr<Shader> timeProgram;
         pangolin::GlRenderBuffer timeRenderBuffer;
         pangolin::GlFramebuffer timeFrameBuffer;
+
 };
 
 #endif /* RESIZE_H_ */

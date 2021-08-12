@@ -29,7 +29,7 @@
 class FillIn
 {
     public:
-        FillIn(int width, int height, CameraModel intr);
+        FillIn(int width, int height, CameraModel intr, std::string shader_dir);
         virtual ~FillIn();
 
         void image(GPUTexture * existingRgb, GPUTexture * rawRgb, bool passthrough);

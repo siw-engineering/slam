@@ -18,7 +18,7 @@
 
 #include "Ferns.h"
 
-Ferns::Ferns(int n, int maxDepth, const float photoThresh, CameraModel intr, int w, int h)
+Ferns::Ferns(int n, int maxDepth, const float photoThresh, CameraModel intr, int w, int h, std::string shader_dir)
  : num(n),
    factor(8),
    width(w / factor),
@@ -44,7 +44,7 @@ Ferns::Ferns(int n, int maxDepth, const float photoThresh, CameraModel intr, int
    normCurrent(width, height, GL_RGBA32F, GL_LUMINANCE, GL_FLOAT, false, true),
    colorFern(width, height, GL_RGBA, GL_RGB, GL_UNSIGNED_BYTE, false, true),
    colorCurrent(width, height, GL_RGBA, GL_RGB, GL_UNSIGNED_BYTE, false, true),
-   resize(w, h, width, height),
+   resize(w, h, width, height, shader_dir),
    imageBuff(width, height),
    vertBuff(width, height),
    normBuff(width, height)

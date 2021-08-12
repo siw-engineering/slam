@@ -11,7 +11,7 @@
 class EFGUI
 {
 	public:
-		EFGUI(float width, float height, float cx, float cy, float fx, float fy);
+		EFGUI(float width, float height, float cx, float cy, float fx, float fy, std::string shader_dir);
 		// ~EFGUI();
 		pangolin::OpenGlMatrix getMVP();
 		void render(const std::pair<GLuint, GLuint>& vbos, int vs);

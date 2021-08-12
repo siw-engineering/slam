@@ -21,7 +21,8 @@
 Resize::Resize(int srcWidth,
                int srcHeight,
                int destWidth,
-               int destHeight)
+               int destHeight,
+               std::string shader_dir)
 : imageTexture(destWidth,
                destHeight,
                GL_RGBA,
@@ -43,11 +44,11 @@ Resize::Resize(int srcWidth,
               GL_UNSIGNED_SHORT,
               false,
               true),
-  imageProgram(loadProgramFromFile("empty.vert", "resize.frag", "quad.geom", "/home/developer/work/git_push/fork/slam/src/gl/shaders/")),
+  imageProgram(loadProgramFromFile("empty.vert", "resize.frag", "quad.geom", shader_dir)),
   imageRenderBuffer(destWidth, destHeight),
-  vertexProgram(loadProgramFromFile("empty.vert", "resize.frag", "quad.geom", "/home/developer/work/git_push/fork/slam/src/gl/shaders/")),
+  vertexProgram(loadProgramFromFile("empty.vert", "resize.frag", "quad.geom", shader_dir)),
   vertexRenderBuffer(destWidth, destHeight),
-  timeProgram(loadProgramFromFile("empty.vert", "resize.frag", "quad.geom", "/home/developer/work/git_push/fork/slam/src/gl/shaders/")),
+  timeProgram(loadProgramFromFile("empty.vert", "resize.frag", "quad.geom", shader_dir)),
   timeRenderBuffer(destWidth, destHeight)
 {
    imageFrameBuffer.AttachColour(*imageTexture.texture);

@@ -18,7 +18,7 @@
 
 #include "FillIn.h"
 
-FillIn::FillIn(int width, int height, CameraModel intr)
+FillIn::FillIn(int width, int height, CameraModel intr, std::string shader_dir)
  : imageTexture(width,
                 height,
                 GL_RGBA,
@@ -40,11 +40,11 @@ FillIn::FillIn(int width, int height, CameraModel intr)
                  GL_FLOAT,
                  false,
                  true),
-   imageProgram(loadProgramFromFile("empty.vert", "fill_rgb.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/")),
+   imageProgram(loadProgramFromFile("empty.vert", "fill_rgb.frag", "quad.geom", shader_dir)),
    imageRenderBuffer(width, height),
-   vertexProgram(loadProgramFromFile("empty.vert", "fill_vertex.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/")),
+   vertexProgram(loadProgramFromFile("empty.vert", "fill_vertex.frag", "quad.geom", shader_dir)),
    vertexRenderBuffer(width, height),
-   normalProgram(loadProgramFromFile("empty.vert", "fill_normal.frag", "quad.geom", "/home/developer/slam/src/gl/shaders/")),
+   normalProgram(loadProgramFromFile("empty.vert", "fill_normal.frag", "quad.geom", shader_dir)),
    normalRenderBuffer(width, height),
    width(width),
    height(height),

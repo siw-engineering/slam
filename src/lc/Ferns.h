@@ -30,7 +30,7 @@
 class Ferns
 {
     public:
-        Ferns(int n, int maxDepth, const float photoThresh, CameraModel intr, int w, int h);
+        Ferns(int n, int maxDepth, const float photoThresh, CameraModel intr, int w, int h, std::string shader_dir);
         virtual ~Ferns();
 
         bool addFrame(GPUTexture * imageTexture, GPUTexture * vertexTexture, GPUTexture * normalTexture, const Eigen::Matrix4f & pose, int srcTime, const float threshold);

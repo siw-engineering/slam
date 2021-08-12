@@ -31,7 +31,7 @@
 class Deformation
 {
     public:
-        Deformation();
+        Deformation(std::string shader_dir);
         virtual ~Deformation();
 
         std::vector<GraphNode*> & getGraph();

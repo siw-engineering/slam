@@ -31,7 +31,7 @@
 class IndexMap
 {
     public:
-        IndexMap(int width, int height, CameraModel intr);
+        IndexMap(int width, int height, CameraModel intr, std::string shader_dir);
         virtual ~IndexMap();
         int width, height;
         CameraModel intr;

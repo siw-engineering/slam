@@ -26,7 +26,7 @@
 class GlobalModel
 {
     public:
-        GlobalModel(int width, int height, CameraModel intr);
+        GlobalModel(int width, int height, CameraModel intr, std::string shader_dir);
         virtual ~GlobalModel();
 
         void initialise(const FeedbackBuffer & rawFeedback,

@@ -18,11 +18,11 @@
 
 #include "Deformation.h"
 
-Deformation::Deformation()
+Deformation::Deformation(std::string shader_dir)
  : def(4, &pointPool),
    originalPointPool(0),
    firstGraphNode(0),
-   sampleProgram(loadProgramGeomFromFile("sample.vert", "sample.geom", "/home/developer/slam/src/lc/shaders/")),
+   sampleProgram(loadProgramGeomFromFile("sample.vert", "sample.geom", shader_dir)),
    bufferSize(1024), //max nodes basically
    count(0),
    vertices(new Eigen::Vector4f[bufferSize]),
