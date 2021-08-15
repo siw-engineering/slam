@@ -103,13 +103,12 @@ int main(int argc, char const *argv[])
     }
 
     // ElasticFusion Params
-    float confidence, depth, icp, icpErrThresh, covThresh, photoThresh, fernThresh, depthCutoff, maxDepthProcessed;
+    float confidence, icp, icpErrThresh, covThresh, photoThresh, fernThresh, depthCutoff, maxDepthProcessed;
     int timeDelta, icpCountThresh, deforms, fernDeforms;
-    bool closeLoops, pyramid, fastOdom;
+    bool closeLoops, pyramid, fastOdom, rgbOnly;
     const Setting& root = cfg.getRoot();
     root["ef"].lookupValue("confidence", confidence);
-    root["ef"].lookupValue("depth", depth);
-    root["ef"].lookupValue("icp", icp);
+    root["ef"].lookupValue("icpWeight", icpWeight);
     root["ef"].lookupValue("icpErrThresh", icpErrThresh);
     root["ef"].lookupValue("covThresh", covThresh);
     root["ef"].lookupValue("photoThresh", photoThresh);
@@ -118,6 +117,10 @@ int main(int argc, char const *argv[])
     root["ef"].lookupValue("icpCountThresh", icpCountThresh);
     root["ef"].lookupValue("depthCutoff", depthCutoff);
     root["ef"].lookupValue("maxDepthProcessed", maxDepthProcessed);
+    root["ef"].lookupValue("closeLoops", closeLoops);
+    root["ef"].lookupValue("pyramid", pyramid);
+    root["ef"].lookupValue("fastOdom", fastOdom);
+    root["ef"].lookupValue("rgbOnly", rgbOnly);
 
     //Camera Params
     CameraModel intr(0,0,0,0,0,0);
@@ -243,7 +246,7 @@ int main(int argc, char const *argv[])
             frameToModel.initRGB(textures[GPUTexture::RGB]);
             Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
             Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
-            frameToModel.getIncrementalTransformation(trans, rot, false, 0.3, true, false, true);
+            frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
             currPose.topRightCorner(3, 1) = trans;
             currPose.topLeftCorner(3, 3) = rot;
 
@@ -291,8 +294,6 @@ int main(int argc, char const *argv[])
                                                     ferns.frames.at(ferns.lastClosest)->srcTime,
                                                     true);
                 }
-                // std::cout << " loop closure detected -------------" << std::endl;
-
                 for(size_t i = 0; i < relativeCons.size(); i++)
                 {
                     globalDeformation.addConstraint(relativeCons.at(i));
