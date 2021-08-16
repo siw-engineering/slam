@@ -7,8 +7,8 @@ catkin
 ## Dependencies 
 * OpenCV 3.2
 * CUDA
-* [[https://github.com/stevenlovegrove/Pangolin]]
-* [[https://github.com/hyperrealm/libconfig.git]]
+* [Pangolin](https://github.com/stevenlovegrove/Pangolin)
+* [libconfig](https://github.com/hyperrealm/libconfig.git)
 
 ## Benchmark
 Metrics | ATE | RPE |
