@@ -77,7 +77,6 @@ include_directories(${SUITESPARSE_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR})
 
 
-# file(GLOB apps apps/*.cpp)
 file(GLOB gl gl/*.cpp)
 file(GLOB inputs inputs/*.cpp)
 file(GLOB model model/*.cpp)
@@ -88,8 +87,6 @@ file(GLOB ui ui/*.cpp)
 # file(GLOB cuda cuda/*.cu)
 file(GLOB odom_cuda odom/*.cu)
 file(GLOB cuda_containers cuda/containers/*.cpp)
-
-
 
 set(CUDA_ARCH_PTX "" CACHE STRING "Specify 'virtual' PTX arch to build PTX intermediate code for. Example: 1.0 1.2 or 10 12")
 include(CudaComputeTargetFlags.cmake)

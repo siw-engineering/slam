@@ -252,6 +252,15 @@ int main(int argc, char const *argv[])
     root["saveply"].lookupValue("save", sply);
     root["saveply"].lookupValue("file", saveply_file);
 
+    //save pose
+    bool spose;
+    std::string savepose_file;
+    root["savepose"].lookupValue("save", spose);
+    root["savepose"].lookupValue("file", savepose_file);
+    std::ofstream pose_file;
+    if (spose)
+        pose_file.open(savepose_file);
+
     EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, ui_shaders);
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
@@ -359,6 +368,13 @@ int main(int argc, char const *argv[])
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
+
+            //save pose
+            if(spose)
+            {
+                Eigen::Quaternionf q(rot);
+                pose_file<<tick<<" "<<trans(0)<<" "<<trans(1)<<" "<<trans(2)<<" "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl;
+            }
 
             //Weight by velocity
             float weighting = std::max(diffTrans.norm(), rodrigues2(diffRot).norm());
@@ -585,6 +601,8 @@ int main(int argc, char const *argv[])
         std::cout<<"saving ply..";
         savePly(globalModel, saveply_file, confidence);
     }
+    if (spose)
+        pose_file.close();
 
     return 0;
 }
