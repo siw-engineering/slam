@@ -11,6 +11,6 @@ catkin
 * [libconfig](https://github.com/hyperrealm/libconfig.git)
 
 ## Benchmark
-Metrics | ATE | RPE |
---- | --- | --- |
-Score | 2.098243 | 3.0375425651 |
+Metrics | ATE | RPE | PC Alignment score
+--- | --- | --- | --- |
+Score | 0.018483 | 0.0231662926318 | 0.00750245 | 
