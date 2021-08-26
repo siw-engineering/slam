@@ -5,6 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(Pangolin_DIR "/home/developer/co-fusion/deps/Pangolin/build")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
+SET(ROS 0 CACHE INT "Some user-specified option")
 set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE STRING "libconfig iclude dir")
 
 
@@ -79,6 +80,8 @@ include_directories(${PROJECT_SOURCE_DIR})
 
 file(GLOB gl gl/*.cpp)
 file(GLOB inputs inputs/*.cpp)
+file(GLOB inputs_ros inputs/ros/*.cpp)
+
 file(GLOB model model/*.cpp)
 file(GLOB odom odom/*.cpp)
 file(GLOB lc lc/*.cpp)
@@ -103,10 +106,10 @@ CUDA_COMPILE(odom_cuda_objs ${odom_cuda})
 
 add_executable(${PROJECT_NAME}
                ${ui}
-               # ${apps}
                ${APP}
                ${gl}
                ${inputs}
+               ${inputs_ros}
                ${model}
       			   ${odom}
                ${lc}
