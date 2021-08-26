@@ -1,5 +1,5 @@
-#include "inputs/ros/DepthSubscriber.h"
-#include "inputs/ros/RGBSubscriber.h"
+#include "../inputs/ros/DepthSubscriber.h"
+#include "../inputs/ros/RGBSubscriber.h"
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
 // #include "../odom/RGBDOdometryef.h"
@@ -8,6 +8,8 @@
 #include "../model/GlobalModel.h"
 #include "../lc/Deformation.h"
 #include "../lc/PoseMatch.h"
+#include "../inputs/utils/ImgStats.h"
+
 
 
 using namespace libconfig;
@@ -326,16 +328,12 @@ int main(int argc, char *argv[])
     int64_t timestamp;
     fernDeforms = 0;
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
-    double g_dScale = 5000;
-
+   
     while (ros::ok())
     {
-
         img  = rgbsub->read();
         dimg = depthsub->read();
-        dimg.convertTo(dimg, CV_16UC1);
-        // unsigned char * rgbData = 0;
-        // rgbData = (unsigned char *)img.data;
+        dimg.convertTo(dimg, CV_16UC1, 1000/2);
         if (dimg.empty() || img.empty())
         {
             ros::spinOnce();
