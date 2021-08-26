@@ -9,7 +9,17 @@ eg:
 ./build.sh
 catkin_make -DAPP=apps/elastic_fusion_file.cpp
 ```
+## Inputs
+Working input state:
+```
+rgb info:
+	img.type :16(CV_8UC3)
+	range :0-255
+depth info:
+	img.type :2(CV_16UC1)
+	range :0-5000
 
+```
 ## Dependencies 
 * OpenCV 3.2
 * CUDA
