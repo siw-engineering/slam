@@ -1,8 +1,13 @@
 # slam
 SLAM system
 
-## Build system
-catkin
+## Build
+Build system : catkin_make
+Assuming Opencv and CUDA is installed, run build.sh.
+eg:
+```
+	catkin_make -DAPP=apps/elastic_fusion_file.cpp
+```
 
 ## Dependencies 
 * OpenCV 3.2
@@ -11,6 +16,7 @@ catkin
 * [libconfig](https://github.com/hyperrealm/libconfig.git)
 
 ## Benchmark
+Benchmark is done on the iclnuim [living room dataset](http://www.doc.ic.ac.uk/~ahanda/living_room_traj0_frei_png.tar.gz)
 Metrics | ATE | RPE | PC Alignment score
 --- | --- | --- | --- |
 Score | 0.018483 | 0.0231662926318 | 0.00750245 | 
