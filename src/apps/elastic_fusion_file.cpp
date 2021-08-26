@@ -327,281 +327,284 @@ int main(int argc, char const *argv[])
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
 
     freader.getNext();
+    std::cout<<"rgb info:"<<std::endl;
     printImgStats(freader.rgb);
+    std::cout<<"depth info:"<<std::endl;
+    printImgStats(freader.depth);
+    
+    while (freader.hasMore())
+    {
+        freader.getNext();
+        timestamp = tick;
+        textures[GPUTexture::DEPTH_RAW]->texture->Upload(freader.depth.data, GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT);
+        textures[GPUTexture::RGB]->texture->Upload(freader.rgb.data, GL_RGB, GL_UNSIGNED_BYTE);
 
-    // while (freader.hasMore())
-    // {
-    //     freader.getNext();
-    //     timestamp = tick;
-    //     textures[GPUTexture::DEPTH_RAW]->texture->Upload(freader.depth.data, GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT);
-    //     textures[GPUTexture::RGB]->texture->Upload(freader.rgb.data, GL_RGB, GL_UNSIGNED_BYTE);
+        std::vector<Uniform> uniformsfd;
+        uniformsfd.push_back(Uniform("cols", (float)width));
+        uniformsfd.push_back(Uniform("rows", (float)height));
+        uniformsfd.push_back(Uniform("maxD", depthCutoff));
+        computePacks[ComputePack::FILTER]->compute(textures[GPUTexture::DEPTH_RAW]->texture, &uniformsfd);
 
-    //     std::vector<Uniform> uniformsfd;
-    //     uniformsfd.push_back(Uniform("cols", (float)width));
-    //     uniformsfd.push_back(Uniform("rows", (float)height));
-    //     uniformsfd.push_back(Uniform("maxD", depthCutoff));
-    //     computePacks[ComputePack::FILTER]->compute(textures[GPUTexture::DEPTH_RAW]->texture, &uniformsfd);
+        std::vector<Uniform> uniforms;
+        uniforms.push_back(Uniform("maxD", depthCutoff));
+        computePacks[ComputePack::METRIC]->compute(textures[GPUTexture::DEPTH_RAW]->texture, &uniforms);
+        computePacks[ComputePack::METRIC_FILTERED]->compute(textures[GPUTexture::DEPTH_FILTERED]->texture, &uniforms);
 
-    //     std::vector<Uniform> uniforms;
-    //     uniforms.push_back(Uniform("maxD", depthCutoff));
-    //     computePacks[ComputePack::METRIC]->compute(textures[GPUTexture::DEPTH_RAW]->texture, &uniforms);
-    //     computePacks[ComputePack::METRIC_FILTERED]->compute(textures[GPUTexture::DEPTH_FILTERED]->texture, &uniforms);
+        if (tick == 1)
+        {
+            feedbackBuffers[FeedbackBuffer::RAW]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC]->texture, tick, maxDepthProcessed);
+            feedbackBuffers[FeedbackBuffer::FILTERED]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, tick, maxDepthProcessed);
 
-    //     if (tick == 1)
-    //     {
-    //         feedbackBuffers[FeedbackBuffer::RAW]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC]->texture, tick, maxDepthProcessed);
-    //         feedbackBuffers[FeedbackBuffer::FILTERED]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, tick, maxDepthProcessed);
+            globalModel.initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
+            frameToModel.initFirstRGB(textures[GPUTexture::RGB]);   
+        }
+        else
+        {
+            Eigen::Matrix4f lastPose = currPose;
+            bool trackingOk = frameToModel.lastICPError < 1e-04;
+            bool shouldFillIn = true;
+            frameToModel.initICPModel(shouldFillIn ? &fillIn.vertexTexture : indexMap.vertexTex(),
+                                      shouldFillIn ? &fillIn.normalTexture : indexMap.normalTex(),
+                                      maxDepthProcessed, currPose);
+            frameToModel.initRGBModel((shouldFillIn || false) ? &fillIn.imageTexture : indexMap.imageTex());
+            frameToModel.initICP(textures[GPUTexture::DEPTH_FILTERED], maxDepthProcessed);
+            frameToModel.initRGB(textures[GPUTexture::RGB]);
+            Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
+            Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
+            frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
+            currPose.topRightCorner(3, 1) = trans;
+            currPose.topLeftCorner(3, 3) = rot;
 
-    //         globalModel.initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
-    //         frameToModel.initFirstRGB(textures[GPUTexture::RGB]);   
-    //     }
-    //     else
-    //     {
-    //         Eigen::Matrix4f lastPose = currPose;
-    //         bool trackingOk = frameToModel.lastICPError < 1e-04;
-    //         bool shouldFillIn = true;
-    //         frameToModel.initICPModel(shouldFillIn ? &fillIn.vertexTexture : indexMap.vertexTex(),
-    //                                   shouldFillIn ? &fillIn.normalTexture : indexMap.normalTex(),
-    //                                   maxDepthProcessed, currPose);
-    //         frameToModel.initRGBModel((shouldFillIn || false) ? &fillIn.imageTexture : indexMap.imageTex());
-    //         frameToModel.initICP(textures[GPUTexture::DEPTH_FILTERED], maxDepthProcessed);
-    //         frameToModel.initRGB(textures[GPUTexture::RGB]);
-    //         Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
-    //         Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
-    //         frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
-    //         currPose.topRightCorner(3, 1) = trans;
-    //         currPose.topLeftCorner(3, 3) = rot;
+            Eigen::Matrix4f diff = currPose.inverse() * lastPose;
+            Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
+            Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
 
-    //         Eigen::Matrix4f diff = currPose.inverse() * lastPose;
-    //         Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
-    //         Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
+            //save pose
+            if(spose)
+            {
+                Eigen::Quaternionf q(rot);
+                pose_file<<tick<<" "<<trans(0)<<" "<<trans(1)<<" "<<trans(2)<<" "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl;
+            }
 
-    //         //save pose
-    //         if(spose)
-    //         {
-    //             Eigen::Quaternionf q(rot);
-    //             pose_file<<tick<<" "<<trans(0)<<" "<<trans(1)<<" "<<trans(2)<<" "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl;
-    //         }
+            //Weight by velocity
+            float weighting = std::max(diffTrans.norm(), rodrigues2(diffRot).norm());
+            float largest = 0.01;
+            float minWeight = 0.5;
+            std::vector<float> rawGraph;
 
-    //         //Weight by velocity
-    //         float weighting = std::max(diffTrans.norm(), rodrigues2(diffRot).norm());
-    //         float largest = 0.01;
-    //         float minWeight = 0.5;
-    //         std::vector<float> rawGraph;
+            if(weighting > largest)
+                weighting = largest;
 
-    //         if(weighting > largest)
-    //             weighting = largest;
-
-    //         weighting = std::max(1.0f - (weighting / largest), minWeight) * 1;
-    //         predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
-    //         Eigen::Matrix4f recoveryPose = currPose;
-
-
-    //         std::vector<Ferns::SurfaceConstraint> constraints;
-
-    //         if (closeLoops){
-
-    //             recoveryPose = ferns.findFrame(constraints,
-    //                                            currPose,
-    //                                            &fillIn.vertexTexture,
-    //                                            &fillIn.normalTexture,
-    //                                            &fillIn.imageTexture,
-    //                                            tick,
-    //                                            false);
-    //         }
-
-    //         bool fernAccepted = false;      
-    //         if (ferns.lastClosest != -1 && closeLoops ){
-
-    //             for(size_t i = 0; i < constraints.size(); i++)
-    //             {
-    //                 globalDeformation.addConstraint(constraints.at(i).sourcePoint,
-    //                                                 constraints.at(i).targetPoint,
-    //                                                 tick,
-    //                                                 ferns.frames.at(ferns.lastClosest)->srcTime,
-    //                                                 true);
-    //             }
-    //             // std::cout << " loop closure detected -------------" << std::endl;
-
-    //             for(size_t i = 0; i < relativeCons.size(); i++)
-    //             {
-    //                 globalDeformation.addConstraint(relativeCons.at(i));
-    //             }
-
-    //             if(globalDeformation.constrain(ferns.frames, rawGraph, tick, true, poseGraph, true))
-    //             {
-
-    //                 currPose = recoveryPose;
-
-    //                 poseMatches.push_back(PoseMatch(ferns.lastClosest, ferns.frames.size(), ferns.frames.at(ferns.lastClosest)->pose, currPose, constraints, true));
-
-    //                 fernDeforms += rawGraph.size() > 0;
-
-    //                 fernAccepted = true;
-    //             }
-
-    //         }   
+            weighting = std::max(1.0f - (weighting / largest), minWeight) * 1;
+            predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+            Eigen::Matrix4f recoveryPose = currPose;
 
 
+            std::vector<Ferns::SurfaceConstraint> constraints;
 
-    //         if(closeLoops && rawGraph.size()==0)
-    //         {
-    //             indexMap.combinedPredict(currPose,
-    //                                      globalModel.model(),
-    //                                      maxDepthProcessed,
-    //                                      confidence,
-    //                                      0,
-    //                                      tick - timeDelta,
-    //                                      timeDelta,
-    //                                      IndexMap::INACTIVE);
+            if (closeLoops){
 
-    //             //WARNING initICP* must be called before initRGB*
-    //             modelToModel.initICPModel(indexMap.oldVertexTex(), indexMap.oldNormalTex(), maxDepthProcessed, currPose);
-    //             modelToModel.initRGBModel(indexMap.oldImageTex());
+                recoveryPose = ferns.findFrame(constraints,
+                                               currPose,
+                                               &fillIn.vertexTexture,
+                                               &fillIn.normalTexture,
+                                               &fillIn.imageTexture,
+                                               tick,
+                                               false);
+            }
 
-    //             modelToModel.initICP(indexMap.vertexTex(), indexMap.normalTex(), maxDepthProcessed);
-    //             modelToModel.initRGB(indexMap.imageTex());
+            bool fernAccepted = false;      
+            if (ferns.lastClosest != -1 && closeLoops ){
 
-    //             Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
-    //             Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
+                for(size_t i = 0; i < constraints.size(); i++)
+                {
+                    globalDeformation.addConstraint(constraints.at(i).sourcePoint,
+                                                    constraints.at(i).targetPoint,
+                                                    tick,
+                                                    ferns.frames.at(ferns.lastClosest)->srcTime,
+                                                    true);
+                }
+                // std::cout << " loop closure detected -------------" << std::endl;
 
-    //             modelToModel.getIncrementalTransformation(trans,
-    //                                                       rot,
-    //                                                       false,
-    //                                                       10,
-    //                                                       pyramid,
-    //                                                       fastOdom,
-    //                                                       false);
+                for(size_t i = 0; i < relativeCons.size(); i++)
+                {
+                    globalDeformation.addConstraint(relativeCons.at(i));
+                }
 
-    //             Eigen::MatrixXd covar = modelToModel.getCovariance();
-    //             bool covOk = true;
+                if(globalDeformation.constrain(ferns.frames, rawGraph, tick, true, poseGraph, true))
+                {
 
-    //             for(int i = 0; i < 6; i++)
-    //             {
-    //                 if(covar(i, i) > covThresh)
-    //                 {
-    //                     covOk = false;
-    //                     break;
-    //                 }
-    //             }
+                    currPose = recoveryPose;
 
-    //             Eigen::Matrix4f estPose = Eigen::Matrix4f::Identity();
+                    poseMatches.push_back(PoseMatch(ferns.lastClosest, ferns.frames.size(), ferns.frames.at(ferns.lastClosest)->pose, currPose, constraints, true));
 
-    //             estPose.topRightCorner(3, 1) = trans;
-    //             estPose.topLeftCorner(3, 3) = rot;
+                    fernDeforms += rawGraph.size() > 0;
+
+                    fernAccepted = true;
+                }
+
+            }   
 
 
 
-    //             if(covOk && modelToModel.lastICPCount > icpCountThresh && modelToModel.lastICPError < icpErrThresh)
-    //             {
-    //                 resize.vertex(indexMap.vertexTex(), consBuff);
-    //                 resize.time(indexMap.oldTimeTex(), timesBuff);
+            if(closeLoops && rawGraph.size()==0)
+            {
+                indexMap.combinedPredict(currPose,
+                                         globalModel.model(),
+                                         maxDepthProcessed,
+                                         confidence,
+                                         0,
+                                         tick - timeDelta,
+                                         timeDelta,
+                                         IndexMap::INACTIVE);
 
-    //                 for(int i = 0; i < consBuff.cols; i++)
-    //                 {
-    //                     for(int j = 0; j < consBuff.rows; j++)
-    //                     {
-    //                         if(consBuff.at<Eigen::Vector4f>(j, i)(2) > 0 &&
-    //                            consBuff.at<Eigen::Vector4f>(j, i)(2) < maxDepthProcessed &&
-    //                            timesBuff.at<unsigned short>(j, i) > 0)
-    //                         {
-    //                             Eigen::Vector4f worldRawPoint = currPose * Eigen::Vector4f(consBuff.at<Eigen::Vector4f>(j, i)(0),
-    //                                                                                        consBuff.at<Eigen::Vector4f>(j, i)(1),
-    //                                                                                        consBuff.at<Eigen::Vector4f>(j, i)(2),
-    //                                                                                        1.0f);
+                //WARNING initICP* must be called before initRGB*
+                modelToModel.initICPModel(indexMap.oldVertexTex(), indexMap.oldNormalTex(), maxDepthProcessed, currPose);
+                modelToModel.initRGBModel(indexMap.oldImageTex());
 
-    //                             Eigen::Vector4f worldModelPoint = estPose * Eigen::Vector4f(consBuff.at<Eigen::Vector4f>(j, i)(0),
-    //                                                                                         consBuff.at<Eigen::Vector4f>(j, i)(1),
-    //                                                                                         consBuff.at<Eigen::Vector4f>(j, i)(2),
-    //                                                                                         1.0f);
-    //                             constraints.push_back(Ferns::SurfaceConstraint(worldRawPoint, worldModelPoint));
+                modelToModel.initICP(indexMap.vertexTex(), indexMap.normalTex(), maxDepthProcessed);
+                modelToModel.initRGB(indexMap.imageTex());
 
-    //                             localDeformation.addConstraint(worldRawPoint,
-    //                                                            worldModelPoint,
-    //                                                            tick,
-    //                                                            timesBuff.at<unsigned short>(j, i),
-    //                                                            deforms == 0);
-    //                         }
-    //                     }
-    //                 }
+                Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
+                Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
 
-    //                 std::vector<Deformation::Constraint> newRelativeCons;
-    //                 if(localDeformation.constrain(ferns.frames, rawGraph, tick, false, poseGraph, false, &newRelativeCons))
-    //                 {
+                modelToModel.getIncrementalTransformation(trans,
+                                                          rot,
+                                                          false,
+                                                          10,
+                                                          pyramid,
+                                                          fastOdom,
+                                                          false);
 
-    //                     poseMatches.push_back(PoseMatch(ferns.frames.size() - 1, ferns.frames.size(), estPose, currPose, constraints, false));
+                Eigen::MatrixXd covar = modelToModel.getCovariance();
+                bool covOk = true;
 
-    //                     deforms += rawGraph.size() > 0;
+                for(int i = 0; i < 6; i++)
+                {
+                    if(covar(i, i) > covThresh)
+                    {
+                        covOk = false;
+                        break;
+                    }
+                }
 
-    //                     currPose = estPose;
+                Eigen::Matrix4f estPose = Eigen::Matrix4f::Identity();
 
-    //                     for(size_t i = 0; i < newRelativeCons.size(); i += newRelativeCons.size() / 3)
-    //                     {
-    //                         relativeCons.push_back(newRelativeCons.at(i));
-    //                     }
-
-    //                 }
-    //             }
-
-    //         }
-
-    //         if (trackingOk)
-    //         {
-    //             indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
-    //             globalModel.fuse(currPose,
-    //                              tick,
-    //                              textures[GPUTexture::RGB],
-    //                              textures[GPUTexture::DEPTH_METRIC],
-    //                              textures[GPUTexture::DEPTH_METRIC_FILTERED],
-    //                              indexMap.indexTex(),
-    //                              indexMap.vertConfTex(),
-    //                              indexMap.colorTimeTex(),
-    //                              indexMap.normalRadTex(),
-    //                              maxDepthProcessed,
-    //                              confidence,
-    //                              weighting);
-
-    //             indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
-
-    //             if(rawGraph.size() > 0 && !fernAccepted)
-    //             {
-    //                 indexMap.synthesizeDepth(currPose,
-    //                                          globalModel.model(),
-    //                                          maxDepthProcessed,
-    //                                          confidence,
-    //                                          tick,
-    //                                          tick - timeDelta,
-    //                                          std::numeric_limits<unsigned short>::max());
-    //             }
+                estPose.topRightCorner(3, 1) = trans;
+                estPose.topLeftCorner(3, 3) = rot;
 
 
-    //             globalModel.clean(currPose,
-    //                               tick,
-    //                               indexMap.indexTex(),
-    //                               indexMap.vertConfTex(),
-    //                               indexMap.colorTimeTex(),
-    //                               indexMap.normalRadTex(),
-    //                               indexMap.depthTex(),
-    //                               confidence,
-    //                               rawGraph,
-    //                               timeDelta,
-    //                               maxDepthProcessed,
-    //                               false);
-    //         }
-    //     }
 
-    //     poseGraph.push_back(std::pair<unsigned long long int, Eigen::Matrix4f>(tick, currPose));
-    //     poseLogTimes.push_back(timestamp);
-    //     localDeformation.sampleGraphModel(globalModel.model());
-    //     globalDeformation.sampleGraphFrom(localDeformation);
+                if(covOk && modelToModel.lastICPCount > icpCountThresh && modelToModel.lastICPError < icpErrThresh)
+                {
+                    resize.vertex(indexMap.vertexTex(), consBuff);
+                    resize.time(indexMap.oldTimeTex(), timesBuff);
 
-    //     predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
-    //     ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
+                    for(int i = 0; i < consBuff.cols; i++)
+                    {
+                        for(int j = 0; j < consBuff.rows; j++)
+                        {
+                            if(consBuff.at<Eigen::Vector4f>(j, i)(2) > 0 &&
+                               consBuff.at<Eigen::Vector4f>(j, i)(2) < maxDepthProcessed &&
+                               timesBuff.at<unsigned short>(j, i) > 0)
+                            {
+                                Eigen::Vector4f worldRawPoint = currPose * Eigen::Vector4f(consBuff.at<Eigen::Vector4f>(j, i)(0),
+                                                                                           consBuff.at<Eigen::Vector4f>(j, i)(1),
+                                                                                           consBuff.at<Eigen::Vector4f>(j, i)(2),
+                                                                                           1.0f);
 
-    //     gui.render(globalModel.model(), Vertex::SIZE);
-    //     tick++;
+                                Eigen::Vector4f worldModelPoint = estPose * Eigen::Vector4f(consBuff.at<Eigen::Vector4f>(j, i)(0),
+                                                                                            consBuff.at<Eigen::Vector4f>(j, i)(1),
+                                                                                            consBuff.at<Eigen::Vector4f>(j, i)(2),
+                                                                                            1.0f);
+                                constraints.push_back(Ferns::SurfaceConstraint(worldRawPoint, worldModelPoint));
 
-    // }
+                                localDeformation.addConstraint(worldRawPoint,
+                                                               worldModelPoint,
+                                                               tick,
+                                                               timesBuff.at<unsigned short>(j, i),
+                                                               deforms == 0);
+                            }
+                        }
+                    }
+
+                    std::vector<Deformation::Constraint> newRelativeCons;
+                    if(localDeformation.constrain(ferns.frames, rawGraph, tick, false, poseGraph, false, &newRelativeCons))
+                    {
+
+                        poseMatches.push_back(PoseMatch(ferns.frames.size() - 1, ferns.frames.size(), estPose, currPose, constraints, false));
+
+                        deforms += rawGraph.size() > 0;
+
+                        currPose = estPose;
+
+                        for(size_t i = 0; i < newRelativeCons.size(); i += newRelativeCons.size() / 3)
+                        {
+                            relativeCons.push_back(newRelativeCons.at(i));
+                        }
+
+                    }
+                }
+
+            }
+
+            if (trackingOk)
+            {
+                indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
+                globalModel.fuse(currPose,
+                                 tick,
+                                 textures[GPUTexture::RGB],
+                                 textures[GPUTexture::DEPTH_METRIC],
+                                 textures[GPUTexture::DEPTH_METRIC_FILTERED],
+                                 indexMap.indexTex(),
+                                 indexMap.vertConfTex(),
+                                 indexMap.colorTimeTex(),
+                                 indexMap.normalRadTex(),
+                                 maxDepthProcessed,
+                                 confidence,
+                                 weighting);
+
+                indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
+
+                if(rawGraph.size() > 0 && !fernAccepted)
+                {
+                    indexMap.synthesizeDepth(currPose,
+                                             globalModel.model(),
+                                             maxDepthProcessed,
+                                             confidence,
+                                             tick,
+                                             tick - timeDelta,
+                                             std::numeric_limits<unsigned short>::max());
+                }
+
+
+                globalModel.clean(currPose,
+                                  tick,
+                                  indexMap.indexTex(),
+                                  indexMap.vertConfTex(),
+                                  indexMap.colorTimeTex(),
+                                  indexMap.normalRadTex(),
+                                  indexMap.depthTex(),
+                                  confidence,
+                                  rawGraph,
+                                  timeDelta,
+                                  maxDepthProcessed,
+                                  false);
+            }
+        }
+
+        poseGraph.push_back(std::pair<unsigned long long int, Eigen::Matrix4f>(tick, currPose));
+        poseLogTimes.push_back(timestamp);
+        localDeformation.sampleGraphModel(globalModel.model());
+        globalDeformation.sampleGraphFrom(localDeformation);
+
+        predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+        ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
+
+        gui.render(globalModel.model(), Vertex::SIZE);
+        tick++;
+
+    }
 
     if (sply)
     {
