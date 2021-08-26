@@ -6,8 +6,8 @@ Build system : catkin_make <br>
 Assuming Opencv and CUDA is installed, run build.sh. <br>
 eg:
 ```
-	./build.sh
-	catkin_make -DAPP=apps/elastic_fusion_file.cpp
+./build.sh
+catkin_make -DAPP=apps/elastic_fusion_file.cpp
 ```
 
 ## Dependencies 
