@@ -16,6 +16,4 @@ tar -xvf libconfig-1.7.3.tar.gz
 cd libconfig-1.7.3
 ./configure
 sudo make install
-cd ../
-
-catkin_make
+cd ../../

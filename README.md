@@ -2,10 +2,11 @@
 SLAM system
 
 ## Build
-Build system : catkin_make
-Assuming Opencv and CUDA is installed, run build.sh.
+Build system : catkin_make <br>
+Assuming Opencv and CUDA is installed, run build.sh. <br>
 eg:
 ```
+	./build.sh
 	catkin_make -DAPP=apps/elastic_fusion_file.cpp
 ```
 
