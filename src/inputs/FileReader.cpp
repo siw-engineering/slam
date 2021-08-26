@@ -46,8 +46,10 @@ void FileReader::getNext()
         char frame[100], file_rgb[200], file_depth[200];
         fscanf(fp_rgb,"%s %s ", frame, file_rgb);
         fscanf(fp_depth,"%s %s ", frame, file_depth);
-        rgb = cv::imread(dataset_dir+file_rgb, CV_LOAD_IMAGE_ANYCOLOR);
-        depth = cv::imread(dataset_dir+file_depth, CV_LOAD_IMAGE_ANYDEPTH);
+        rgb = cv::imread(dataset_dir+file_rgb, CV_LOAD_IMAGE_UNCHANGED);
+        depth = cv::imread(dataset_dir+file_depth, cv::IMREAD_UNCHANGED);
+        depth.convertTo(depth, CV_16UC1, 1000 * 1.0 / 5000);
+
         currentFrame++;
 
     }
