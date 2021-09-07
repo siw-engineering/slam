@@ -46,7 +46,10 @@ RUN useradd -U --uid ${user_id} -ms /bin/bash $USERNAME \
 USER $USERNAME
 
 # Make a couple folders for organizing docker volumes
-RUN mkdir ~/workspaces ~/other
+RUN mkdir ~/workspaces ~/other 
+RUN mkdir ~/slam ~/datasets
+
+
 
 # When running a container start in the developer's home folder
 WORKDIR /home/$USERNAME
@@ -109,3 +112,23 @@ WORKDIR /home/$USERNAME/
 
 RUN /bin/bash -c 'source /opt/ros/melodic/setup.bash'
 RUN /bin/sh -c 'echo ". /opt/ros/melodic/setup.bash" >> ~/.bashrc'
+
+
+RUN sudo apt-get install -y cmake-qt-gui git build-essential libusb-1.0-0-dev libudev-dev freeglut3-dev libglew-dev libsuitesparse-dev libeigen3-dev zlib1g-dev libjpeg-dev
+
+RUN mkdir ~/deps \
+&& cd ~/deps \
+&& git clone --single-branch --branch v0.6 https://github.com/stevenlovegrove/Pangolin.git \
+&& cd Pangolin \
+&& mkdir build \
+&& cd build \
+&& cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON \
+&& make -j8 
+
+
+RUN cd ~/deps/ \
+&& wget https://hyperrealm.github.io/libconfig/dist/libconfig-1.7.3.tar.gz \
+&& tar -xvf libconfig-1.7.3.tar.gz \
+&& cd libconfig-1.7.3 \
+&& ./configure \
+&& sudo make install \
