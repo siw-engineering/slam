@@ -1,22 +1,22 @@
 #!/bin/bash
 
-mkdir deps &> /dev/null
-cd deps
+mkdir ~/deps &> /dev/null
 
-git clone https://github.com/stevenlovegrove/Pangolin.git
+cd ~/deps
+git clone --single-branch --branch v0.6 https://github.com/stevenlovegrove/Pangolin.git
 cd Pangolin
 mkdir build
 cd build
 cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON
 make -j8
-cd ../..
 
+cd ~/deps
 wget https://hyperrealm.github.io/libconfig/dist/libconfig-1.7.3.tar.gz
 tar -xvf libconfig-1.7.3.tar.gz
 cd libconfig-1.7.3
 ./configure
 sudo make install
-cd ../../
+
 
 #install realsense
 sudo apt-key adv --keyserver keys.gnupg.net --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
