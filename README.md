@@ -28,6 +28,7 @@ depth info:
 
 ## Benchmark
 Benchmark is done on the iclnuim [living room dataset](http://www.doc.ic.ac.uk/~ahanda/living_room_traj0_frei_png.tar.gz)
+
 Metrics | ATE | RPE | PC Alignment score
 --- | --- | --- | --- |
 Score | 0.018483 | 0.0231662926318 | 0.00750245 
