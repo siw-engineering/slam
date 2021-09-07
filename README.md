@@ -2,7 +2,21 @@
 SLAM system
 
 ## Build
-Build system : catkin_make <br>
+### Docker
+#### Build
+```
+docker build  --build-arg user_id=99 -t slam:dev .
+```
+#### Run
+```
+# ./run_docker.sh docker_image local_slam_repo_path local_dataset_path wlinterace(Run ifconfig and copy the wl interace id. (eg:wlxd0356714af3b) 
+eg:
+./run_docker.sh slam:dev /home/christie/projects/slam/work/slam /home/christie/projects/slam/dataset/ wlxd0356714af3b
+cd ~/slam
+catkin_make -DAPP=apps/elastic_fusion.cpp
+```
+### Local(incomplete)
+Build system : cmake or catkin_make <br>
 Assuming Opencv and CUDA is installed, run build.sh. <br>
 eg:
 ```
