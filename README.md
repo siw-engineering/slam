@@ -9,8 +9,7 @@ docker build  --build-arg user_id=99 -t slam:dev .
 ```
 #### Run
 ```
-# ./run_docker.sh docker_image local_slam_repo_path local_dataset_path wlinterace(Run ifconfig and copy the wl interace id. (eg:wlxd0356714af3b) 
-eg:
+# ./run_docker.sh docker_image local_slam_repo_path local_dataset_path wlinterace(Run ifconfig and copy the wl interace id. (eg:wlxd0356714af3b)
 ./run_docker.sh slam:dev /home/christie/projects/slam/work/slam /home/christie/projects/slam/dataset/ wlxd0356714af3b
 cd ~/slam
 catkin_make -DAPP=apps/elastic_fusion.cpp
