@@ -198,7 +198,7 @@ int main(int argc, char const *argv[])
     Config cfg;
     try
     {
-        cfg.readFile("/home/developer/slam/src/configs/ef_iclnuim.cfg");
+        cfg.readFile("/home/developer/slam/src/configs/ef.cfg");
     }
     catch(const FileIOException &fioex)
     {
