@@ -1,5 +1,7 @@
 #include "../inputs/ros/DepthSubscriber.h"
 #include "../inputs/ros/RGBSubscriber.h"
+#include "../inputs/ros/IMUSubscriber.h"
+
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
 // #include "../odom/RGBDOdometryef.h"
@@ -9,11 +11,40 @@
 #include "../lc/Deformation.h"
 #include "../lc/PoseMatch.h"
 #include "../inputs/utils/ImgStats.h"
-
-
+#include "../sf/ekf.h"
+#include <tf2/transform_datatypes.h>
+#include <tf2/convert.h>
+#include <tf2/transform_datatypes.h>
+#include <tf2/convert.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include "sensor_msgs/Imu.h"
 
 using namespace libconfig;
 
+
+
+void ekfpredictUpdate(const sensor_msgs::Imu imu_msg, EKFEstimator& ekf_)
+{
+
+  double current_time_imu = imu_msg.header.stamp.sec + imu_msg.header.stamp.nsec * 1e-9;
+  Eigen::Vector3d gyro = Eigen::Vector3d(
+                                        imu_msg.angular_velocity.x,
+                                        imu_msg.angular_velocity.y,
+                                        imu_msg.angular_velocity.z
+                                        );
+  Eigen::Vector3d linear_acceleration = Eigen::Vector3d(
+                                        imu_msg.linear_acceleration.x,
+                                        imu_msg.linear_acceleration.y,
+                                        imu_msg.linear_acceleration.z
+                                        );
+
+  ekf_.predictionUpdate(current_time_imu, gyro, linear_acceleration);
+}
 
 void predict(IndexMap& indexMap, Eigen::Matrix4f& currPose, GlobalModel& globalModel, int maxDepthProcessed, float confidenceThreshold, int tick, int timeDelta, FillIn& fillIn, std::map<std::string, GPUTexture*>& textures)
 {
@@ -250,6 +281,13 @@ int main(int argc, char *argv[])
     root["shaders"].lookupValue("lc", lc_shaders);
     root["shaders"].lookupValue("ui", ui_shaders);
 
+    //data
+    std::string rgb_topic, depth_topic, imu_topic;
+    root["ros_topics"].lookupValue("rgb_topic", rgb_topic);
+    root["ros_topics"].lookupValue("depth_topic", depth_topic);
+    root["ros_topics"].lookupValue("imu_topic", imu_topic);
+
+
     bool sply;
     std::string saveply_file;
     root["saveply"].lookupValue("save", sply);
@@ -290,10 +328,15 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh;
     DepthSubscriber* depthsub;
     RGBSubscriber* rgbsub;
+    IMUSubscriber* imusub;
     cv::Mat dimg, img;
+    sensor_msgs::Imu imu_data;
 
-    depthsub  = new DepthSubscriber("/X1/front/depth", nh);
-    rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
+
+    rgbsub = new RGBSubscriber(rgb_topic, nh);
+    depthsub  = new DepthSubscriber(depth_topic, nh);
+    imusub  = new IMUSubscriber(imu_topic, nh);
+
 
     std::map<std::string, GPUTexture*> textures;
     std::map<std::string, ComputePack*> computePacks;
@@ -323,16 +366,32 @@ int main(int argc, char *argv[])
     GlobalModel globalModel(width, height, intr, model_shaders);
     FillIn fillIn(width, height, intr, gl_shaders);
 
-
     int tick = 1;
     int64_t timestamp;
     fernDeforms = 0;
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
-   
+
+    //sensor fusion
+    EKFEstimator ekf_;
+    ekf_.setVarImuGyro(0.01);
+    ekf_.setVarImuAcc(0.01);
+
+    Eigen::VectorXd x = Eigen::VectorXd::Zero(ekf_.getNumState());
+    x(1) = 0;
+    x(2) = 0;
+    x(3) = 0;
+    x(6) = 0;
+    x(7) = 0;
+    x(8) = 0;
+    x(9) = 0;
+    ekf_.setInitialX(x);
+
+
     while (ros::ok())
     {
         img  = rgbsub->read();
         dimg = depthsub->read();
+        imu_data = imusub->read();
         dimg.convertTo(dimg, CV_16UC1, 1000/2);
         if (dimg.empty() || img.empty())
         {
@@ -378,6 +437,11 @@ int main(int argc, char *argv[])
             frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
             currPose.topRightCorner(3, 1) = trans;
             currPose.topLeftCorner(3, 3) = rot;
+
+            //sensor fusion
+
+            ekfpredictUpdate(imu_data, ekf_);
+
 
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
