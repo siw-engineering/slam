@@ -16,6 +16,10 @@ find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg cv_bridge i
 include_directories(${catkin_INCLUDE_DIRS}) 
 catkin_package()
 
+#ncnn
+find_package(ncnn REQUIRED PATHS /home/developer/works/slam/src/ThirdParty/ncnn/build/install/lib/cmake/ncnn)
+
+
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
 
@@ -139,6 +143,8 @@ target_link_libraries(${PROJECT_NAME}
     ${libconfig_LIBRARIES}
     ${SUITESPARSE_LIBRARIES}
     ${REALSENSE2_LIBRARY}
+    ncnn
+    -ltbb
     boost_filesystem
     boost_system
     pthread
