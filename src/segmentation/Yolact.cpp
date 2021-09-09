@@ -509,7 +509,7 @@ void Yolact::processFrame(cv::Mat img1){
     tbb::concurrent_bounded_queue<ProcessingChainData *> frameQueue;
     frameQueue.set_capacity(3);
 
-    auto pipelineRunner = thread( Yolact::run, ref(img1), ref(frameQueue));
+    auto pipelineRunner = thread( &Yolact::run, this, ref(img1), ref(frameQueue));
 
 
 
