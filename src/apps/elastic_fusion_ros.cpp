@@ -370,9 +370,14 @@ int main(int argc, char *argv[])
     int64_t timestamp;
     fernDeforms = 0;
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
+    Eigen::Matrix4f initial_pose = Eigen::Matrix4f::Identity();
+    Eigen::Matrix4f lastPose =  Eigen::Matrix4f::Identity();
+
 
     //sensor fusion
     EKFEstimator ekf_;
+    Eigen::Vector3d var_odom_;
+    var_odom_ << 0.2, 0.2, 0.2;
     ekf_.setVarImuGyro(0.01);
     ekf_.setVarImuAcc(0.01);
 
@@ -385,7 +390,7 @@ int main(int argc, char *argv[])
     x(8) = 0;
     x(9) = 0;
     ekf_.setInitialX(x);
-
+    Eigen::Matrix<double, 10, 1> x_;
 
     while (ros::ok())
     {
@@ -423,7 +428,6 @@ int main(int argc, char *argv[])
         }
         else
         {
-            Eigen::Matrix4f lastPose = currPose;
             bool trackingOk = frameToModel.lastICPError < 1e-04;
             bool shouldFillIn = true;
             frameToModel.initICPModel(shouldFillIn ? &fillIn.vertexTexture : indexMap.vertexTex(),
@@ -439,10 +443,28 @@ int main(int argc, char *argv[])
             currPose.topLeftCorner(3, 3) = rot;
 
             //sensor fusion
-
             ekfpredictUpdate(imu_data, ekf_);
+            Eigen::Matrix4f current_trans = Eigen::Matrix4f::Identity();
+            current_trans = current_trans * lastPose.inverse() * currPose;
+            Eigen::Vector3d y = Eigen::Vector3d(current_trans(0, 3), current_trans(1, 3), current_trans(2, 3));
+            ekf_.observationUpdate(y, var_odom_);
+            x_ = ekf_.getX();
+            // std::cout<<x_<<std::endl;
 
+            Eigen::Quaternionf q_;
+            q_.x() = x_(6);
+            q_.y() = x_(7);
+            q_.z() = x_(8);
+            q_.w() = x_(9);
 
+            Eigen::Matrix4f p_ = Eigen::Matrix4f::Identity();
+            p_(0,3) = x_(0);
+            p_(1,3) = x_(1);  
+            p_(2,3) = x_(2);  
+            p_.topLeftCorner(3, 3) = q_.normalized().toRotationMatrix();
+
+            currPose = p_;
+            lastPose = currPose;
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
