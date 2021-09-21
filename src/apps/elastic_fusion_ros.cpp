@@ -24,6 +24,7 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include "sensor_msgs/Imu.h"
 
+
 using namespace libconfig;
 
 
@@ -299,6 +300,7 @@ int main(int argc, char *argv[])
     root["savepose"].lookupValue("save", spose);
     root["savepose"].lookupValue("file", savepose_file);
     std::ofstream pose_file;
+
     if (spose)
         pose_file.open(savepose_file);
 
@@ -392,6 +394,13 @@ int main(int argc, char *argv[])
     ekf_.setInitialX(x);
     Eigen::Matrix<double, 10, 1> x_;
 
+    //publisher
+    std::string vodom;
+    root["ros_topics"].lookupValue("vo_topic", vodom);
+    ros::Publisher current_pose_pub_;
+    current_pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>(vodom, 10);
+    geometry_msgs::PoseStamped current_pose_;
+
     while (ros::ok())
     {
         img  = rgbsub->read();
@@ -441,29 +450,44 @@ int main(int argc, char *argv[])
             frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
             currPose.topRightCorner(3, 1) = trans;
             currPose.topLeftCorner(3, 3) = rot;
+            Eigen::Quaternionf q(rot);
 
             //sensor fusion
-            ekfpredictUpdate(imu_data, ekf_);
-            Eigen::Matrix4f current_trans = Eigen::Matrix4f::Identity();
-            current_trans = current_trans * lastPose.inverse() * currPose;
-            Eigen::Vector3d y = Eigen::Vector3d(current_trans(0, 3), current_trans(1, 3), current_trans(2, 3));
-            ekf_.observationUpdate(y, var_odom_);
-            x_ = ekf_.getX();
-            // std::cout<<x_<<std::endl;
+            // {
+            //     ekfpredictUpdate(imu_data, ekf_);
+            //     Eigen::Matrix4f current_trans = Eigen::Matrix4f::Identity();
+            //     current_trans = current_trans * lastPose.inverse() * currPose;
+            //     Eigen::Vector3d y = Eigen::Vector3d(current_trans(0, 3), current_trans(1, 3), current_trans(2, 3));
+            //     ekf_.observationUpdate(y, var_odom_);
+            //     x_ = ekf_.getX();
+            //     // std::cout<<x_<<std::endl;
 
-            Eigen::Quaternionf q_;
-            q_.x() = x_(6);
-            q_.y() = x_(7);
-            q_.z() = x_(8);
-            q_.w() = x_(9);
+            //     Eigen::Quaternionf q_;
+            //     q_.x() = x_(6);
+            //     q_.y() = x_(7);
+            //     q_.z() = x_(8);
+            //     q_.w() = x_(9);
 
-            Eigen::Matrix4f p_ = Eigen::Matrix4f::Identity();
-            p_(0,3) = x_(0);
-            p_(1,3) = x_(1);  
-            p_(2,3) = x_(2);  
-            p_.topLeftCorner(3, 3) = q_.normalized().toRotationMatrix();
+            //     Eigen::Matrix4f p_ = Eigen::Matrix4f::Identity();
+            //     p_(0,3) = x_(0);
+            //     p_(1,3) = x_(1);  
+            //     p_(2,3) = x_(2);  
+            //     p_.topLeftCorner(3, 3) = q_.normalized().toRotationMatrix();
+            //     currPose = p_;
 
-            currPose = p_;
+            // }
+
+            current_pose_.header.stamp = ros::Time::now();
+            current_pose_.header.frame_id = "world";
+            current_pose_.pose.position.x = trans(0);
+            current_pose_.pose.position.y = trans(1);
+            current_pose_.pose.position.z = trans(2);
+            current_pose_.pose.orientation.x = q.x();
+            current_pose_.pose.orientation.y = q.y();
+            current_pose_.pose.orientation.z = q.z();
+            current_pose_.pose.orientation.w = q.w();
+            current_pose_pub_.publish(current_pose_);
+
             lastPose = currPose;
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
