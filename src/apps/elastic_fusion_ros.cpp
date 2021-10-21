@@ -14,7 +14,6 @@
 #include "../sf/ekf.h"
 #include <tf2/transform_datatypes.h>
 #include <tf2/convert.h>
-#include <tf2/transform_datatypes.h>
 #include <tf2/convert.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_eigen/tf2_eigen.h>
@@ -398,8 +397,8 @@ int main(int argc, char *argv[])
     std::string vodom;
     root["ros_topics"].lookupValue("vo_topic", vodom);
     ros::Publisher current_pose_pub_;
-    current_pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>(vodom, 10);
-    geometry_msgs::PoseStamped current_pose_;
+    current_pose_pub_ = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>(vodom, 10);
+    geometry_msgs::PoseWithCovarianceStamped current_pose_;
 
     while (ros::ok())
     {
@@ -452,6 +451,12 @@ int main(int argc, char *argv[])
             currPose.topLeftCorner(3, 3) = rot;
             Eigen::Quaternionf q(rot);
 
+            Eigen::MatrixXd cvar = frameToModel.getCovariance();
+            double* cvariance = cvar.data();
+            boost::array<double, 36> covariance = {cvariance[0], cvariance[1], cvariance[2], cvariance[3], cvariance[4], cvariance[5], cvariance[6], cvariance[7], cvariance[8], cvariance[9], cvariance[10], cvariance[11], cvariance[12], cvariance[13], cvariance[14], cvariance[15], cvariance[16], cvariance[17], cvariance[18], cvariance[19], cvariance[20], cvariance[21], cvariance[22], cvariance[23], cvariance[24], cvariance[25], cvariance[26], cvariance[27], cvariance[28], cvariance[29], cvariance[30], cvariance[31], cvariance[32], cvariance[33], cvariance[34], cvariance[35]};
+            // std::cout<<cvar.array()<<std::endl;
+            // std::cout<<"***********"<<std::endl;
+
             //sensor fusion
             // {
             //     ekfpredictUpdate(imu_data, ekf_);
@@ -478,14 +483,15 @@ int main(int argc, char *argv[])
             // }
 
             current_pose_.header.stamp = ros::Time::now();
-            current_pose_.header.frame_id = "world";
-            current_pose_.pose.position.x = trans(0);
-            current_pose_.pose.position.y = trans(1);
-            current_pose_.pose.position.z = trans(2);
-            current_pose_.pose.orientation.x = q.x();
-            current_pose_.pose.orientation.y = q.y();
-            current_pose_.pose.orientation.z = q.z();
-            current_pose_.pose.orientation.w = q.w();
+            current_pose_.header.frame_id = "map";
+            current_pose_.pose.pose.position.x = trans(0);
+            current_pose_.pose.pose.position.y = trans(1);
+            current_pose_.pose.pose.position.z = trans(2);
+            current_pose_.pose.pose.orientation.x = q.x();
+            current_pose_.pose.pose.orientation.y = q.y();
+            current_pose_.pose.pose.orientation.z = q.z();
+            current_pose_.pose.pose.orientation.w = q.w();
+            current_pose_.pose.covariance = covariance;
             current_pose_pub_.publish(current_pose_);
 
             lastPose = currPose;
