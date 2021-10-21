@@ -48,6 +48,7 @@ USER $USERNAME
 # Make a couple folders for organizing docker volumes
 RUN mkdir ~/workspaces ~/other 
 RUN mkdir ~/slam ~/datasets
+RUN mkdir ~/.ignition
 
 
 
@@ -75,6 +76,7 @@ RUN sudo /bin/sh -c 'echo "deb [trusted=yes] http://packages.ros.org/ros/ubuntu 
     ros-melodic-robot-localization \
     ros-melodic-spacenav-node \
     ros-melodic-tf2-sensor-msgs \
+    ros-melodic-tf2-eigen \
     ros-melodic-twist-mux \
     ros-melodic-rviz-imu-plugin \
     ros-melodic-rotors-control \
@@ -103,10 +105,20 @@ RUN sudo apt-get update -qq \
     ros-melodic-teleop-twist-keyboard \
  && sudo apt-get clean -qq
 
+RUN sudo apt-get install -y -qq \
+    apt-transport-https \
+    ca-certificates \
+&& sudo apt-get clean -qq
+
+
 RUN curl -fsSL https://download.sublimetext.com/sublimehq-pub.gpg | sudo apt-key add - \
  && sudo add-apt-repository "deb https://download.sublimetext.com/ apt/stable/" \
  && sudo apt update \
  && sudo apt install sublime-text 
+
+RUN mkdir -p ~/subt_ws/src/subt \
+ && cd ~/subt_ws/src \
+ && git clone https://github.com/osrf/subt
 
 WORKDIR /home/$USERNAME/
 
