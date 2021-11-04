@@ -1,9 +1,11 @@
 #include "IMUSubscriber.h"
 
 
-IMUSubscriber::IMUSubscriber(std::string topic, ros::NodeHandle nh)
+IMUSubscriber::IMUSubscriber(std::string topic, ros::NodeHandle nh, Kalman::ExtendedKalmanFilter<State>& ekf, State& x_ekf)
 {
 	sub = nh.subscribe(topic, 1, &IMUSubscriber::callback, this);
+    ekf_ = ekf;
+    x_ekf_ = x_ekf;
 }
 
 void IMUSubscriber::callback(const sensor_msgs::Imu::ConstPtr& msg)
@@ -27,6 +29,16 @@ void IMUSubscriber::callback(const sensor_msgs::Imu::ConstPtr& msg)
     transformed_msg.linear_acceleration.x = msg->linear_acceleration.x;
     transformed_msg.linear_acceleration.y = msg->linear_acceleration.y;
     transformed_msg.linear_acceleration.z = msg->linear_acceleration.z;
+
+    Control u;
+    u.a_x() = msg->linear_acceleration.x;
+    u.a_y() = msg->linear_acceleration.y;
+    u.a_z() = 0.0;
+    u.w_x() = 0;
+    u.w_y() = msg->angular_velocity.y;
+    u.w_z() = 0;
+    x_ekf_ = ekf_.predict(sys, u);    
+
 }
 
 sensor_msgs::Imu IMUSubscriber::read()

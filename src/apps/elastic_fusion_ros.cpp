@@ -11,7 +11,6 @@
 #include "../lc/Deformation.h"
 #include "../lc/PoseMatch.h"
 #include "../inputs/utils/ImgStats.h"
-#include "../sf/ekf.h"
 #include <tf2/transform_datatypes.h>
 #include <tf2/convert.h>
 #include <tf2/convert.h>
@@ -22,29 +21,18 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include "sensor_msgs/Imu.h"
+#include "../sf/ekf/SystemModel.h"
+#include "../sf/ekf/PoseMeasurementModel.h"
 
 
 using namespace libconfig;
 
+typedef float T;
+
+typedef slam_robot::PoseMeasurement<T> PoseMeasure;
+typedef slam_robot::PoseMeasurementModel<T> PoseMeasureModel;
 
 
-void ekfpredictUpdate(const sensor_msgs::Imu imu_msg, EKFEstimator& ekf_)
-{
-
-  double current_time_imu = imu_msg.header.stamp.sec + imu_msg.header.stamp.nsec * 1e-9;
-  Eigen::Vector3d gyro = Eigen::Vector3d(
-                                        imu_msg.angular_velocity.x,
-                                        imu_msg.angular_velocity.y,
-                                        imu_msg.angular_velocity.z
-                                        );
-  Eigen::Vector3d linear_acceleration = Eigen::Vector3d(
-                                        imu_msg.linear_acceleration.x,
-                                        imu_msg.linear_acceleration.y,
-                                        imu_msg.linear_acceleration.z
-                                        );
-
-  ekf_.predictionUpdate(current_time_imu, gyro, linear_acceleration);
-}
 
 void predict(IndexMap& indexMap, Eigen::Matrix4f& currPose, GlobalModel& globalModel, int maxDepthProcessed, float confidenceThreshold, int tick, int timeDelta, FillIn& fillIn, std::map<std::string, GPUTexture*>& textures)
 {
@@ -323,6 +311,14 @@ int main(int argc, char *argv[])
     Img<Eigen::Vector4f> consBuff(height / 20, width / 20);
     Img<unsigned short> timesBuff(height / 20, width / 20);
 
+    //sf
+    Kalman::ExtendedKalmanFilter<State> ekf;
+    State x_ekf;
+    x_ekf.setZero();
+    x_ekf.qw() = 1.0;
+    ekf.init(x_ekf);
+    PoseMeasureModel pose_measurement;
+
 
     //data
     ros::init(argc, argv, "test_node");
@@ -336,7 +332,7 @@ int main(int argc, char *argv[])
 
     rgbsub = new RGBSubscriber(rgb_topic, nh);
     depthsub  = new DepthSubscriber(depth_topic, nh);
-    imusub  = new IMUSubscriber(imu_topic, nh);
+    imusub  = new IMUSubscriber(imu_topic, nh, ekf, x_ekf);
 
 
     std::map<std::string, GPUTexture*> textures;
@@ -375,23 +371,6 @@ int main(int argc, char *argv[])
     Eigen::Matrix4f lastPose =  Eigen::Matrix4f::Identity();
 
 
-    //sensor fusion
-    EKFEstimator ekf_;
-    Eigen::Vector3d var_odom_;
-    var_odom_ << 0.2, 0.2, 0.2;
-    ekf_.setVarImuGyro(0.01);
-    ekf_.setVarImuAcc(0.01);
-
-    Eigen::VectorXd x = Eigen::VectorXd::Zero(ekf_.getNumState());
-    x(1) = 0;
-    x(2) = 0;
-    x(3) = 0;
-    x(6) = 0;
-    x(7) = 0;
-    x(8) = 0;
-    x(9) = 0;
-    ekf_.setInitialX(x);
-    Eigen::Matrix<double, 10, 1> x_;
 
     //publisher
     std::string vodom;
@@ -454,43 +433,38 @@ int main(int argc, char *argv[])
             Eigen::MatrixXd cvar = frameToModel.getCovariance();
             double* cvariance = cvar.data();
             boost::array<double, 36> covariance = {cvariance[0], cvariance[1], cvariance[2], cvariance[3], cvariance[4], cvariance[5], cvariance[6], cvariance[7], cvariance[8], cvariance[9], cvariance[10], cvariance[11], cvariance[12], cvariance[13], cvariance[14], cvariance[15], cvariance[16], cvariance[17], cvariance[18], cvariance[19], cvariance[20], cvariance[21], cvariance[22], cvariance[23], cvariance[24], cvariance[25], cvariance[26], cvariance[27], cvariance[28], cvariance[29], cvariance[30], cvariance[31], cvariance[32], cvariance[33], cvariance[34], cvariance[35]};
-            // std::cout<<cvar.array()<<std::endl;
-            // std::cout<<"***********"<<std::endl;
+
 
             //sensor fusion
             // {
-            //     ekfpredictUpdate(imu_data, ekf_);
-            //     Eigen::Matrix4f current_trans = Eigen::Matrix4f::Identity();
-            //     current_trans = current_trans * lastPose.inverse() * currPose;
-            //     Eigen::Vector3d y = Eigen::Vector3d(current_trans(0, 3), current_trans(1, 3), current_trans(2, 3));
-            //     ekf_.observationUpdate(y, var_odom_);
-            //     x_ = ekf_.getX();
-            //     // std::cout<<x_<<std::endl;
-
-            //     Eigen::Quaternionf q_;
-            //     q_.x() = x_(6);
-            //     q_.y() = x_(7);
-            //     q_.z() = x_(8);
-            //     q_.w() = x_(9);
-
-            //     Eigen::Matrix4f p_ = Eigen::Matrix4f::Identity();
-            //     p_(0,3) = x_(0);
-            //     p_(1,3) = x_(1);  
-            //     p_(2,3) = x_(2);  
-            //     p_.topLeftCorner(3, 3) = q_.normalized().toRotationMatrix();
-            //     currPose = p_;
-
+            PoseMeasure measure;
+            measure.x() = trans(0);
+            measure.y() = trans(1);
+            measure.z() = 0.0;
+            measure.qw() = -q.w();
+            measure.qx() = q.x();
+            measure.qy() = q.y();
+            measure.qz() = q.z();
+            x_ekf = ekf.update(pose_measurement, measure);
             // }
 
             current_pose_.header.stamp = ros::Time::now();
             current_pose_.header.frame_id = "map";
-            current_pose_.pose.pose.position.x = trans(0);
-            current_pose_.pose.pose.position.y = trans(1);
-            current_pose_.pose.pose.position.z = trans(2);
-            current_pose_.pose.pose.orientation.x = q.x();
-            current_pose_.pose.pose.orientation.y = q.y();
-            current_pose_.pose.pose.orientation.z = q.z();
-            current_pose_.pose.pose.orientation.w = q.w();
+            // current_pose_.pose.pose.position.x = trans(0);
+            // current_pose_.pose.pose.position.z = trans(1);
+            // current_pose_.pose.pose.position.y = trans(2);
+            // current_pose_.pose.pose.orientation.x = q.x();
+            // current_pose_.pose.pose.orientation.z = q.y();
+            // current_pose_.pose.pose.orientation.y = q.z();
+            // current_pose_.pose.pose.orientation.w = -q.w();
+            current_pose_.pose.pose.position.x = x_ekf.x();
+            current_pose_.pose.pose.position.z = x_ekf.y();
+            current_pose_.pose.pose.position.y = x_ekf.z();
+            current_pose_.pose.pose.orientation.x = x_ekf.qx();
+            current_pose_.pose.pose.orientation.z = x_ekf.qy();
+            current_pose_.pose.pose.orientation.y = x_ekf.qz();
+            current_pose_.pose.pose.orientation.w = -x_ekf.qw();
+
             current_pose_.pose.covariance = covariance;
             current_pose_pub_.publish(current_pose_);
 
