@@ -19,16 +19,11 @@
 #include "../../sf/ekf/PoseMeasurementModel.h"
 
 
-typedef float T;
-
-typedef slam_robot::State<T> State;
-typedef slam_robot::Control<T> Control;
-typedef slam_robot::SystemModel<T> SystemModel;
 
 class IMUSubscriber
 {
 public:
-	IMUSubscriber(std::string topic, ros::NodeHandle nh, Kalman::ExtendedKalmanFilter<State>& ekf, State& x_ekf);
+	IMUSubscriber(std::string topic, ros::NodeHandle nh);
 	~IMUSubscriber(){}
 	void callback(const sensor_msgs::Imu::ConstPtr& msg);
 	sensor_msgs::Imu read();
@@ -36,8 +31,5 @@ private:
 	ros::Subscriber sub;
 	sensor_msgs::Imu transformed_msg;
 	tf2_ros::Buffer tfbuffer_;
-	Kalman::ExtendedKalmanFilter<State> ekf_;
-	State x_ekf_;
-	SystemModel sys;
 
 };

@@ -21,16 +21,10 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include "sensor_msgs/Imu.h"
-#include "../sf/ekf/SystemModel.h"
-#include "../sf/ekf/PoseMeasurementModel.h"
+#include "../sf/ROSInputSubscriberSF.h"
 
 
 using namespace libconfig;
-
-typedef float T;
-
-typedef slam_robot::PoseMeasurement<T> PoseMeasure;
-typedef slam_robot::PoseMeasurementModel<T> PoseMeasureModel;
 
 
 
@@ -311,13 +305,7 @@ int main(int argc, char *argv[])
     Img<Eigen::Vector4f> consBuff(height / 20, width / 20);
     Img<unsigned short> timesBuff(height / 20, width / 20);
 
-    //sf
-    Kalman::ExtendedKalmanFilter<State> ekf;
-    State x_ekf;
-    x_ekf.setZero();
-    x_ekf.qw() = 1.0;
-    ekf.init(x_ekf);
-    PoseMeasureModel pose_measurement;
+
 
 
     //data
@@ -329,10 +317,12 @@ int main(int argc, char *argv[])
     cv::Mat dimg, img;
     sensor_msgs::Imu imu_data;
 
+    //sf
 
     rgbsub = new RGBSubscriber(rgb_topic, nh);
     depthsub  = new DepthSubscriber(depth_topic, nh);
-    imusub  = new IMUSubscriber(imu_topic, nh, ekf, x_ekf);
+    ROSInputSubscriberSF isub(/*"/X1/imu/data"*/"/X1/imu/data", nh);
+    // imusub  = new IMUSubscriber(imu_topic, nh);
 
 
     std::map<std::string, GPUTexture*> textures;
@@ -383,7 +373,7 @@ int main(int argc, char *argv[])
     {
         img  = rgbsub->read();
         dimg = depthsub->read();
-        imu_data = imusub->read();
+        // imu_data = imusub->read();
         dimg.convertTo(dimg, CV_16UC1, 1000/2);
         if (dimg.empty() || img.empty())
         {
@@ -437,37 +427,53 @@ int main(int argc, char *argv[])
 
             //sensor fusion
             // {
-            PoseMeasure measure;
-            measure.x() = trans(0);
-            measure.y() = trans(1);
-            measure.z() = 0.0;
-            measure.qw() = -q.w();
-            measure.qx() = q.x();
-            measure.qy() = q.y();
-            measure.qz() = q.z();
-            x_ekf = ekf.update(pose_measurement, measure);
+            // PoseMeasure measure;
+            // measure.x() = trans(0);
+            // measure.y() = trans(1);
+            // measure.z() = 0.0;
+            // measure.qw() = -q.w();
+            // measure.qx() = q.x();
+            // measure.qy() = q.y();
+            // measure.qz() = q.z();
+            // x_ekf = ekf.update(pose_measurement, measure);
             // }
 
             current_pose_.header.stamp = ros::Time::now();
             current_pose_.header.frame_id = "map";
-            // current_pose_.pose.pose.position.x = trans(0);
-            // current_pose_.pose.pose.position.z = trans(1);
-            // current_pose_.pose.pose.position.y = trans(2);
-            // current_pose_.pose.pose.orientation.x = q.x();
-            // current_pose_.pose.pose.orientation.z = q.y();
-            // current_pose_.pose.pose.orientation.y = q.z();
-            // current_pose_.pose.pose.orientation.w = -q.w();
-            current_pose_.pose.pose.position.x = x_ekf.x();
-            current_pose_.pose.pose.position.z = x_ekf.y();
-            current_pose_.pose.pose.position.y = x_ekf.z();
-            current_pose_.pose.pose.orientation.x = x_ekf.qx();
-            current_pose_.pose.pose.orientation.z = x_ekf.qy();
-            current_pose_.pose.pose.orientation.y = x_ekf.qz();
-            current_pose_.pose.pose.orientation.w = -x_ekf.qw();
+            current_pose_.pose.pose.position.x = trans(0);
+            current_pose_.pose.pose.position.z = trans(1);
+            current_pose_.pose.pose.position.y = trans(2);
+            current_pose_.pose.pose.orientation.x = q.x();
+            current_pose_.pose.pose.orientation.z = q.y();
+            current_pose_.pose.pose.orientation.y = q.z();
+            current_pose_.pose.pose.orientation.w = -q.w();
+
+            // if (isnan(x_ekf.x()))
+            // {
+                // x_ekf.x() = trans(0);
+                // x_ekf.z() = trans(1);
+                // x_ekf.y() = trans(2);
+                // x_ekf.qx() = q.x();
+                // x_ekf.qz() = q.y();
+                // x_ekf.qy() = q.z();
+                // x_ekf.qw() = -q.w();
+                // std::cout<<"nan"<<"->"<<tick<<std::endl;
+            // }
+
+            // current_pose_.pose.pose.position.x = x_ekf.x();
+            // current_pose_.pose.pose.position.z = x_ekf.y();
+            // current_pose_.pose.pose.position.y = x_ekf.z();
+            // current_pose_.pose.pose.orientation.x = x_ekf.qx();
+            // current_pose_.pose.pose.orientation.z = x_ekf.qy();
+            // current_pose_.pose.pose.orientation.y = x_ekf.qz();
+            // current_pose_.pose.pose.orientation.w = -x_ekf.qw();
+
+            // std::cout<<x_ekf.x()<<"  "<<x_ekf.y()<<"  "<<x_ekf.z()<<"  "<<x_ekf.qx()<<"  "<<x_ekf.qy()<<"  "<<x_ekf.qz()<<"  "<<x_ekf.qw()<<std::endl;
 
             current_pose_.pose.covariance = covariance;
-            current_pose_pub_.publish(current_pose_);
-
+            isub.odom_observe(current_pose_);
+            isub.broadcastPose();
+            // current_pose_pub_.publish(current_pose_);
             lastPose = currPose;
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
