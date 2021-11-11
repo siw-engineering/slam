@@ -416,28 +416,11 @@ int main(int argc, char *argv[])
             Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
             Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
             frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
-            currPose.topRightCorner(3, 1) = trans;
-            currPose.topLeftCorner(3, 3) = rot;
             Eigen::Quaternionf q(rot);
 
             Eigen::MatrixXd cvar = frameToModel.getCovariance();
             double* cvariance = cvar.data();
             boost::array<double, 36> covariance = {cvariance[0], cvariance[1], cvariance[2], cvariance[3], cvariance[4], cvariance[5], cvariance[6], cvariance[7], cvariance[8], cvariance[9], cvariance[10], cvariance[11], cvariance[12], cvariance[13], cvariance[14], cvariance[15], cvariance[16], cvariance[17], cvariance[18], cvariance[19], cvariance[20], cvariance[21], cvariance[22], cvariance[23], cvariance[24], cvariance[25], cvariance[26], cvariance[27], cvariance[28], cvariance[29], cvariance[30], cvariance[31], cvariance[32], cvariance[33], cvariance[34], cvariance[35]};
-
-
-            //sensor fusion
-            // {
-            // PoseMeasure measure;
-            // measure.x() = trans(0);
-            // measure.y() = trans(1);
-            // measure.z() = 0.0;
-            // measure.qw() = -q.w();
-            // measure.qx() = q.x();
-            // measure.qy() = q.y();
-            // measure.qz() = q.z();
-            // x_ekf = ekf.update(pose_measurement, measure);
-            // }
-
             current_pose_.header.stamp = ros::Time::now();
             current_pose_.header.frame_id = "map";
             current_pose_.pose.pose.position.x = trans(0);
@@ -448,31 +431,20 @@ int main(int argc, char *argv[])
             current_pose_.pose.pose.orientation.y = q.z();
             current_pose_.pose.pose.orientation.w = -q.w();
 
-            // if (isnan(x_ekf.x()))
-            // {
-                // x_ekf.x() = trans(0);
-                // x_ekf.z() = trans(1);
-                // x_ekf.y() = trans(2);
-                // x_ekf.qx() = q.x();
-                // x_ekf.qz() = q.y();
-                // x_ekf.qy() = q.z();
-                // x_ekf.qw() = -q.w();
-                // std::cout<<"nan"<<"->"<<tick<<std::endl;
-            // }
-
-            // current_pose_.pose.pose.position.x = x_ekf.x();
-            // current_pose_.pose.pose.position.z = x_ekf.y();
-            // current_pose_.pose.pose.position.y = x_ekf.z();
-            // current_pose_.pose.pose.orientation.x = x_ekf.qx();
-            // current_pose_.pose.pose.orientation.z = x_ekf.qy();
-            // current_pose_.pose.pose.orientation.y = x_ekf.qz();
-            // current_pose_.pose.pose.orientation.w = -x_ekf.qw();
-
-            // std::cout<<x_ekf.x()<<"  "<<x_ekf.y()<<"  "<<x_ekf.z()<<"  "<<x_ekf.qx()<<"  "<<x_ekf.qy()<<"  "<<x_ekf.qz()<<"  "<<x_ekf.qw()<<std::endl;
 
             current_pose_.pose.covariance = covariance;
             isub.odom_observe(current_pose_);
             isub.broadcastPose();
+            State x_ekf = isub.getPose();
+
+            //old setting
+            currPose.topRightCorner(3, 1) = trans;
+            currPose.topLeftCorner(3, 3) = rot;
+            //setting pose after sensor fusion
+            // currPose.topRightCorner(3, 1) = Eigen::Vector3f(x_ekf.x(),x_ekf.y(),x_ekf.z());
+            // Eigen::Quaternionf q_fused(-x_ekf.qw(), x_ekf.qx(), x_ekf.qz(), x_ekf.qy());
+            // currPose.topLeftCorner(3, 3) =  q_fused.normalized().toRotationMatrix();
+            // std::cout<<x_ekf.x()<<"  "<<x_ekf.y()<<"  "<<x_ekf.z()<<"  "<<x_ekf.qx()<<"  "<<x_ekf.qy()<<"  "<<x_ekf.qz()<<"  "<<x_ekf.qw()<<std::endl;
             // current_pose_pub_.publish(current_pose_);
             lastPose = currPose;
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
