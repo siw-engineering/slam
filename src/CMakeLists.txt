@@ -5,7 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
 SET(ROS 0 CACHE INT "Some user-specified option")
-set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
+set(libconfig_INCLUDE_DIRS "/home/developer/deps/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
 
 #find_package(cv_bridge_1_13 REQUIRED)
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
