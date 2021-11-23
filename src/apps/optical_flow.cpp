@@ -6,8 +6,8 @@
 #include <opencv2/optflow.hpp>
 #include "../inputs/ros/DepthSubscriber.h"
 #include "../inputs/ros/RGBSubscriber.h"
+#include "../of/utils.cuh"
 
-using namespace cv;
 using namespace std;
 
 
@@ -40,22 +40,24 @@ int main(int argc, char *argv[])
             continue;  
         }
 
-        Mat flow(prev_img.size(), CV_32FC2);
+        cv::Mat flow(prev_img.size(), CV_32FC2);
         optflow::calcOpticalFlowSparseToDense(prev_img, cur_img, flow, 8, 128, 0.05f, true, 500.0f, 1.5f);
-		Mat flow_parts[2];
+		cv::Mat flow_parts[2];
 		split(flow, flow_parts);
-		Mat magnitude, angle, magn_norm;
+		cv::Mat magnitude, angle, magn_norm;
 		cartToPolar(flow_parts[0], flow_parts[1], magnitude, angle, true);
-		normalize(magnitude, magn_norm, 0.0f, 1.0f, NORM_MINMAX);
+		normalize(magnitude, magn_norm, 0.0f, 1.0f, cv::NORM_MINMAX);
 		angle *= ((1.f / 360.f) * (180.f / 255.f));
 		//build hsv image
-		Mat _hsv[3], hsv, hsv8, bgr;
+		cv::Mat _hsv[3], hsv, hsv8, bgr;
 		_hsv[0] = angle;
-		_hsv[1] = Mat::ones(angle.size(), CV_32F);
+		_hsv[1] = cv::Mat::ones(angle.size(), CV_32F);
 		_hsv[2] = magn_norm;
+		computeCameraVelOF((float*)angle.data, (float*)magn_norm.data, (float*)cur_dimg.data, cur_dimg.cols, cur_dimg.rows);
+
 		merge(_hsv, 3, hsv);
 		hsv.convertTo(hsv8, CV_8U, 255.0);
-		cvtColor(hsv8, bgr, COLOR_HSV2BGR);
+		cvtColor(hsv8, bgr, cv::COLOR_HSV2BGR);
 		imshow("frame", cur_img);
 		imshow("flow", bgr);
 		int keyboard = waitKey(30);
