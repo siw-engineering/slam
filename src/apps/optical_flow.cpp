@@ -6,6 +6,7 @@
 #include <opencv2/optflow.hpp>
 #include "../inputs/ros/DepthSubscriber.h"
 #include "../inputs/ros/RGBSubscriber.h"
+#include "../inputs/ros/IMUSubscriber.h"
 #include "../of/utils.cuh"
 
 using namespace std;
@@ -17,10 +18,13 @@ int main(int argc, char *argv[])
 	ros::NodeHandle nh;
 	DepthSubscriber* depthsub;
     RGBSubscriber* rgbsub;
+    IMUSubscriber* imusub;
+
     cv::Mat cur_dimg, cur_img, prev_dimg, prev_img;
 
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
     depthsub  = new DepthSubscriber("/X1/front/depth", nh);
+    imusub  = new IMUSubscriber("/X1/imu/data", nh);
 
     while (ros::ok())
     {
@@ -53,8 +57,13 @@ int main(int argc, char *argv[])
 		_hsv[0] = angle;
 		_hsv[1] = cv::Mat::ones(angle.size(), CV_32F);
 		_hsv[2] = magn_norm;
-		computeCameraVelOF((float*)angle.data, (float*)magn_norm.data, (float*)cur_dimg.data, cur_dimg.cols, cur_dimg.rows);
 
+		sensor_msgs::Imu imu_msg;
+		imu_msg = imusub->read();
+		Eigen::Vector3f angular_vel(imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z);
+		
+		computeCameraVelOF((float*)angle.data, (float*)magn_norm.data, (float*)cur_dimg.data, cur_dimg.cols, cur_dimg.rows, angular_vel);
+		
 		merge(_hsv, 3, hsv);
 		hsv.convertTo(hsv8, CV_8U, 255.0);
 		cvtColor(hsv8, bgr, cv::COLOR_HSV2BGR);
