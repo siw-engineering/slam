@@ -8,6 +8,7 @@
 #include "../inputs/ros/RGBSubscriber.h"
 #include "../inputs/ros/IMUSubscriber.h"
 #include "../of/utils.cuh"
+#include "../cuda/containers/device_array.hpp"
 
 using namespace std;
 
@@ -21,10 +22,14 @@ int main(int argc, char *argv[])
     IMUSubscriber* imusub;
 
     cv::Mat cur_dimg, cur_img, prev_dimg, prev_img;
+    DeviceArray2D<float> curr_depth_d2d, angle_d2d, mag_d2d, cam_vel_d2d;
 
 	rgbsub = new RGBSubscriber("/X1/front/image_raw", nh);
     depthsub  = new DepthSubscriber("/X1/front/depth", nh);
     imusub  = new IMUSubscriber("/X1/imu/data", nh);
+
+    int height = 240;
+    int width = 320;
 
     while (ros::ok())
     {
@@ -44,13 +49,40 @@ int main(int argc, char *argv[])
             continue;  
         }
 
+        curr_depth_d2d.create(height, width);
+        angle_d2d.create(height, width);
+        mag_d2d.create(height, width);
+        cam_vel_d2d.create(height, width);
+
+
         cv::Mat flow(prev_img.size(), CV_32FC2);
+        cv::Mat cam_vel(prev_img.size(), CV_32FC1);
+
         optflow::calcOpticalFlowSparseToDense(prev_img, cur_img, flow, 8, 128, 0.05f, true, 500.0f, 1.5f);
 		cv::Mat flow_parts[2];
 		split(flow, flow_parts);
 		cv::Mat magnitude, angle, magn_norm;
 		cartToPolar(flow_parts[0], flow_parts[1], magnitude, angle, true);
 		normalize(magnitude, magn_norm, 0.0f, 1.0f, cv::NORM_MINMAX);
+
+		sensor_msgs::Imu imu_msg;
+		imu_msg = imusub->read();
+		Eigen::Vector3f angular_vel(imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z);
+		
+		curr_depth_d2d.upload((float*)cur_dimg.data, width*sizeof(float), height, width);
+		angle_d2d.upload((float*)angle.data, width*sizeof(float), height, width);
+		mag_d2d.upload((float*)magn_norm.data, width*sizeof(float), height, width);
+
+		// computeCameraVelOF((float*)angle.data, (float*)magn_norm.data, (float*)cur_dimg.data, angular_vel.data(), (float*)cam_vel.data, 277.2, width, height);
+		// std::cout<<cam_vel<<std::endl;
+		// double minVal;     double maxVal;          cv::minMaxLoc(magn_norm, &minVal, &maxVal); std::cout<<"min:"<<minVal<<" max:"<<maxVal<<std::endl;
+	
+
+		// std::vector<cv::Mat> channels;
+		// split(cam_vel, channels);
+		// cv::Scalar m = mean(channels[0]);
+		// std::cout<<"cam_vel x : "<<m[0]<<std::endl;	
+
 		angle *= ((1.f / 360.f) * (180.f / 255.f));
 		//build hsv image
 		cv::Mat _hsv[3], hsv, hsv8, bgr;
@@ -58,11 +90,6 @@ int main(int argc, char *argv[])
 		_hsv[1] = cv::Mat::ones(angle.size(), CV_32F);
 		_hsv[2] = magn_norm;
 
-		sensor_msgs::Imu imu_msg;
-		imu_msg = imusub->read();
-		Eigen::Vector3f angular_vel(imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z);
-		
-		computeCameraVelOF((float*)angle.data, (float*)magn_norm.data, (float*)cur_dimg.data, cur_dimg.cols, cur_dimg.rows, angular_vel);
 		
 		merge(_hsv, 3, hsv);
 		hsv.convertTo(hsv8, CV_8U, 255.0);
@@ -73,6 +100,13 @@ int main(int argc, char *argv[])
 		if (keyboard == 'q' || keyboard == 27)
 		break;
 
+
+		// std::vector<cv::Mat> channels;
+		// split(cam_vel, channels);
+		// cv::Scalar m = mean(channels[0]);
+		// std::cout<<"cam_vel x : "<<m[0]<<std::endl;
+
+		// std::cout<<angle<<std::endl;
         ros::spinOnce();
 		prev_img = cur_img;
 		prev_dimg = cur_dimg;
