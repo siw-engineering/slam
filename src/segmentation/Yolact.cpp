@@ -96,7 +96,7 @@ void Yolact::nms_sorted_bboxes(const std::vector<Object>& objects, std::vector<i
     }
 }
 
-int Yolact::detect_yolact(const cv::Mat& bgr, std::vector<Object>& objects)
+int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 {
     
 	ncnn::Net yolact;
@@ -104,16 +104,16 @@ int Yolact::detect_yolact(const cv::Mat& bgr, std::vector<Object>& objects)
     yolact.load_param("/home/developer/works/data/yolact.param");
     yolact.load_model("/home/developer/works/data/yolact.bin");
 
-    const int target_size = 550;
+    // const int target_size = 550;
 
-    int img_w = bgr.cols;
-    int img_h = bgr.rows;
+    int img_w = 550;
+    int img_h = 550;
 
-    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR2RGB, img_w, img_h, target_size, target_size);
+    // ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR2RGB, img_w, img_h, target_size, target_size);
 
-    const float mean_vals[3] = {123.68f, 116.78f, 103.94f};
-    const float norm_vals[3] = {1.0 / 58.40f, 1.0 / 57.12f, 1.0 / 57.38f};
-    in.substract_mean_normalize(mean_vals, norm_vals);
+    // const float mean_vals[3] = {123.68f, 116.78f, 103.94f};
+    // const float norm_vals[3] = {1.0 / 58.40f, 1.0 / 57.12f, 1.0 / 57.38f};
+    // in.substract_mean_normalize(mean_vals, norm_vals);
 
     ncnn::Extractor ex = yolact.create_extractor();
 
@@ -126,11 +126,11 @@ int Yolact::detect_yolact(const cv::Mat& bgr, std::vector<Object>& objects)
     ncnn::Mat mask;
     ncnn::Mat confidence;
 
-    ex.extract("619", maskmaps); // 138x138 x 32
+    ex.extract_share("619", maskmaps, true); // 138x138 x 32
 
-    ex.extract("816", location);   // 4 x 19248
-    ex.extract("818", mask);       // maskdim 32 x 19248
-    ex.extract("820", confidence); // 81 x 19248
+    ex.extract_share("816", location, true);   // 4 x 19248
+    ex.extract_share("818", mask, true);       // maskdim 32 x 19248
+    ex.extract_share("820", confidence, true); // 81 x 19248
 
     int num_class = confidence.w;
     int num_priors = confidence.h;
@@ -237,10 +237,10 @@ int Yolact::detect_yolact(const cv::Mat& bgr, std::vector<Object>& objects)
         float obj_y2 = bbox_cy + bbox_h * 0.5f;
 
         // clip
-        obj_x1 = std::max(std::min(obj_x1 * bgr.cols, (float)(bgr.cols - 1)), 0.f);
-        obj_y1 = std::max(std::min(obj_y1 * bgr.rows, (float)(bgr.rows - 1)), 0.f);
-        obj_x2 = std::max(std::min(obj_x2 * bgr.cols, (float)(bgr.cols - 1)), 0.f);
-        obj_y2 = std::max(std::min(obj_y2 * bgr.rows, (float)(bgr.rows - 1)), 0.f);
+        obj_x1 = std::max(std::min(obj_x1 * 550, (float)(550 - 1)), 0.f);
+        obj_y1 = std::max(std::min(obj_y1 * 550, (float)(550 - 1)), 0.f);
+        obj_x2 = std::max(std::min(obj_x2 * 550, (float)(550 - 1)), 0.f);
+        obj_y2 = std::max(std::min(obj_y2 * 550, (float)(550 - 1)), 0.f);
 
         // append object
         Object obj;
@@ -503,123 +503,12 @@ Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
 }
 
 volatile bool done = false;
-void Yolact::processFrame(cv::Mat img1){
+void Yolact::processFrame(int fd){
+
+    std::vector<Object> objects;
+    detect_yolact(objects, fd);
+
+    // draw_objects(imgIn, objects);
 
 
-    tbb::concurrent_bounded_queue<ProcessingChainData *> frameQueue;
-    frameQueue.set_capacity(3);
-
-    auto pipelineRunner = thread( &Yolact::run, this, ref(img1), ref(frameQueue));
-
-
-
-
-    // startTime = getTickCount();
-
-    ProcessingChainData *pData=0;
-
-    //cout << "image from filter " <<pData->img.cols << endl;
-    if (frameQueue.try_pop(pData))
-    {
-        char c = (char)waitKey(1);
-        if( c == 27 || c == 'q' || c == 'Q' )
-        {
-            done = true;
-        }
-        imshow( "result", pData->img );
-        delete pData;
-        pData = 0;
-    }
-
-    do
-    {
-        delete pData;
-    } while (frameQueue.try_pop(pData));
-    waitKey(0);
-    
-    pipelineRunner.join(); // TBB NOTE: wait for the pipeline to finish    
-    std::cout << " yolact processFrame " << std::endl;
-
-    // run(img);
-}
-
-void Yolact::run(Mat &img2, tbb::concurrent_bounded_queue<ProcessingChainData *> &frameQueue1){
-
-
-     tbb::parallel_pipeline(3, 
-                           // 1st filter
-                           tbb::make_filter<void,ProcessingChainData*>(tbb::filter::serial_in_order,
-                                                                  [&](tbb::flow_control& fc)->ProcessingChainData*
-                          {   // TBB NOTE: this filter feeds input into the pipeline
-                              // Mat frame;
-                              // capture >> frame;
-
-                              if( done || img2.empty() )
-                              {
-                                  
-                                  done = true;
-
-                                  fc.stop();
-                                  return 0;
-                              }
-                              auto pData = new ProcessingChainData;
-                              pData->img = img2.clone();
-                              return pData;
-                          }
-                          )&
-                           // 2nd filter
-                           tbb::make_filter<ProcessingChainData*,ProcessingChainData*>(tbb::filter::serial_in_order,
-                                                                  [&](ProcessingChainData *pData)->ProcessingChainData*
-                          {
-                               std::vector<Object> objects;
-                               Mat resultframe;
-                               
-                               detect_yolact(pData->img, objects);
-                               resultframe = draw_objects(pData->img, objects);
-                               pData->img = resultframe.clone();
-
-                               return pData;
-
-
-                          }
-                          )&
-                           tbb::make_filter<ProcessingChainData*,void>(tbb::filter::serial_in_order,
-                                                                  [&](ProcessingChainData *pData)
-                          {
-                            if (! done)
-                              {
-                                  try
-                                  {
-                                      frameQueue1.push(pData);
-                                  }
-                                  catch (...)
-                                  {
-                                      cout << "Pipeline caught an exception on the queue" << endl;
-                                      done = true;
-                                  }
-                              }
-
-                          }
-                          )
-                          );
-
-
-
-
-
-
-
-
-   
-   // cv::Mat resultframe;
-   // detect_yolact(img, objects);
-   // resultframe = draw_objects(img, objects);
-   // auto pData = new ProcessingChainData;
-   // pData->img = resultframe.clone();
-
-   // imshow( "result", pData->img );
-   // waitKey(0);
-
-
-	std::cout << " detection " << std::endl;
 }

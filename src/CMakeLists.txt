@@ -5,7 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
 SET(ROS 0 CACHE INT "Some user-specified option")
-set(libconfig_INCLUDE_DIRS "/home/developer/deps/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
+set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
 
 
 #find_package(cv_bridge_1_13 REQUIRED)
@@ -16,8 +16,8 @@ find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg cv_bridge i
 include_directories(${catkin_INCLUDE_DIRS}) 
 catkin_package()
 
-#ncnn
-find_package(ncnn REQUIRED PATHS /home/developer/works/slam/src/ThirdParty/ncnn/build/install/lib/cmake/ncnn)
+# #ncnn
+# find_package(ncnn REQUIRED PATHS /home/developer/works/slam/src/ThirdParty/ncnn/build/install/lib/cmake/ncnn)
 
 
 find_package(OpenCV 3.2 REQUIRED)
@@ -54,6 +54,11 @@ message("Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 
+# ncnn
+set(ncnn_DIRS "/home/developer/works/interop/slam/src/third_party/ncnn")
+# include_directories(${ncnn_DIRS})
+# link_directories(${ncnn_DIRS})
+add_subdirectory(${ncnn_DIRS})
 
 # Eigen3
 find_package(PkgConfig)
@@ -144,7 +149,7 @@ target_link_libraries(${PROJECT_NAME}
     ${SUITESPARSE_LIBRARIES}
     ${REALSENSE2_LIBRARY}
     ncnn
-    -ltbb
+#     -ltbb
     boost_filesystem
     boost_system
     pthread

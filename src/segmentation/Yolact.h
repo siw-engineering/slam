@@ -12,9 +12,7 @@
 #include <stdio.h>
 #include <vector>
 #include <iostream>
-#include<thread>
-#include <tbb/pipeline.h>
-#include <tbb/concurrent_queue.h>
+
 
 using namespace std;
 using namespace cv;
