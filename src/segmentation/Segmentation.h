@@ -6,7 +6,7 @@ class Segmentation{
 public:
 	// enum class METHOD {sample};
 	Segmentation(int width, int height/*, METHOD method*/);
-	void performSegmentation(cv::Mat img);
+	void performSegmentation(int fd);
 
 private:
 	// METHOD method = METHOD::sample;

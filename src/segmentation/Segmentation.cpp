@@ -7,10 +7,10 @@ Segmentation::Segmentation(int width, int height/*, METHOD method*/){
 	// this->method = method;
 }
 
-void Segmentation::performSegmentation(cv::Mat img){
+void Segmentation::performSegmentation(int fd){
 	// yolact_ = YolactSeg(/*width, height*/);
 	Yolact yolact;
 	// Yolact yolact();
-	yolact.processFrame(img);
+	yolact.processFrame(fd);
 	std::cout <<" performSegmentation " << std::endl;
 }

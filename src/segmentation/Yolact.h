@@ -28,22 +28,22 @@ public:
         std::vector<float> maskdata;
         cv::Mat mask;
     };
-    struct ProcessingChainData
-    {
-        cv::Mat img;
-        std::vector<cv::Rect> faces, faces2;
-        cv::Mat gray, smallImg;
-    };
+    // struct ProcessingChainData
+    // {
+    //     cv::Mat img;
+    //     std::vector<cv::Rect> faces, faces2;
+    //     cv::Mat gray, smallImg;
+    // };
 
     std::vector<Object> objects;
-	void processFrame(cv::Mat img1);
-    void run(cv::Mat &img2, tbb::concurrent_bounded_queue<ProcessingChainData *> &frameQueue1);
-    int detect_yolact(const cv::Mat& bgr, std::vector<Object>& objects);
+	void processFrame(int fd);
+    // void run(cv::Mat &img2, tbb::concurrent_bounded_queue<ProcessingChainData *> &frameQueue1);
+    int detect_yolact(std::vector<Object>& objects, int imgShareableHandle);
     inline float intersection_area(const Object& a, const Object& b);
     void qsort_descent_inplace(std::vector<Object>& objects, int left, int right);
     void qsort_descent_inplace(std::vector<Object>& objects);
     void nms_sorted_bboxes(const std::vector<Object>& objects, std::vector<int>& picked, float nms_threshold);
-    Mat draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects);
+    // Mat draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects);
 
 
 };
