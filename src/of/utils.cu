@@ -25,8 +25,8 @@ __global__ void computeCameraVelOFKernel(PtrStepSz<float> angle_mat, PtrStepSz<f
                0    -f/Z   v/Z   f+v^2/f   -uv/f    -u]
             */
 
-            float Ju_w = (x*y/f)*ang_vel[0] - (f + x*x/f)*ang_vel[1] + y*ang_vel[2];
-            float Jv_w = (f + y*y/f)*ang_vel[0] - (x*y/f)*ang_vel[1] - x*ang_vel[2];
+            float Ju_w = (x*y/f)*ang_vel.x - (f + x*x/f)*ang_vel.y + y*ang_vel.z;
+            float Jv_w = (f + y*y/f)*ang_vel.x - (x*y/f)*ang_vel.y - x*ang_vel.z;
 
             
             cam_vel.ptr(y)[x] = 2;
