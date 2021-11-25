@@ -73,7 +73,16 @@ int main(int argc, char *argv[])
 		angle_d2d.upload((float*)angle.data, width*sizeof(float), height, width);
 		mag_d2d.upload((float*)magn_norm.data, width*sizeof(float), height, width);
 
-		// computeCameraVelOF((float*)angle.data, (float*)magn_norm.data, (float*)cur_dimg.data, angular_vel.data(), (float*)cam_vel.data, 277.2, width, height);
+
+		float3 device_angl_vel;
+		device_angl_vel = *reinterpret_cast<float3*>(angular_vel.data());
+		
+		computeCameraVelOF(angle_d2d, mag_d2d, curr_depth_d2d, device_angl_vel, cam_vel_d2d, 277.2, width, height);
+		
+		float* cam_vel_hst = new float[height*width];
+		cam_vel_d2d.download(cam_vel_hst, width*sizeof(float));
+		cv::Mat cam_vel_mat(height, width, CV_32FC1, cam_vel_hst);
+
 		// std::cout<<cam_vel<<std::endl;
 		// double minVal;     double maxVal;          cv::minMaxLoc(magn_norm, &minVal, &maxVal); std::cout<<"min:"<<minVal<<" max:"<<maxVal<<std::endl;
 	
