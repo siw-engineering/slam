@@ -8,7 +8,6 @@
 #include "../inputs/ros/RGBSubscriber.h"
 #include "../inputs/ros/IMUSubscriber.h"
 #include "../of/utils.cuh"
-#include "../cuda/containers/device_array.hpp"
 
 using namespace std;
 
