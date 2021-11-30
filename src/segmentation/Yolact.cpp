@@ -1,10 +1,13 @@
 #include "Yolact.h"
-
+#include <time.h>
 
 Yolact::Yolact(/*int width, int height*/)
 {
 	std::cout << " yolact " << std::endl;
-
+    // ncnn::Net yolact;
+    yolact.opt.use_vulkan_compute = true;
+    yolact.load_param("/home/developer/works/data/yolact.param");
+    yolact.load_model("/home/developer/works/data/yolact.bin");
 }
 
 // Yolact::~Yolact()
@@ -99,10 +102,10 @@ void Yolact::nms_sorted_bboxes(const std::vector<Object>& objects, std::vector<i
 int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 {
     
-	ncnn::Net yolact;
-    yolact.opt.use_vulkan_compute = true;
-    yolact.load_param("/home/developer/works/data/yolact.param");
-    yolact.load_model("/home/developer/works/data/yolact.bin");
+	// ncnn::Net yolact;
+ //    yolact.opt.use_vulkan_compute = true;
+ //    yolact.load_param("/home/developer/works/data/yolact.param");
+ //    yolact.load_model("/home/developer/works/data/yolact.bin");
 
     // const int target_size = 550;
 
@@ -114,27 +117,22 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
     // const float mean_vals[3] = {123.68f, 116.78f, 103.94f};
     // const float norm_vals[3] = {1.0 / 58.40f, 1.0 / 57.12f, 1.0 / 57.38f};
     // in.substract_mean_normalize(mean_vals, norm_vals);
-
+    // clock_t tStart = clock();
     ncnn::Extractor ex = yolact.create_extractor();
-
-    cout << "image size wiwdth " <<img_w <<" height " << img_h<< endl;
-
     ex.input("input.1", imgShareableHandle);
-
     ncnn::Mat maskmaps;
     ncnn::Mat location;
     ncnn::Mat mask;
     ncnn::Mat confidence;
 
     ex.extract_share("619", maskmaps, true); // 138x138 x 32
-
     ex.extract_share("816", location, true);   // 4 x 19248
     ex.extract_share("818", mask, true);       // maskdim 32 x 19248
     ex.extract_share("820", confidence, true); // 81 x 19248
 
     int num_class = confidence.w;
     int num_priors = confidence.h;
-
+    // printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
     // make priorbox
     ncnn::Mat priorbox(4, num_priors);
     {
@@ -333,7 +331,7 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
         }
     }
 
-    cout << "mask size " <<img_w <<" height " << img_h<< endl;
+    // cout << "mask size " <<img_w <<" height " << img_h<< endl;
 
     return 0;
 }
@@ -505,9 +503,8 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 volatile bool done = false;
 void Yolact::processFrame(int fd){
 
-    // std::vector<Object> objects;
-    // detect_yolact(objects, fd);
-	std::cout <<" fd : " << fd << std::endl;
+    std::vector<Object> objects;
+    detect_yolact(objects, fd);
     // draw_objects(imgIn, objects);
 
 

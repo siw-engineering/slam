@@ -1,14 +1,23 @@
 // #include "YolactTest.h"
+#include "../gl/types.h"
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include "utils.h"
+#include "Yolact.h"
+
 
 class Segmentation{
 public:
 	// enum class METHOD {sample};
 	Segmentation(int width, int height/*, METHOD method*/);
-	void performSegmentation(int fd);
+	void performSegmentation(GPUTexture * rgb);
+
+
+	int target_width = 550;
+	int target_height = 550;
 
 private:
 	// METHOD method = METHOD::sample;
-	// YolactTest yolact;
+	Yolact yolact;
+	CudaOps cudaops;
 };

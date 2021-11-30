@@ -34,7 +34,7 @@ public:
     //     std::vector<cv::Rect> faces, faces2;
     //     cv::Mat gray, smallImg;
     // };
-
+    ncnn::Net yolact;
     std::vector<Object> objects;
 	void processFrame(int fd);
     // void run(cv::Mat &img2, tbb::concurrent_bounded_queue<ProcessingChainData *> &frameQueue1);
