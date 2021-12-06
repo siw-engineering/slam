@@ -21,6 +21,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include "sensor_msgs/Imu.h"
+#include "geometry_msgs/TwistStamped.h"
 #include "../sf/ROSInputSubscriberSF.h"
 
 
@@ -363,11 +364,25 @@ int main(int argc, char *argv[])
 
 
     //publisher
-    std::string vodom;
+    std::string vodom, twist_odom_topic;
+    twist_odom_topic = "X1/twist_vel";
     root["ros_topics"].lookupValue("vo_topic", vodom);
-    ros::Publisher current_pose_pub_;
+    ros::Publisher current_pose_pub_, twist_pub;
     current_pose_pub_ = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>(vodom, 10);
+    twist_pub = nh.advertise<geometry_msgs::TwistStamped>(twist_odom_topic, 10);
+
     geometry_msgs::PoseWithCovarianceStamped current_pose_;
+    geometry_msgs::TwistStamped twist_msg;
+
+
+    int h = 50;
+    Eigen::Vector3f f_x_h, f_x, vel3d;
+
+    f_x << 0,0,0;
+    f_x_h << 0,0,0;
+    vel3d << 0,0,0;
+
+
 
     while (ros::ok())
     {
@@ -432,6 +447,7 @@ int main(int argc, char *argv[])
             current_pose_.pose.pose.orientation.w = -q.w();
 
 
+
             current_pose_.pose.covariance = covariance;
             isub.odom_observe(current_pose_);
             isub.broadcastPose();
@@ -446,10 +462,35 @@ int main(int argc, char *argv[])
             // currPose.topLeftCorner(3, 3) =  q_fused.normalized().toRotationMatrix();
             // std::cout<<x_ekf.x()<<"  "<<x_ekf.y()<<"  "<<x_ekf.z()<<"  "<<x_ekf.qx()<<"  "<<x_ekf.qy()<<"  "<<x_ekf.qz()<<"  "<<x_ekf.qw()<<std::endl;
             // current_pose_pub_.publish(current_pose_);
+            
             lastPose = currPose;
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
+
+
+
+            if (tick % h == 0)
+            {
+                f_x_h = trans;
+                vel3d = (f_x_h - f_x)/h;
+                f_x = f_x_h;
+            }
+            // std::cout<<"velocity 3d x :"<<vel3d(0)<<" y :"<<vel3d(1)<<" z :"<<vel3d(2)<<std::endl;
+            // std::cout<<trans(0)<<" "<<trans(1)<<" "<<trans(2)<<std::endl;
+            
+            twist_msg.header.stamp = ros::Time::now();
+            twist_msg.twist.linear.x = vel3d(0);
+            twist_msg.twist.linear.y = vel3d(1);
+            twist_msg.twist.linear.z = vel3d(2);
+            twist_msg.twist.angular.x = 0;
+            twist_msg.twist.angular.y = 0;
+            twist_msg.twist.angular.z = 0;
+
+            twist_pub.publish(twist_msg);
+
+
+
 
             //save pose
             if(spose)
@@ -664,6 +705,7 @@ int main(int argc, char *argv[])
                                   false);
             }
         }
+
 
         poseGraph.push_back(std::pair<unsigned long long int, Eigen::Matrix4f>(tick, currPose));
         poseLogTimes.push_back(timestamp);
