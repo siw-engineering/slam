@@ -88,14 +88,11 @@ void CudaOps::allocateMem(size_t outSize){
 }
 
 void CudaOps::cleanAllocations(){
-    // if (d_output){
-
+    
         cuMemUnmap((CUdeviceptr)d_output, imgSize);
         cuMemAddressFree((CUdeviceptr)d_output, imgSize);
         close(imgShareableHandle);
         d_output = nullptr;
-    // }
-
 }
 
 texture<uchar4, 2, cudaReadModeElementType> inTex;

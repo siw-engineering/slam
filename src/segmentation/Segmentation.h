@@ -10,7 +10,7 @@ class Segmentation{
 public:
 	// enum class METHOD {sample};
 	Segmentation(int width, int height/*, METHOD method*/);
-	void performSegmentation(GPUTexture * rgb);
+	pangolin::GlTexture* performSegmentation(GPUTexture * rgb);
 
 
 	int target_width = 550;
@@ -20,4 +20,6 @@ private:
 	// METHOD method = METHOD::sample;
 	Yolact yolact;
 	CudaOps cudaops;
+	std::map<std::string, GPUTexture*> textures;
+	pangolin::GlTexture* maskTexture;
 };

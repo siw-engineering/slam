@@ -1,14 +1,14 @@
 #include "Segmentation.h"
-// #include <time.h>
 Segmentation::Segmentation(int width, int height/*, METHOD method*/)
 {
 	// TODO: Make customisable.
 	// yolact = YolactTest(/*width, height*/);
 	// this->method = method;
     Yolact yolact;
+    maskTexture = new pangolin::GlTexture(550, 550,GL_RGB,false,0,GL_RGB,GL_UNSIGNED_BYTE);
 }
 
-void Segmentation::performSegmentation(GPUTexture * rgb){
+pangolin::GlTexture* Segmentation::performSegmentation(GPUTexture * rgb){
 	
 
     cudaArray * textPtr;
@@ -21,8 +21,9 @@ void Segmentation::performSegmentation(GPUTexture * rgb){
 
     cudaGraphicsUnmapResources(1, &rgb->cudaRes);
 
-	// clock_t tStart = clock();
-	yolact.processFrame(fd);
+	cv::Mat mask = yolact.processFrame(fd);
 	cudaops.cleanAllocations();
-	// printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+	maskTexture->Upload(mask.data, GL_RGB, GL_UNSIGNED_BYTE);
+
+	return maskTexture;
 }

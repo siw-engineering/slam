@@ -1,9 +1,7 @@
 #include "Yolact.h"
-#include <time.h>
 
 Yolact::Yolact(/*int width, int height*/)
 {
-	std::cout << " yolact " << std::endl;
     // ncnn::Net yolact;
     yolact.opt.use_vulkan_compute = true;
     yolact.load_param("/home/developer/works/data/yolact.param");
@@ -117,7 +115,7 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
     // const float mean_vals[3] = {123.68f, 116.78f, 103.94f};
     // const float norm_vals[3] = {1.0 / 58.40f, 1.0 / 57.12f, 1.0 / 57.38f};
     // in.substract_mean_normalize(mean_vals, norm_vals);
-    // clock_t tStart = clock();
+
     ncnn::Extractor ex = yolact.create_extractor();
     ex.input("input.1", imgShareableHandle);
     ncnn::Mat maskmaps;
@@ -132,7 +130,7 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 
     int num_class = confidence.w;
     int num_priors = confidence.h;
-    // printf("Time taken: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+
     // make priorbox
     ncnn::Mat priorbox(4, num_priors);
     {
@@ -301,12 +299,6 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
         cv::Mat mask2;
         cv::resize(mask, mask2, cv::Size(img_w, img_h));
 
-
-
-
-
-
-
         // crop obj box and binarize
         obj.mask = cv::Mat(img_h, img_w, CV_8UC1);
         {
@@ -337,175 +329,177 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 }
 
 
-// Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
-// {
-//     static const char* class_names[] = {"background",
-//                                         "person", "bicycle", "car", "motorcycle", "airplane", "bus",
-//                                         "train", "truck", "boat", "traffic light", "fire hydrant",
-//                                         "stop sign", "parking meter", "bench", "bird", "cat", "dog",
-//                                         "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
-//                                         "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-//                                         "skis", "snowboard", "sports ball", "kite", "baseball bat",
-//                                         "baseball glove", "skateboard", "surfboard", "tennis racket",
-//                                         "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
-//                                         "banana", "apple", "sandwich", "orange", "broccoli", "carrot",
-//                                         "hot dog", "pizza", "donut", "cake", "chair", "couch",
-//                                         "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
-//                                         "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
-//                                         "toaster", "sink", "refrigerator", "book", "clock", "vase",
-//                                         "scissors", "teddy bear", "hair drier", "toothbrush"
-//                                        };
+cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
+{
+    static const char* class_names[] = {"background",
+                                        "person", "bicycle", "car", "motorcycle", "airplane", "bus",
+                                        "train", "truck", "boat", "traffic light", "fire hydrant",
+                                        "stop sign", "parking meter", "bench", "bird", "cat", "dog",
+                                        "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+                                        "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+                                        "skis", "snowboard", "sports ball", "kite", "baseball bat",
+                                        "baseball glove", "skateboard", "surfboard", "tennis racket",
+                                        "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+                                        "banana", "apple", "sandwich", "orange", "broccoli", "carrot",
+                                        "hot dog", "pizza", "donut", "cake", "chair", "couch",
+                                        "potted plant", "bed", "dining table", "toilet", "tv", "laptop",
+                                        "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
+                                        "toaster", "sink", "refrigerator", "book", "clock", "vase",
+                                        "scissors", "teddy bear", "hair drier", "toothbrush"
+                                       };
 
-//     static const unsigned char colors[81][3] = {
-//         {56, 0, 255},
-//         {226, 255, 0},
-//         {0, 94, 255},
-//         {0, 37, 255},
-//         {0, 255, 94},
-//         {255, 226, 0},
-//         {0, 18, 255},
-//         {255, 151, 0},
-//         {170, 0, 255},
-//         {0, 255, 56},
-//         {255, 0, 75},
-//         {0, 75, 255},
-//         {0, 255, 169},
-//         {255, 0, 207},
-//         {75, 255, 0},
-//         {207, 0, 255},
-//         {37, 0, 255},
-//         {0, 207, 255},
-//         {94, 0, 255},
-//         {0, 255, 113},
-//         {255, 18, 0},
-//         {255, 0, 56},
-//         {18, 0, 255},
-//         {0, 255, 226},
-//         {170, 255, 0},
-//         {255, 0, 245},
-//         {151, 255, 0},
-//         {132, 255, 0},
-//         {75, 0, 255},
-//         {151, 0, 255},
-//         {0, 151, 255},
-//         {132, 0, 255},
-//         {0, 255, 245},
-//         {255, 132, 0},
-//         {226, 0, 255},
-//         {255, 37, 0},
-//         {207, 255, 0},
-//         {0, 255, 207},
-//         {94, 255, 0},
-//         {0, 226, 255},
-//         {56, 255, 0},
-//         {255, 94, 0},
-//         {255, 113, 0},
-//         {0, 132, 255},
-//         {255, 0, 132},
-//         {255, 170, 0},
-//         {255, 0, 188},
-//         {113, 255, 0},
-//         {245, 0, 255},
-//         {113, 0, 255},
-//         {255, 188, 0},
-//         {0, 113, 255},
-//         {255, 0, 0},
-//         {0, 56, 255},
-//         {255, 0, 113},
-//         {0, 255, 188},
-//         {255, 0, 94},
-//         {255, 0, 18},
-//         {18, 255, 0},
-//         {0, 255, 132},
-//         {0, 188, 255},
-//         {0, 245, 255},
-//         {0, 169, 255},
-//         {37, 255, 0},
-//         {255, 0, 151},
-//         {188, 0, 255},
-//         {0, 255, 37},
-//         {0, 255, 0},
-//         {255, 0, 170},
-//         {255, 0, 37},
-//         {255, 75, 0},
-//         {0, 0, 255},
-//         {255, 207, 0},
-//         {255, 0, 226},
-//         {255, 245, 0},
-//         {188, 255, 0},
-//         {0, 255, 18},
-//         {0, 255, 75},
-//         {0, 255, 151},
-//         {255, 56, 0},
-//         {245, 255, 0}
-//     };
+    static const unsigned char colors[81][3] = {
+        {56, 0, 255},
+        {226, 255, 0},
+        {0, 94, 255},
+        {0, 37, 255},
+        {0, 255, 94},
+        {255, 226, 0},
+        {0, 18, 255},
+        {255, 151, 0},
+        {170, 0, 255},
+        {0, 255, 56},
+        {255, 0, 75},
+        {0, 75, 255},
+        {0, 255, 169},
+        {255, 0, 207},
+        {75, 255, 0},
+        {207, 0, 255},
+        {37, 0, 255},
+        {0, 207, 255},
+        {94, 0, 255},
+        {0, 255, 113},
+        {255, 18, 0},
+        {255, 0, 56},
+        {18, 0, 255},
+        {0, 255, 226},
+        {170, 255, 0},
+        {255, 0, 245},
+        {151, 255, 0},
+        {132, 255, 0},
+        {75, 0, 255},
+        {151, 0, 255},
+        {0, 151, 255},
+        {132, 0, 255},
+        {0, 255, 245},
+        {255, 132, 0},
+        {226, 0, 255},
+        {255, 37, 0},
+        {207, 255, 0},
+        {0, 255, 207},
+        {94, 255, 0},
+        {0, 226, 255},
+        {56, 255, 0},
+        {255, 94, 0},
+        {255, 113, 0},
+        {0, 132, 255},
+        {255, 0, 132},
+        {255, 170, 0},
+        {255, 0, 188},
+        {113, 255, 0},
+        {245, 0, 255},
+        {113, 0, 255},
+        {255, 188, 0},
+        {0, 113, 255},
+        {255, 0, 0},
+        {0, 56, 255},
+        {255, 0, 113},
+        {0, 255, 188},
+        {255, 0, 94},
+        {255, 0, 18},
+        {18, 255, 0},
+        {0, 255, 132},
+        {0, 188, 255},
+        {0, 245, 255},
+        {0, 169, 255},
+        {37, 255, 0},
+        {255, 0, 151},
+        {188, 0, 255},
+        {0, 255, 37},
+        {0, 255, 0},
+        {255, 0, 170},
+        {255, 0, 37},
+        {255, 75, 0},
+        {0, 0, 255},
+        {255, 207, 0},
+        {255, 0, 226},
+        {255, 245, 0},
+        {188, 255, 0},
+        {0, 255, 18},
+        {0, 255, 75},
+        {0, 255, 151},
+        {255, 56, 0},
+        {245, 255, 0}
+    };
 
-//     cv::Mat image = bgr.clone();
+    cv::Mat image = bgr.clone();
 
-//     int color_index = 0;
+    int color_index = 0;
 
-//     for (size_t i = 0; i < objects.size(); i++)
-//     {
-//         const Object& obj = objects[i];
+    for (size_t i = 0; i < objects.size(); i++)
+    {
+        const Object& obj = objects[i];
 
-//         if (obj.prob < 0.15)
-//             continue;
+        if (obj.prob < 0.15)
+            continue;
 
-//         fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
-//                 obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
+        // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
+        //         obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
-//         const unsigned char* color = colors[color_index % 81];
-//         color_index++;
+        const unsigned char* color = colors[color_index % 81];
+        color_index++;
 
-//         cv::rectangle(image, obj.rect, cv::Scalar(color[0], color[1], color[2]));
+        cv::rectangle(image, obj.rect, cv::Scalar(color[0], color[1], color[2]));
 
-//         char text[256];
-//         sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
-//         //fprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
+        char text[256];
+        sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
+        //fprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
 
-//         int baseLine = 0;
-//         cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+        int baseLine = 0;
+        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
-//         int x = obj.rect.x;
-//         int y = obj.rect.y - label_size.height - baseLine;
-//         if (y < 0)
-//             y = 0;
-//         if (x + label_size.width > image.cols)
-//             x = image.cols - label_size.width;
+        int x = obj.rect.x;
+        int y = obj.rect.y - label_size.height - baseLine;
+        if (y < 0)
+            y = 0;
+        if (x + label_size.width > image.cols)
+            x = image.cols - label_size.width;
 
-//         cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-//                       cv::Scalar(255, 255, 255), -1);
+        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+                      cv::Scalar(255, 255, 255), -1);
 
-//         cv::putText(image, text, cv::Point(x, y + label_size.height),
-//                     cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+        cv::putText(image, text, cv::Point(x, y + label_size.height),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
 
-//         // draw mask
-//         for (int y = 0; y < image.rows; y++)
-//         {
-//             const uchar* mp = obj.mask.ptr(y);
-//             uchar* p = image.ptr(y);
-//             for (int x = 0; x < image.cols; x++)
-//             {
-//                 if (mp[x] == 255)
-//                 {
-//                     p[0] = cv::saturate_cast<uchar>(p[0] * 0.5 + color[0] * 0.5);
-//                     p[1] = cv::saturate_cast<uchar>(p[1] * 0.5 + color[1] * 0.5);
-//                     p[2] = cv::saturate_cast<uchar>(p[2] * 0.5 + color[2] * 0.5);
-//                 }
-//                 p += 3;
-//             }
-//         }
-//     }
-
-//     return image;
-// }
+        // draw mask
+        for (int y = 0; y < image.rows; y++)
+        {
+            const uchar* mp = obj.mask.ptr(y);
+            uchar* p = image.ptr(y);
+            for (int x = 0; x < image.cols; x++)
+            {
+                if (mp[x] == 255)
+                {
+                    p[0] = cv::saturate_cast<uchar>(p[0] * 0.5 + color[0] * 0.5);
+                    p[1] = cv::saturate_cast<uchar>(p[1] * 0.5 + color[1] * 0.5);
+                    p[2] = cv::saturate_cast<uchar>(p[2] * 0.5 + color[2] * 0.5);
+                }
+                p += 3;
+            }
+        }
+    }
+    return image;
+    // cv::imshow(" instance ", image);
+    // cv::waitKey(0);
+    // return 0;
+}
 
 volatile bool done = false;
-void Yolact::processFrame(int fd){
+cv::Mat Yolact::processFrame(int fd){
 
     std::vector<Object> objects;
     detect_yolact(objects, fd);
-    // draw_objects(imgIn, objects);
-
+    cv::Mat mask = draw_objects(Mat::zeros(Size(550,550),CV_8UC3), objects);
+    return mask;
 
 }
