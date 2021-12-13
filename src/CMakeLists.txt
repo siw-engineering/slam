@@ -5,7 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
 SET(ROS 0 CACHE INT "Some user-specified option")
-set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
+set(libconfig_INCLUDE_DIRS "/home/developer/deps/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
 if( "${MultipleModel}" STREQUAL "ON" )
   add_definitions(-DenableMultipleModel)
 endif()
@@ -55,8 +55,10 @@ link_directories(${Boost_LIBRARY_DIRS})
 
 # ncnn
 if( "${MultipleModel}" STREQUAL "ON" )
-  set(ncnn_DIRS "/home/developer/works/interop/slam/src/third_party/ncnn")
-  add_subdirectory(${ncnn_DIRS})
+#   set(ncnn_DIRS "/home/developer/works/interop/slam/src/third_party/ncnn")
+  set(ncnn_config "/home/developer/deps/ncnn/build/install/lib/cmake/ncnn/")
+#   add_subdirectory(${ncnn_DIRS})
+  find_package(ncnn REQUIRED PATHS /home/developer/deps/ncnn/build/install/lib/cmake/ncnn/)
 endif()
 
 # Eigen3

@@ -22,3 +22,24 @@ sudo make install
 sudo apt-key adv --keyserver keys.gnupg.net --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
 sudo add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo $(lsb_release -cs) main" -u
 sudo apt-get install librealsense2-dkms librealsense2-utils librealsense2-dev librealsense2-dbg -y
+
+#Vulkan
+cd ~/deps
+wget https://sdk.lunarg.com/sdk/download/1.2.189.0/linux/vulkansdk-linux-x86_64-1.2.189.0.tar.gz?Human=true -O vulkansdk-linux-x86_64-1.2.189.0.tar.gz
+tar -xf vulkansdk-linux-x86_64-1.2.189.0.tar.gz
+export VULKAN_SDK=$(pwd)/1.2.189.0/x86_64
+cd 1.2.189.0/
+source setup-env.sh
+sudo mkdir -p /usr/share/vulkan/icd.d
+sudo cp /home/developer/slam/nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
+
+#NCNN
+cd ~/deps
+git clone https://github.com/siw-engineering/ncnn.git
+cd ncnn
+git submodule update --init
+mkdir -p build
+cd build
+cmake -DCMAKE_BUILD_TYPE=Release -DNCNN_VULKAN=ON -DNCNN_SYSTEM_GLSLANG=ON -DNCNN_BUILD_EXAMPLES=ON ..
+make -j$(nproc)
+sudo make install

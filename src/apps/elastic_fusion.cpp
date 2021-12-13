@@ -1,13 +1,16 @@
 #include "inputs/RawLogReader.h"
 #include <libconfig.hh>
 #include "../ui/EFGUI.h"
+#include "../ui/GUI.h"
 // #include "../odom/RGBDOdometryef.h"
 #include "../gl/ComputePack.h"
 #include "../gl/FillIn.h"
 #include "../model/GlobalModel.h"
 #include "../lc/Deformation.h"
 #include "../lc/PoseMatch.h"
-
+#if enableMultipleModel
+#include "../segmentation/Segmentation.h"
+#endif // multiplemodel
 
 using namespace libconfig;
 
@@ -198,7 +201,7 @@ int main(int argc, char const *argv[])
     Config cfg;
     try
     {
-        cfg.readFile("/home/developer/slam/src/configs/ef_iclnuim.cfg");
+        cfg.readFile("/home/developer/slam/src/configs/ef.cfg");
     }
     catch(const FileIOException &fioex)
     {
@@ -261,7 +264,8 @@ int main(int argc, char const *argv[])
     if (spose)
         pose_file.open(savepose_file);
 
-    EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, ui_shaders);
+    // EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, ui_shaders);
+    GUI gui(ui_shaders);
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
     // LC
@@ -280,6 +284,10 @@ int main(int argc, char const *argv[])
 
     Img<Eigen::Vector4f> consBuff(height / 20, width / 20);
     Img<unsigned short> timesBuff(height / 20, width / 20);
+
+#if enableMultipleModel
+    Segmentation segment(width, height);
+#endif
 
 
     //data
@@ -300,6 +308,7 @@ int main(int argc, char const *argv[])
     textures[GPUTexture::DEPTH_METRIC] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
     textures[GPUTexture::DEPTH_METRIC_FILTERED] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
     textures[GPUTexture::DEPTH_NORM] = new GPUTexture(width, height, GL_LUMINANCE, GL_LUMINANCE, GL_FLOAT, true);
+    textures[GPUTexture::MASK] = new GPUTexture(width, height, GL_RGBA, GL_RGB, GL_UNSIGNED_BYTE, true, true);
 
     //createcompute
     computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("empty.vert", "depth_norm.frag", "quad.geom", gl_shaders), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
@@ -368,6 +377,11 @@ int main(int argc, char const *argv[])
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
+
+#if enableMultipleModel
+            textures[GPUTexture::MASK]->texture = segment.performSegmentation(textures[GPUTexture::RGB]);
+            gui.drawMask(textures[GPUTexture::MASK], textures[GPUTexture::RGB]);
+#endif 
 
             //save pose
             if(spose)
@@ -590,8 +604,10 @@ int main(int argc, char const *argv[])
 
         predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
         ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
-
-        gui.render(globalModel.model(), Vertex::SIZE);
+        
+        gui.drawModel(globalModel.model(), Vertex::SIZE);
+        gui.displayImg(textures[GPUTexture::RGB]);
+        // gui.render(globalModel.model(), Vertex::SIZE);
         tick++;
 
     }

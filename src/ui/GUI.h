@@ -121,7 +121,8 @@ class GUI
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 			draw_program->Unbind();
-			// pangolin::FinishFrame();
-
+#if !enableMultipleModel			
+			pangolin::FinishFrame();
+#endif // multiplemodel
 		}
 };
