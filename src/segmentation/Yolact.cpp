@@ -4,8 +4,8 @@ Yolact::Yolact(/*int width, int height*/)
 {
     // ncnn::Net yolact;
     yolact.opt.use_vulkan_compute = true;
-    yolact.load_param("/home/developer/works/data/yolact.param");
-    yolact.load_model("/home/developer/works/data/yolact.bin");
+    yolact.load_param("/home/developer/deps/ncnn/examples/yolact.param");
+    yolact.load_model("/home/developer/deps/ncnn/examples/yolact.bin");
 }
 
 // Yolact::~Yolact()
