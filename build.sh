@@ -31,7 +31,7 @@ export VULKAN_SDK=$(pwd)/1.2.189.0/x86_64
 cd 1.2.189.0/
 source setup-env.sh
 sudo mkdir -p /usr/share/vulkan/icd.d
-sudo cp /home/developer/slam/nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
+sudo wget -O /usr/share/vulkan/icd.d/nvidia_icd.json https://gitlab.com/nvidia/container-images/vulkan/-/raw/master/nvidia_icd.json
 
 #NCNN
 cd ~/deps

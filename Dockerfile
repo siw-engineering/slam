@@ -130,19 +130,45 @@ RUN /bin/sh -c 'echo ". /opt/ros/melodic/setup.bash" >> ~/.bashrc'
 
 RUN sudo apt-get install -y cmake-qt-gui git build-essential libusb-1.0-0-dev libudev-dev freeglut3-dev libglew-dev libsuitesparse-dev libeigen3-dev zlib1g-dev libjpeg-dev
 
-RUN mkdir ~/deps \
-&& cd ~/deps \
-&& git clone --single-branch --branch v0.6 https://github.com/stevenlovegrove/Pangolin.git \
-&& cd Pangolin \
-&& mkdir build \
-&& cd build \
-&& cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON \
-&& make -j8 
+RUN echo " Installing Pangolin " \
+   && mkdir ~/deps \
+   && cd ~/deps \
+   && git clone --single-branch --branch v0.6 https://github.com/stevenlovegrove/Pangolin.git \
+   && cd Pangolin \
+   && mkdir build \
+   && cd build \
+   && cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON \
+   && make -j8 
 
 
-RUN cd ~/deps/ \
-&& wget https://hyperrealm.github.io/libconfig/dist/libconfig-1.7.3.tar.gz \
-&& tar -xvf libconfig-1.7.3.tar.gz \
-&& cd libconfig-1.7.3 \
-&& ./configure \
-&& sudo make install \
+RUN echo " installing libconfig " \
+   && cd ~/deps/ \
+   && wget https://hyperrealm.github.io/libconfig/dist/libconfig-1.7.3.tar.gz \
+   && tar -xvf libconfig-1.7.3.tar.gz \
+   && cd libconfig-1.7.3 \
+   && ./configure \
+   && sudo make install
+
+#VulkanSDK
+RUN echo "downloading vulkan sdk " \
+   && cd ~/deps/ \
+   && wget -q --show-progress --progress=bar:force:noscroll https://sdk.lunarg.com/sdk/download/1.2.189.0/linux/vulkansdk-linux-x86_64-1.2.189.0.tar.gz?Human=true -O vulkansdk-linux-x86_64-1.2.189.0.tar.gz \
+   && echo " installing Vulkan SDK " \
+   && tar -xf vulkansdk-linux-x86_64-1.2.189.0.tar.gz \
+   && rm -r vulkansdk-linux-x86_64-1.2.189.0.tar.gz \
+   && export VULKAN_SDK=$(pwd)/1.2.189.0/x86_64 \
+   && cd 1.2.189.0/ \
+   && sudo mkdir -p /usr/share/vulkan/icd.d \
+   && sudo wget -O /usr/share/vulkan/icd.d/nvidia_icd.json https://gitlab.com/nvidia/container-images/vulkan/-/raw/master/nvidia_icd.json
+
+#NCNN
+RUN echo "Installing NCNN " \
+   && cd ~/deps/ \
+   && git clone https://github.com/siw-engineering/ncnn.git \
+   && cd ncnn \
+   && git submodule update --init \
+   && mkdir -p build \
+   && cd build \
+   && cmake -DCMAKE_BUILD_TYPE=Release -DNCNN_VULKAN=ON -DNCNN_SYSTEM_GLSLANG=ON -DNCNN_BUILD_EXAMPLES=ON .. \
+   && make -j$(nproc) \
+   && sudo make install
