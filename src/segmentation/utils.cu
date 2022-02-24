@@ -106,8 +106,8 @@ __global__ void imageResizeKernel(float* dst, int width, int height)
     float scale_w = 1.178;
     float scale_h = 0.873;
 
-    int xs = x * scale_h;
-    int ys = y * scale_w;
+    int xs = x * scale_w;
+    int ys = y * scale_h;
 
     int i = width * y + x;
 
