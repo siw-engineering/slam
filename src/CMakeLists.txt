@@ -5,17 +5,17 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
 SET(ROS 0 CACHE INT "Some user-specified option")
+
 set(libconfig_INCLUDE_DIRS "/home/developer/deps/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
 if( "${MultipleModel}" STREQUAL "ON" )
   add_definitions(-DenableMultipleModel)
 endif()
 
-
 #find_package(cv_bridge_1_13 REQUIRED)
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
 #set(cv_bridge_DIR "/home/developer/packages/vision_opencv/cv_bridge/install/share/cv_bridge/cmake")
 
-find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg cv_bridge image_transport)  
+find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs sensor_msgs nav_msgs geometry_msgs genmsg cv_bridge image_transport tf2 tf2_geometry_msgs tf2_sensor_msgs tf2_ros tf2_eigen)
 include_directories(${catkin_INCLUDE_DIRS}) 
 catkin_package()
 
@@ -102,7 +102,10 @@ if( "${MultipleModel}" STREQUAL "ON" )
 endif()
 # file(GLOB cuda cuda/*.cu)
 file(GLOB odom_cuda odom/*.cu)
+file(GLOB of_cuda of/*.cu)
 file(GLOB cuda_containers cuda/containers/*.cpp)
+file(GLOB sf sf/*.cpp)
+
 
 set(CUDA_ARCH_PTX "" CACHE STRING "Specify 'virtual' PTX arch to build PTX intermediate code for. Example: 1.0 1.2 or 10 12")
 include(CudaComputeTargetFlags.cmake)
@@ -114,8 +117,11 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 CUDA_COMPILE(cuda_objs ${cuda})
+
 CUDA_COMPILE(odom_cuda_objs ${odom_cuda}
                             ${seg_cuda})
+CUDA_COMPILE(of_cuda_objs ${of_cuda})
+
 
 
 add_executable(${PROJECT_NAME}
@@ -134,7 +140,9 @@ add_executable(${PROJECT_NAME}
                ${cuda_objs}
                ${odom_cuda}
                ${odom_cuda_objs}
+               ${of_cuda_objs}
                ${cuda_containers}
+               ${sf}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
