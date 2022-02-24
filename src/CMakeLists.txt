@@ -5,7 +5,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/")
 SET(APP "apps/elastic_fusion.cpp" CACHE STRING "program to run")
 SET(RS 0 CACHE INT "Some user-specified option")
 SET(ROS 0 CACHE INT "Some user-specified option")
-set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
+
+set(libconfig_INCLUDE_DIRS "/home/developer/deps/libconfig-1.7.3/lib" CACHE STRING "libconfig include dir")
+if( "${MultipleModel}" STREQUAL "ON" )
+  add_definitions(-DenableMultipleModel)
+endif()
 
 #find_package(cv_bridge_1_13 REQUIRED)
 #set(OpenCV_DIR "/home/developer/co-fusion/deps/opencv-3.1.0/build")
@@ -14,6 +18,7 @@ set(libconfig_INCLUDE_DIRS "/home/developer/packages/libconfig-1.7.3/lib" CACHE 
 find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs sensor_msgs nav_msgs geometry_msgs genmsg cv_bridge image_transport tf2 tf2_geometry_msgs tf2_sensor_msgs tf2_ros tf2_eigen)
 include_directories(${catkin_INCLUDE_DIRS}) 
 catkin_package()
+
 
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
@@ -28,7 +33,6 @@ include_directories(${CUDA_INCLUDE_DIRS})
 if(${RS})
   include_directories(${REALSENSE2_INCLUDE_DIR})
 endif()
-
 
 
 # Warnings / Errors
@@ -49,6 +53,13 @@ message("Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
 include_directories(${Boost_INCLUDE_DIRS})
 link_directories(${Boost_LIBRARY_DIRS})
 
+# ncnn
+if( "${MultipleModel}" STREQUAL "ON" )
+#   set(ncnn_DIRS "/home/developer/works/interop/slam/src/third_party/ncnn")
+  set(ncnn_config "/home/developer/deps/ncnn/build/install/lib/cmake/ncnn/")
+#   add_subdirectory(${ncnn_DIRS})
+  find_package(ncnn REQUIRED PATHS /home/developer/deps/ncnn/build/install/lib/cmake/ncnn/)
+endif()
 
 # Eigen3
 find_package(PkgConfig)
@@ -85,6 +96,10 @@ file(GLOB odom odom/*.cpp)
 file(GLOB lc lc/*.cpp)
 file(GLOB tools tools/*.cpp)
 file(GLOB ui ui/*.cpp)
+if( "${MultipleModel}" STREQUAL "ON" )
+  file(GLOB seg segmentation/*.cpp)
+  file(GLOB seg_cuda segmentation/*.cu)
+endif()
 # file(GLOB cuda cuda/*.cu)
 file(GLOB odom_cuda odom/*.cu)
 file(GLOB of_cuda of/*.cu)
@@ -102,7 +117,9 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 CUDA_COMPILE(cuda_objs ${cuda})
-CUDA_COMPILE(odom_cuda_objs ${odom_cuda})
+
+CUDA_COMPILE(odom_cuda_objs ${odom_cuda}
+                            ${seg_cuda})
 CUDA_COMPILE(of_cuda_objs ${of_cuda})
 
 
@@ -115,6 +132,8 @@ add_executable(${PROJECT_NAME}
                ${inputs_ros}
                ${model}
       			   ${odom}
+               ${seg}
+               ${seg_cuda}
                ${lc}
       			   ${tools}
                ${cuda}
@@ -145,11 +164,18 @@ target_link_libraries(${PROJECT_NAME}
     ${libconfig_LIBRARIES}
     ${SUITESPARSE_LIBRARIES}
     ${REALSENSE2_LIBRARY}
+#     -ltbb
     boost_filesystem
     boost_system
     pthread
     config++
 	)
+
+if( "${MultipleModel}" STREQUAL "ON" )
+target_link_libraries(${PROJECT_NAME}
+                ncnn
+                -lcuda)
+endif()
 
 if(${RS})
 target_link_libraries(${PROJECT_NAME}
