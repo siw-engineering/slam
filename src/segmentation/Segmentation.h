@@ -21,5 +21,5 @@ private:
 	Yolact yolact;
 	CudaOps cudaops;
 	std::map<std::string, GPUTexture*> textures;
-	pangolin::GlTexture* maskTexture;
+	// pangolin::GlTexture* maskTexture;
 };

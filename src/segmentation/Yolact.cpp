@@ -329,7 +329,7 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 }
 
 
-cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
+cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects, std::vector<Object>& track_objects)
 {
     static const char* class_names[] = {"background",
                                         "person", "bicycle", "car", "motorcycle", "airplane", "bus",
@@ -434,25 +434,25 @@ cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& obje
 
     cv::Mat image = bgr.clone();
 
-    int color_index = 0;
+    int color_index = 1;
 
     for (size_t i = 0; i < objects.size(); i++)
     {
         const Object& obj = objects[i];
 
-        if (obj.prob < 0.15)
+        if (obj.prob < 0.6)
             continue;
-
+        track_objects.push_back(objects[i]);
         // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
         //         obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
-        const unsigned char* color = colors[color_index % 81];
-        color_index++;
+        // const unsigned char* color = colors[color_index % 81];
+        // color_index++;
 
-        cv::rectangle(image, obj.rect, cv::Scalar(color[0], color[1], color[2]));
+        // cv::rectangle(image, obj.rect, cv::Scalar(color[0], color[1], color[2]));
 
         char text[256];
-        sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
+        // sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
         //fprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
 
         int baseLine = 0;
@@ -465,11 +465,11 @@ cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& obje
         if (x + label_size.width > image.cols)
             x = image.cols - label_size.width;
 
-        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-                      cv::Scalar(255, 255, 255), -1);
+        // cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+        //               cv::Scalar(255, 255, 255), -1);
 
-        cv::putText(image, text, cv::Point(x, y + label_size.height),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+        // cv::putText(image, text, cv::Point(x, y + label_size.height),
+        //             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
 
         // draw mask
         for (int y = 0; y < image.rows; y++)
@@ -480,26 +480,31 @@ cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& obje
             {
                 if (mp[x] == 255)
                 {
-                    p[0] = cv::saturate_cast<uchar>(p[0] * 0.5 + color[0] * 0.5);
-                    p[1] = cv::saturate_cast<uchar>(p[1] * 0.5 + color[1] * 0.5);
-                    p[2] = cv::saturate_cast<uchar>(p[2] * 0.5 + color[2] * 0.5);
+                    // p[0] = cv::saturate_cast<uchar>(p[0] * 0.5 + color[0] * 0.5);
+                    // p[1] = cv::saturate_cast<uchar>(p[1] * 0.5 + color[1] * 0.5);
+                    // p[2] = cv::saturate_cast<uchar>(p[2] * 0.5 + color[2] * 0.5);
+                    p[x] = cv::saturate_cast<unsigned char>(color_index);
                 }
-                p += 3;
+                // p += 3;
             }
         }
+        color_index++;
     }
-    return image;
+    cv::Mat resized_image;
+    cv::resize(image, resized_image, cv::Size(640,480), cv::INTER_LINEAR);
     // cv::imshow(" instance ", image);
     // cv::waitKey(0);
     // return 0;
+    return resized_image;
 }
 
 volatile bool done = false;
 cv::Mat Yolact::processFrame(int fd){
 
     std::vector<Object> objects;
+    std::vector<Object> track_objects;
     detect_yolact(objects, fd);
-    cv::Mat mask = draw_objects(Mat::zeros(Size(550,550),CV_8UC3), objects);
+    cv::Mat mask = draw_objects(Mat::zeros(Size(550,550),CV_8UC1), objects, track_objects);
     return mask;
 
 }

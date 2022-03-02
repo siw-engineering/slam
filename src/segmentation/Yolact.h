@@ -43,7 +43,7 @@ public:
     void qsort_descent_inplace(std::vector<Object>& objects, int left, int right);
     void qsort_descent_inplace(std::vector<Object>& objects);
     void nms_sorted_bboxes(const std::vector<Object>& objects, std::vector<int>& picked, float nms_threshold);
-    cv::Mat draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects);
+    cv::Mat draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects, std::vector<Object>& track_objects);
 
 
 };
