@@ -242,6 +242,12 @@ int main(int argc, char const *argv[])
     float width, height;
     root["gui"].lookupValue("width", width);
     root["gui"].lookupValue("height", height);
+    GLfloat* bbox_vertices_ptr;
+    GLushort* bbox_elements_ptr;
+    int* no;
+    int no_ = 0;
+    no = &no_;
+
 
     //Shaders
     std::string gl_shaders, model_shaders, lc_shaders, ui_shaders;
@@ -286,7 +292,7 @@ int main(int argc, char const *argv[])
     Img<unsigned short> timesBuff(height / 20, width / 20);
 
 #if enableMultipleModel
-    Segmentation segment(width, height);
+    Segmentation segmentator(width, height);
 #endif
 
 
@@ -319,17 +325,17 @@ int main(int argc, char const *argv[])
     //createfeedbackbuffers
     feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
     feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
-    
 
     IndexMap indexMap(width, height, intr, model_shaders);
     GlobalModel globalModel(width, height, intr, model_shaders);
     FillIn fillIn(width, height, intr, gl_shaders);
 
-
     int tick = 1;
     int64_t timestamp;
     fernDeforms = 0;
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
+
+    Yolact yolact;
 
     while (logReader->hasMore())
     {
@@ -356,6 +362,9 @@ int main(int argc, char const *argv[])
 
             globalModel.initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
             frameToModel.initFirstRGB(textures[GPUTexture::RGB]);   
+            // IF enableMultipleModel CHECK?
+            segmentator.getBBox(textures[GPUTexture::RGB], bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+
         }
         else
         {
@@ -378,9 +387,10 @@ int main(int argc, char const *argv[])
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
 
+            segmentator.getBBox(textures[GPUTexture::RGB], bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
 #if enableMultipleModel
-            textures[GPUTexture::MASK]->texture = segment.performSegmentation(textures[GPUTexture::RGB]);
-            gui.drawMask(textures[GPUTexture::MASK], textures[GPUTexture::RGB]);
+            textures[GPUTexture::MASK]->texture = segmentator.performSegmentation(textures[GPUTexture::RGB]);
+            gui.renderMask(textures[GPUTexture::MASK], textures[GPUTexture::RGB]);
 #endif 
 
             //save pose
@@ -605,9 +615,21 @@ int main(int argc, char const *argv[])
         predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
         ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
         
-        gui.drawModel(globalModel.model(), Vertex::SIZE);
-        gui.displayImg(textures[GPUTexture::RGB]);
-        // gui.render(globalModel.model(), Vertex::SIZE);
+        gui.renderModel(globalModel.model(), Vertex::SIZE);
+        Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
+        K(0, 0) = intr.fx;
+        K(1, 1) = intr.fy;
+        K(0, 2) = intr.cx;
+        K(1, 2) = intr.cy;
+        Eigen::Matrix3f Kinv = K.inverse();
+        if (gui.draw_cam->Get())
+            gui.renderCam(currPose, width, height, Kinv);
+        if (gui.draw_boxes->Get())
+            gui.renderLiveBBox(bbox_vertices_ptr, bbox_elements_ptr, *no, currPose);
+        if (gui.draw_mask->Get())
+            {}// call draw_mask here
+
+        gui.renderImg(textures[GPUTexture::RGB]);
         tick++;
 
     }
