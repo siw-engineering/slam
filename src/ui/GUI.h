@@ -21,6 +21,10 @@ class GUI
 		int height_img;
 
 		std::shared_ptr<Shader> draw_program;
+		std::shared_ptr<Shader> drawbbox_program;
+		std::shared_ptr<Shader> drawcam_program;
+		pangolin::Var<bool> *draw_boxes, *draw_mask, *draw_cam;
+
 		pangolin::OpenGlMatrix mvp;
 
 		GUI(std::string shader_dir)
@@ -60,7 +64,18 @@ class GUI
 				.AddDisplay(d_img1)
 				.AddDisplay(d_img2);
 
+			int widthPanel = 200;
+			pangolin::CreatePanel("ui").SetBounds(0.0, 1.0, 0.0, pangolin::Attach::Pix(widthPanel));
+
+			draw_cam = new pangolin::Var<bool>("ui.draw_cam", false, true);
+			draw_boxes = new pangolin::Var<bool>("ui.draw_boxes", false, true);
+			draw_mask = new pangolin::Var<bool>("ui.draw_mask", false, true);
+
+
 			draw_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_global_surface_.vert","draw_global_surface_.frag", shader_dir));
+			drawbbox_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_bbox.vert","draw_bbox.frag", shader_dir));
+			drawcam_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_cam.vert", "draw_cam.frag", shader_dir));
+
 		}
 
 		pangolin::OpenGlMatrix getMVP()
@@ -70,7 +85,7 @@ class GUI
 			pangolin::OpenGlMatrix mvp =  projection * view;
 			return mvp;
 		}	
-        void displayImg(GPUTexture * img)
+        void renderImg(GPUTexture * img)
         {
 
             glDisable(GL_DEPTH_TEST);
@@ -81,7 +96,7 @@ class GUI
             glEnable(GL_DEPTH_TEST);
         }
 
-        void drawMask(GPUTexture * img, GPUTexture * rawRgb)
+        void renderMask(GPUTexture * img, GPUTexture * rawRgb)
         {
 
             glDisable(GL_DEPTH_TEST);
@@ -94,7 +109,7 @@ class GUI
             pangolin::FinishFrame();
 
         }
-		void drawModel(const std::pair<GLuint, GLuint>& vbos, int vs)
+		void renderModel(const std::pair<GLuint, GLuint>& vbos, int vs)
 		{
 			pangolin::Display("cam").Activate(s_cam);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -125,4 +140,70 @@ class GUI
 			pangolin::FinishFrame();
 #endif // multiplemodel
 		}
+
+		void renderCam(const Eigen::Matrix4f & pose, float width, float height, Eigen::Matrix3f & Kinv)
+		{
+
+		    drawcam_program->Bind();
+		    drawcam_program->setUniform(Uniform("MVP", getMVP()));
+		    drawcam_program->setUniform(Uniform("pose", pose));
+
+		    glLineWidth(2);
+		    pangolin::glDrawFrustum(Kinv, width, height, pose, 0.2f);
+		    glLineWidth(1);
+		    drawcam_program->Unbind();
+
+		}
+
+		void renderLiveBBox(GLfloat *& bbox_vertices_ptr, GLushort *& bbox_elements_ptr, int no, const Eigen::Matrix4f & pose)
+		{
+
+		    GLfloat** bbox_vetrs_data;
+		    GLushort** bbox_ele_data;
+
+		    GLuint vbo_vertices;
+		    glGenBuffers(1, &vbo_vertices);
+		    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
+		    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*32*no, bbox_vertices_ptr, GL_STATIC_DRAW);
+		    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		    GLuint ibo_elements;
+		    glGenBuffers(1, &ibo_elements);
+		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
+		    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLushort)*24*no, bbox_elements_ptr, GL_STATIC_DRAW);
+		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+		    drawbbox_program->Bind();
+		    drawbbox_program->setUniform(Uniform("MVP", getMVP()));
+		    drawbbox_program->setUniform(Uniform("pose", pose));
+		    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
+		    glEnableVertexAttribArray(0);
+		    glVertexAttribPointer(
+		    0,  // attribute
+		    4,                  // number of elements per vertex, here (x,y,z,w)
+		    GL_FLOAT,           // the type of each element
+		    GL_FALSE,           // take our values as-is
+		    0,                  // no extra data between each position
+		    0                   // offset of first element
+		    );
+		    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		    
+		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
+
+		    glBeginTransformFeedback(GL_LINES);
+
+		    glDrawElements(GL_LINES, 24*no, GL_UNSIGNED_SHORT, 0);
+
+		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+		    glDisableVertexAttribArray(0);
+		    glBindBuffer(GL_ARRAY_BUFFER, 0);
+		    glDeleteBuffers(1, &vbo_vertices);
+		    glDeleteBuffers(1, &ibo_elements);
+		    drawbbox_program->Unbind();
+
+
+		}
+
+
 };
