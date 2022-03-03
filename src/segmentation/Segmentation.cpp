@@ -31,3 +31,16 @@ pangolin::GlTexture* Segmentation::performSegmentation(GPUTexture * rgb){
 
 	return textures[GPUTexture::MASK]->texture;
 }
+
+
+void Segmentation::getBBox(GPUTexture * rgb, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height)
+{
+
+	cudaArray * textPtr;
+    cudaGraphicsMapResources(1, &rgb->cudaRes);
+    cudaGraphicsSubResourceGetMappedArray(&textPtr, rgb->cudaRes, 0, 0);
+    int fd = cudaops.imageResize(textPtr, target_width, target_height);
+    cudaGraphicsUnmapResources(1, &rgb->cudaRes);
+    yolact.computeBBox(fd, bbox_verts_ptr, bbox_ele_ptr, no, depth, cx, cy, fx, fy, width, height);
+  
+}

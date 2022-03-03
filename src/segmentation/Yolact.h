@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <vector>
 #include <iostream>
+#include <pangolin/gl/gl.h>
 
 
 using namespace std;
@@ -44,6 +45,9 @@ public:
     void qsort_descent_inplace(std::vector<Object>& objects);
     void nms_sorted_bboxes(const std::vector<Object>& objects, std::vector<int>& picked, float nms_threshold);
     cv::Mat draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects, std::vector<Object>& track_objects);
+    void computeBBox(int fd, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height);
+
+
 
 
 };
