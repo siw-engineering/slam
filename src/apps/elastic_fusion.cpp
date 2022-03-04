@@ -615,7 +615,7 @@ int main(int argc, char const *argv[])
         predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
         ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
         
-        gui.renderModel(globalModel.model(), Vertex::SIZE);
+        gui.renderModel(globalModel.model(), Vertex::SIZE, gui.draw_mask->Get(), textures[GPUTexture::MASK], currPose);
         Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
         K(0, 0) = intr.fx;
         K(1, 1) = intr.fy;

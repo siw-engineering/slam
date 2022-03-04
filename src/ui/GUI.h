@@ -6,6 +6,7 @@
 #include "../gl/types.h"
 #include <map>
 #include "../gl/Shaders.h"
+#include <Eigen/LU>
 
 class GUI
 {
@@ -109,15 +110,22 @@ class GUI
             pangolin::FinishFrame();
 
         }
-		void renderModel(const std::pair<GLuint, GLuint>& vbos, int vs)
+		void renderModel(const std::pair<GLuint, GLuint>& vbos, int vs, bool maskDraw, GPUTexture * mask, Eigen::Matrix4f pose)
 		{
 			pangolin::Display("cam").Activate(s_cam);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glColor4f(1.0f,1.0f,1.0f,1.0f);
+
+			Eigen::Matrix4f t_inv = pose.inverse();
+
 			draw_program->Bind();
 			draw_program->setUniform(Uniform("MVP", getMVP()));
+			draw_program->setUniform(Uniform("maskDraw", maskDraw));
+			draw_program->setUniform(Uniform("t_inv", t_inv));
 
 			glBindBuffer(GL_ARRAY_BUFFER, vbos.first);
+
+			glBindTexture(GL_TEXTURE_2D, mask->texture->tid);
 
 			glEnableVertexAttribArray(0);
 			glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, vs, 0);
