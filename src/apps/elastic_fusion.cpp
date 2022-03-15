@@ -11,16 +11,16 @@
 #if enableMultipleModel
 #include "../segmentation/Segmentation.h"
 #endif // multiplemodel
-
+#include "../model/Model.h"
 using namespace libconfig;
 
 
-void predict(IndexMap& indexMap, Eigen::Matrix4f& currPose, GlobalModel& globalModel, int maxDepthProcessed, float confidenceThreshold, int tick, int timeDelta, FillIn& fillIn, std::map<std::string, GPUTexture*>& textures)
+void predict(IndexMap& indexMap, Eigen::Matrix4f& currPose, ModelPointer& globalModel, int maxDepthProcessed, float confidenceThreshold, int tick, int timeDelta, FillIn& fillIn, std::map<std::string, GPUTexture*>& textures)
 {
     if(/*lastFrameRecovery*/false)
     {
         indexMap.combinedPredict(currPose,
-                                 globalModel.model(),
+                                 globalModel->getModel(),
                                  maxDepthProcessed,
                                  confidenceThreshold,
                                  0,
@@ -31,7 +31,7 @@ void predict(IndexMap& indexMap, Eigen::Matrix4f& currPose, GlobalModel& globalM
     else
     {
         indexMap.combinedPredict(currPose,
-                                 globalModel.model(),
+                                 globalModel->getModel(),
                                  maxDepthProcessed,
                                  confidenceThreshold,
                                  tick,
@@ -326,9 +326,15 @@ int main(int argc, char const *argv[])
     feedbackBuffers[FeedbackBuffer::RAW] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
     feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
 
+    ModelPointer modelPtr;
+    ModelList models;
+    ModelListIterator modelIterator;
+
     IndexMap indexMap(width, height, intr, model_shaders);
-    GlobalModel globalModel(width, height, intr, model_shaders);
+    // GlobalModel globalModel(width, height, intr, model_shaders);
     FillIn fillIn(width, height, intr, gl_shaders);
+    std::shared_ptr<Model> globalModel;
+    globalModel = std::make_shared<Model>(width, height, intr, model_shaders);
 
     int tick = 1;
     int64_t timestamp;
@@ -359,9 +365,9 @@ int main(int argc, char const *argv[])
         {
             feedbackBuffers[FeedbackBuffer::RAW]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC]->texture, tick, maxDepthProcessed);
             feedbackBuffers[FeedbackBuffer::FILTERED]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, tick, maxDepthProcessed);
-
-            globalModel.initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
-            frameToModel.initFirstRGB(textures[GPUTexture::RGB]);   
+            globalModel->initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
+            frameToModel.initFirstRGB(textures[GPUTexture::RGB]);
+            models.push_back(globalModel);  
             // IF enableMultipleModel CHECK?
             segmentator.getBBox(textures[GPUTexture::RGB], bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
 
@@ -410,7 +416,12 @@ int main(int argc, char const *argv[])
                 weighting = largest;
 
             weighting = std::max(1.0f - (weighting / largest), minWeight) * 1;
-            predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+            // predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+            for (auto model : models)
+            {
+                predict(indexMap, currPose, model, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+            }
+
             Eigen::Matrix4f recoveryPose = currPose;
 
 
@@ -464,7 +475,7 @@ int main(int argc, char const *argv[])
             if(closeLoops && rawGraph.size()==0)
             {
                 indexMap.combinedPredict(currPose,
-                                         globalModel.model(),
+                                         globalModel->getModel(),
                                          maxDepthProcessed,
                                          confidence,
                                          0,
@@ -561,61 +572,68 @@ int main(int argc, char const *argv[])
                 }
 
             }
-
-            if (trackingOk)
+            for (auto model : models)
             {
-                indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
-                globalModel.fuse(currPose,
-                                 tick,
-                                 textures[GPUTexture::RGB],
-                                 textures[GPUTexture::DEPTH_METRIC],
-                                 textures[GPUTexture::DEPTH_METRIC_FILTERED],
-                                 indexMap.indexTex(),
-                                 indexMap.vertConfTex(),
-                                 indexMap.colorTimeTex(),
-                                 indexMap.normalRadTex(),
-                                 maxDepthProcessed,
-                                 confidence,
-                                 weighting);
-
-                indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
-
-                if(rawGraph.size() > 0 && !fernAccepted)
+                if (trackingOk)
                 {
-                    indexMap.synthesizeDepth(currPose,
-                                             globalModel.model(),
-                                             maxDepthProcessed,
-                                             confidence,
-                                             tick,
-                                             tick - timeDelta,
-                                             std::numeric_limits<unsigned short>::max());
+                    indexMap.predictIndices(currPose, tick, model->getModel(), maxDepthProcessed, timeDelta);
+                    model->fuse(currPose,
+                                     tick,
+                                     textures[GPUTexture::RGB],
+                                     textures[GPUTexture::DEPTH_METRIC],
+                                     textures[GPUTexture::DEPTH_METRIC_FILTERED],
+                                     indexMap.indexTex(),
+                                     indexMap.vertConfTex(),
+                                     indexMap.colorTimeTex(),
+                                     indexMap.normalRadTex(),
+                                     maxDepthProcessed,
+                                     confidence,
+                                     weighting);
+
+                    indexMap.predictIndices(currPose, tick, model->getModel(), maxDepthProcessed, timeDelta);
+
+                    if(rawGraph.size() > 0 && !fernAccepted)
+                    {
+                        indexMap.synthesizeDepth(currPose,
+                                                 model->getModel(),
+                                                 maxDepthProcessed,
+                                                 confidence,
+                                                 tick,
+                                                 tick - timeDelta,
+                                                 std::numeric_limits<unsigned short>::max());
+                    }
+
+
+                    model->clean(currPose,
+                                      tick,
+                                      indexMap.indexTex(),
+                                      indexMap.vertConfTex(),
+                                      indexMap.colorTimeTex(),
+                                      indexMap.normalRadTex(),
+                                      indexMap.depthTex(),
+                                      confidence,
+                                      rawGraph,
+                                      timeDelta,
+                                      maxDepthProcessed,
+                                      false);
                 }
-
-
-                globalModel.clean(currPose,
-                                  tick,
-                                  indexMap.indexTex(),
-                                  indexMap.vertConfTex(),
-                                  indexMap.colorTimeTex(),
-                                  indexMap.normalRadTex(),
-                                  indexMap.depthTex(),
-                                  confidence,
-                                  rawGraph,
-                                  timeDelta,
-                                  maxDepthProcessed,
-                                  false);
             }
+
         }
 
         poseGraph.push_back(std::pair<unsigned long long int, Eigen::Matrix4f>(tick, currPose));
         poseLogTimes.push_back(timestamp);
-        localDeformation.sampleGraphModel(globalModel.model());
+        localDeformation.sampleGraphModel(globalModel->getModel());
         globalDeformation.sampleGraphFrom(localDeformation);
 
-        predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+        // predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+        for (auto& model : models)
+        {
+            predict(indexMap, currPose, model, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+        }
         ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
         
-        gui.renderModel(globalModel.model(), Vertex::SIZE, gui.draw_mask->Get(), textures[GPUTexture::MASK], currPose);
+        gui.renderModel(globalModel->getModel(), Vertex::SIZE, gui.draw_mask->Get(), textures[GPUTexture::MASK], currPose);
         Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
         K(0, 0) = intr.fx;
         K(1, 1) = intr.fy;
@@ -634,11 +652,11 @@ int main(int argc, char const *argv[])
 
     }
 
-    if (sply)
-    {
-        std::cout<<"saving ply..";
-        savePly(globalModel, saveply_file, confidence);
-    }
+    // if (sply)
+    // {
+    //     std::cout<<"saving ply..";
+    //     savePly(globalModel, saveply_file, confidence);
+    // }
     if (spose)
         pose_file.close();
 
