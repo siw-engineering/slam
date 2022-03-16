@@ -24,7 +24,8 @@ const int Model::NODE_TEXTURE_DIMENSION = 16384;
 const int Model::MAX_NODES = Model::NODE_TEXTURE_DIMENSION / 16; //16 floats per node
 
 Model::Model(int width, int height, CameraModel intr, std::string shader_dir)
- : target(0),
+ : pose(Eigen::Matrix4f::Identity()),
+   target(0),
    renderSource(1),
    bufferSize(MAX_VERTICES * Vertex::SIZE),
    count(0),
@@ -311,18 +312,13 @@ const std::pair<GLuint, GLuint> & Model::getModel()
     return vbos[target];
 }
 
-void Model::fuse(const Eigen::Matrix4f & pose,
-                       const int & time,
-                       GPUTexture * rgb,
-                       GPUTexture * depthRaw,
-                       GPUTexture * depthFiltered,
-                       GPUTexture * indexMap,
-                       GPUTexture * vertConfMap,
-                       GPUTexture * colorTimeMap,
-                       GPUTexture * normRadMap,
-                       const float depthCutoff,
-                       const float confThreshold,
-                       const float weighting)
+void Model::fuse(  const int & time,
+                   GPUTexture * rgb,
+                   GPUTexture * depthRaw,
+                   GPUTexture * depthFiltered,
+                   const float depthCutoff,
+                   const float confThreshold,
+                   const float weighting)
 {
     //This first part does data association and computes the vertex to merge with, storing
     //in an array that sets which vertices to update by index
@@ -355,7 +351,7 @@ void Model::fuse(const Eigen::Matrix4f & pose,
     dataProgram->setUniform(Uniform("rows", (float)height));
     dataProgram->setUniform(Uniform("scale", (float)IndexMap::FACTOR));
     dataProgram->setUniform(Uniform("texDim", (float)TEXTURE_DIMENSION));
-    dataProgram->setUniform(Uniform("pose", pose));
+    dataProgram->setUniform(Uniform("pose", getPose()));
     dataProgram->setUniform(Uniform("maxDepth", depthCutoff));
 
     glEnableVertexAttribArray(0);
@@ -376,16 +372,16 @@ void Model::fuse(const Eigen::Matrix4f & pose,
     glBindTexture(GL_TEXTURE_2D, depthFiltered->texture->tid);
 
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, indexMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.indexTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, vertConfMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.vertConfTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, colorTimeMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.colorTimeTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, normRadMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.normalRadTex()->texture->tid);
 
     glBeginTransformFeedback(GL_POINTS);
 
@@ -469,18 +465,12 @@ void Model::fuse(const Eigen::Matrix4f & pose,
     glFinish();
 }
 
-void Model::clean(const Eigen::Matrix4f & pose,
-                        const int & time,
-                        GPUTexture * indexMap,
-                        GPUTexture * vertConfMap,
-                        GPUTexture * colorTimeMap,
-                        GPUTexture * normRadMap,
-                        GPUTexture * depthMap,
-                        const float confThreshold,
-                        std::vector<float> & graph,
-                        const int timeDelta,
-                        const float maxDepth,
-                        const bool isFern)
+void Model::clean(  const int & time,
+                    const float confThreshold,
+                    std::vector<float> & graph,
+                    const int timeDelta,
+                    const float maxDepth,
+                    const bool isFern)
 {
     assert(graph.size() / 16 < MAX_NODES);
 
@@ -507,7 +497,7 @@ void Model::clean(const Eigen::Matrix4f & pose,
     unstableProgram->setUniform(Uniform("timeDelta", timeDelta));
     unstableProgram->setUniform(Uniform("maxDepth", maxDepth));
     unstableProgram->setUniform(Uniform("isFern", (int)isFern));
-
+    pose = getPose();
     Eigen::Matrix4f t_inv = pose.inverse();
     unstableProgram->setUniform(Uniform("t_inv", t_inv));
 
@@ -538,22 +528,22 @@ void Model::clean(const Eigen::Matrix4f & pose,
     glBeginTransformFeedback(GL_POINTS);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, indexMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.indexTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, vertConfMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.vertConfTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, colorTimeMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.colorTimeTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, normRadMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.normalRadTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, deformationNodes.texture->tid);
 
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, depthMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.depthTex()->texture->tid);
 
     glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, countQuery);
 

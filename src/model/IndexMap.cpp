@@ -20,8 +20,133 @@
 
 const int IndexMap::FACTOR = 1;
 
-IndexMap::IndexMap(float width, float height, CameraModel intr, std::string shader_dir)
-: indexProgram(loadProgramFromFile("index_map.vert", "index_map.frag", shader_dir)),
+// IndexMap::IndexMap(float width, float height, CameraModel intr, std::string shader_dir)
+// : indexProgram(loadProgramFromFile("index_map.vert", "index_map.frag", shader_dir)),
+//   indexRenderBuffer(width * IndexMap::FACTOR, height * IndexMap::FACTOR),
+//   indexTexture(width * IndexMap::FACTOR,
+//                height * IndexMap::FACTOR,
+//                GL_LUMINANCE32UI_EXT,
+//                GL_LUMINANCE_INTEGER_EXT,
+//                GL_UNSIGNED_INT),
+//   vertConfTexture(width * IndexMap::FACTOR,
+//                   height * IndexMap::FACTOR,
+//                   GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
+//   colorTimeTexture(width * IndexMap::FACTOR,
+//                    height * IndexMap::FACTOR,
+//                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
+//   normalRadTexture(width * IndexMap::FACTOR,
+//                    height * IndexMap::FACTOR,
+//                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
+//   // drawDepthProgram(loadProgramFromFile("empty.vert", "visualise_textures.frag", "quad.geom", shader_dir)),
+//   drawRenderBuffer(width, height),
+//   drawTexture(width,
+//               height,
+//               GL_RGBA,
+//               GL_RGB,
+//               GL_UNSIGNED_BYTE,
+//               false),
+//   depthProgram(loadProgramFromFile("splat.vert", "depth_splat.frag", shader_dir)),
+//   depthRenderBuffer(width, height),
+//   depthTexture(width,
+//                height,
+//                GL_LUMINANCE32F_ARB,
+//                GL_LUMINANCE,
+//                GL_FLOAT,
+//                false,
+//                true),
+//   combinedProgram(loadProgramFromFile("splat.vert", "combo_splat.frag", shader_dir)),
+//   combinedRenderBuffer(width, height),
+//   imageTexture(width,
+//                height,
+//                GL_RGBA,
+//                GL_RGB,
+//                GL_UNSIGNED_BYTE,
+//                false,
+//                true),
+//   vertexTexture(width,
+//                 height,
+//                 GL_RGBA32F, GL_LUMINANCE, GL_FLOAT, false, true),
+//   normalTexture(width,
+//                 height,
+//                 GL_RGBA32F, GL_LUMINANCE, GL_FLOAT, false, true),
+//   timeTexture(width,
+//               height,
+//               GL_LUMINANCE16UI_EXT,
+//               GL_LUMINANCE_INTEGER_EXT,
+//               GL_UNSIGNED_SHORT,
+//               false,
+//               true),
+//   oldRenderBuffer(width, height),
+//   oldImageTexture(width,
+//                   height,
+//                   GL_RGBA,
+//                   GL_RGB,
+//                   GL_UNSIGNED_BYTE,
+//                   false,
+//                   true),
+//   oldVertexTexture(width,
+//                    height,
+//                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT, false, true),
+//   oldNormalTexture(width,
+//                    height,
+//                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT, false, true),
+//   oldTimeTexture(width,
+//                  height,
+//                  GL_LUMINANCE16UI_EXT,
+//                  GL_LUMINANCE_INTEGER_EXT,
+//                  GL_UNSIGNED_SHORT,
+//                  false,
+//                  true),
+//   infoRenderBuffer(width, height),
+//   colorInfoTexture(width * IndexMap::FACTOR,
+//                    height * IndexMap::FACTOR,
+//                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
+//   vertexInfoTexture(width * IndexMap::FACTOR,
+//                    height * IndexMap::FACTOR,
+//                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
+//   normalInfoTexture(width * IndexMap::FACTOR,
+//                     height * IndexMap::FACTOR,
+//                     GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
+//   width(width),
+//   height(height),
+//   intr(intr)
+
+// {
+//    indexFrameBuffer.AttachColour(*indexTexture.texture);
+//    indexFrameBuffer.AttachColour(*vertConfTexture.texture);
+//    indexFrameBuffer.AttachColour(*colorTimeTexture.texture);
+//    indexFrameBuffer.AttachColour(*normalRadTexture.texture);
+//    indexFrameBuffer.AttachDepth(indexRenderBuffer);
+
+//    drawFrameBuffer.AttachColour(*drawTexture.texture);
+//    drawFrameBuffer.AttachDepth(drawRenderBuffer);
+
+//    depthFrameBuffer.AttachColour(*depthTexture.texture);
+//    depthFrameBuffer.AttachDepth(depthRenderBuffer);
+
+//    combinedFrameBuffer.AttachColour(*imageTexture.texture);
+//    combinedFrameBuffer.AttachColour(*vertexTexture.texture);
+//    combinedFrameBuffer.AttachColour(*normalTexture.texture);
+//    combinedFrameBuffer.AttachColour(*timeTexture.texture);
+//    combinedFrameBuffer.AttachDepth(combinedRenderBuffer);
+
+//    oldFrameBuffer.AttachDepth(oldRenderBuffer);
+//    oldFrameBuffer.AttachColour(*oldImageTexture.texture);
+//    oldFrameBuffer.AttachColour(*oldVertexTexture.texture);
+//    oldFrameBuffer.AttachColour(*oldNormalTexture.texture);
+//    oldFrameBuffer.AttachColour(*oldTimeTexture.texture);
+
+//    infoFrameBuffer.AttachColour(*colorInfoTexture.texture);
+//    infoFrameBuffer.AttachColour(*vertexInfoTexture.texture);
+//    infoFrameBuffer.AttachColour(*normalInfoTexture.texture);
+//    infoFrameBuffer.AttachDepth(infoRenderBuffer);
+// }
+IndexMap::IndexMap()
+: width(640),
+  height(480),
+  shader_dir("/home/developer/slam/src/model/shaders/"),
+  intr(640, 480,528.0,528.0,320.0,240.0),
+  indexProgram(loadProgramFromFile("index_map.vert", "index_map.frag", shader_dir)),
   indexRenderBuffer(width * IndexMap::FACTOR, height * IndexMap::FACTOR),
   indexTexture(width * IndexMap::FACTOR,
                height * IndexMap::FACTOR,
@@ -106,10 +231,10 @@ IndexMap::IndexMap(float width, float height, CameraModel intr, std::string shad
                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
   normalInfoTexture(width * IndexMap::FACTOR,
                     height * IndexMap::FACTOR,
-                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT),
-  width(width),
-  height(height),
-  intr(intr)
+                    GL_RGBA32F, GL_LUMINANCE, GL_FLOAT)
+  // width(width),
+  // height(height),
+  // intr(intr)
 
 {
    indexFrameBuffer.AttachColour(*indexTexture.texture);

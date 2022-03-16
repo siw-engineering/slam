@@ -37,32 +37,29 @@ class Model
 		                      const int timeDelta);
 
 		const std::pair<GLuint, GLuint> & getModel();
+		inline const Eigen::Matrix4f& getPose() const { return pose; }
 
-		void fuse(const Eigen::Matrix4f & pose,
-		          const int & time,
-		          GPUTexture * rgb,
-		          GPUTexture * depthRaw,
-		          GPUTexture * depthFiltered,
-		          GPUTexture * indexMap,
-		          GPUTexture * vertConfMap,
-		          GPUTexture * colorTimeMap,
-		          GPUTexture * normRadMap,
-		          const float depthCutoff,
-		          const float confThreshold,
-		          const float weighting);
+		void fuse(  const int & time,
+					GPUTexture * rgb,
+					GPUTexture * depthRaw,
+					GPUTexture * depthFiltered,
+					const float depthCutoff,
+					const float confThreshold,
+					const float weighting);
 
-		void clean(const Eigen::Matrix4f & pose,
-		           const int & time,
-		           GPUTexture * indexMap,
-		           GPUTexture * vertConfMap,
-		           GPUTexture * colorTimeMap,
-		           GPUTexture * normRadMap,
-		           GPUTexture * depthMap,
-		           const float confThreshold,
-		           std::vector<float> & graph,
-		           const int timeDelta,
-		           const float maxDepth,
-		           const bool isFern);
+		void clean( const int & time,
+					const float confThreshold,
+					std::vector<float> & graph,
+					const int timeDelta,
+					const float maxDepth,
+					const bool isFern);
+
+		// model projection
+		inline void predictIndices( const int & time,
+									const float depthCutoff,
+									const int timeDelta){
+			indexMap.predictIndices(getPose(), time, getModel(), depthCutoff, timeDelta);
+		}
 
 		unsigned int lastCount();
 
@@ -71,9 +68,15 @@ class Model
 		int width, height, numPixels;
 		CameraModel intr;
 	private:
+
+		Eigen::Matrix4f pose;
+
 		//First is the vbo, second is the fid
 		std::pair<GLuint, GLuint> * vbos;
 		int target, renderSource;
+
+		// IndexMap indexMap(640.0, 480.0, intr(640, 480,528.0,528.0,320.0,240.0), "/home/developer/slam/src/model/shaders/");
+		IndexMap indexMap;
 
 		const int bufferSize;
 

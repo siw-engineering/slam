@@ -330,7 +330,8 @@ int main(int argc, char const *argv[])
     ModelList models;
     ModelListIterator modelIterator;
 
-    IndexMap indexMap(width, height, intr, model_shaders);
+    // IndexMap indexMap(width, height, intr, model_shaders);
+    IndexMap indexMap;
     // GlobalModel globalModel(width, height, intr, model_shaders);
     FillIn fillIn(width, height, intr, gl_shaders);
     std::shared_ptr<Model> globalModel;
@@ -576,21 +577,18 @@ int main(int argc, char const *argv[])
             {
                 if (trackingOk)
                 {
-                    indexMap.predictIndices(currPose, tick, model->getModel(), maxDepthProcessed, timeDelta);
-                    model->fuse(currPose,
-                                     tick,
+                    // indexMap.predictIndices(currPose, tick, model->getModel(), maxDepthProcessed, timeDelta);
+                    model->predictIndices(tick, maxDepthProcessed, timeDelta);
+                    model->fuse(     tick,
                                      textures[GPUTexture::RGB],
                                      textures[GPUTexture::DEPTH_METRIC],
                                      textures[GPUTexture::DEPTH_METRIC_FILTERED],
-                                     indexMap.indexTex(),
-                                     indexMap.vertConfTex(),
-                                     indexMap.colorTimeTex(),
-                                     indexMap.normalRadTex(),
                                      maxDepthProcessed,
                                      confidence,
                                      weighting);
 
-                    indexMap.predictIndices(currPose, tick, model->getModel(), maxDepthProcessed, timeDelta);
+                    // indexMap.predictIndices(currPose, tick, model->getModel(), maxDepthProcessed, timeDelta);
+                    model->predictIndices(tick, maxDepthProcessed, timeDelta);
 
                     if(rawGraph.size() > 0 && !fernAccepted)
                     {
@@ -604,18 +602,26 @@ int main(int argc, char const *argv[])
                     }
 
 
-                    model->clean(currPose,
-                                      tick,
-                                      indexMap.indexTex(),
-                                      indexMap.vertConfTex(),
-                                      indexMap.colorTimeTex(),
-                                      indexMap.normalRadTex(),
-                                      indexMap.depthTex(),
-                                      confidence,
-                                      rawGraph,
-                                      timeDelta,
-                                      maxDepthProcessed,
-                                      false);
+                    // model->clean(currPose,
+                    //                   tick,
+                    //                   indexMap.indexTex(),
+                    //                   indexMap.vertConfTex(),
+                    //                   indexMap.colorTimeTex(),
+                    //                   indexMap.normalRadTex(),
+                    //                   indexMap.depthTex(),
+                    //                   confidence,
+                    //                   rawGraph,
+                    //                   timeDelta,
+                    //                   maxDepthProcessed,
+                    //                   false);
+
+                    model->clean( tick,
+                                  confidence,
+                                  rawGraph,
+                                  timeDelta,
+                                  maxDepthProcessed,
+                                  false);
+
                 }
             }
 
