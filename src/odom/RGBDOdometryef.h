@@ -24,6 +24,7 @@
 #include <vector>
 #include <vector_types.h>
 
+#pragma once
 class RGBDOdometryef
 {
     public:

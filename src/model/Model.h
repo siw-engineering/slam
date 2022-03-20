@@ -3,8 +3,10 @@
 
 #include "../gl/FeedbackBuffer.h"
 #include "IndexMap.h"
+#include "../gl/FillIn.h"
 #include <Eigen/LU>
 #include <list>
+#include "../odom/RGBDOdometryef.h"
 
 class Model;
 typedef std::shared_ptr<Model> ModelPointer;
@@ -39,6 +41,7 @@ class Model
 		const std::pair<GLuint, GLuint> & getModel();
 		inline const Eigen::Matrix4f& getPose() const { return pose; }
 
+		inline IndexMap& getIndexMap() { return indexMap; }
 		void fuse(  const int & time,
 					GPUTexture * rgb,
 					GPUTexture * depthRaw,
@@ -54,6 +57,14 @@ class Model
 					const float maxDepth,
 					const bool isFern);
 
+		// odometry
+		void initFirstRGB(GPUTexture* rawRGB){
+			frameToModel.initFirstRGB(rawRGB);
+		}
+
+		void performTracking(GPUTexture* rawRGB, GPUTexture* filteredDepth, bool shouldFillIn, const float maxDepthProcessed,
+							bool rgbOnly, float icpWeight, bool pyramid, bool fastOdom);
+
 		// model projection
 		inline void predictIndices( const int & time,
 									const float depthCutoff,
@@ -61,9 +72,29 @@ class Model
 			indexMap.predictIndices(getPose(), time, getModel(), depthCutoff, timeDelta);
 		}
 
+		inline void combinedPredict(const float depthCutoff,
+									const float confThreshold,
+									const int time,
+									const int maxTime,
+									const int timeDelta,
+									IndexMap::Prediction predictionType){
+			indexMap.combinedPredict(getPose(), getModel(), depthCutoff, confThreshold, time, maxTime, timeDelta, predictionType);
+		}
+
+		void performFillIn(GPUTexture* rawRGB, GPUTexture* rawDepth/*, bool frameToFrameRGB, bool lost*/);
+
 		unsigned int lastCount();
 
 		Eigen::Vector4f * downloadMap();
+
+		inline GPUTexture* getRGBProjection() { return indexMap.imageTex(); }
+		inline GPUTexture* getVertexConfProjection() { return indexMap.vertexTex(); }
+		inline GPUTexture* getNormalProjection() { return indexMap.normalTex(); }
+		inline GPUTexture* getTimeProjection() { return indexMap.timeTex(); }
+
+		inline GPUTexture* getFillInImageTexture() { return &(fillIn.imageTexture); }
+		inline GPUTexture* getFillInVertexTexture() { return &(fillIn.vertexTexture); }
+		inline GPUTexture* getFillInNormalTexture() { return &(fillIn.normalTexture); }
 
 		int width, height, numPixels;
 		CameraModel intr;
@@ -71,12 +102,14 @@ class Model
 
 		Eigen::Matrix4f pose;
 
+		RGBDOdometryef frameToModel;
+
 		//First is the vbo, second is the fid
 		std::pair<GLuint, GLuint> * vbos;
 		int target, renderSource;
 
-		// IndexMap indexMap(640.0, 480.0, intr(640, 480,528.0,528.0,320.0,240.0), "/home/developer/slam/src/model/shaders/");
 		IndexMap indexMap;
+		FillIn fillIn;
 
 		const int bufferSize;
 

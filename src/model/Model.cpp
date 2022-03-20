@@ -25,6 +25,7 @@ const int Model::MAX_NODES = Model::NODE_TEXTURE_DIMENSION / 16; //16 floats per
 
 Model::Model(int width, int height, CameraModel intr, std::string shader_dir)
  : pose(Eigen::Matrix4f::Identity()),
+   frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy),
    target(0),
    renderSource(1),
    bufferSize(MAX_VERTICES * Vertex::SIZE),
@@ -43,7 +44,9 @@ Model::Model(int width, int height, CameraModel intr, std::string shader_dir)
    width(width),
    height(height),
    numPixels(width*height),
-   intr(intr)
+   intr(intr),
+   indexMap(width, height, intr, "/home/developer/slam/src/model/shaders/"),
+   fillIn(width, height, intr, "/home/developer/slam/src/gl/shaders/")
 {
     vbos = new std::pair<GLuint, GLuint>[2];
 
@@ -310,6 +313,24 @@ void Model::renderPointCloud(pangolin::OpenGlMatrix mvp,
 const std::pair<GLuint, GLuint> & Model::getModel()
 {
     return vbos[target];
+}
+
+void Model::performTracking(GPUTexture* rawRGB, GPUTexture* filteredDepth, bool shouldFillIn, const float maxDepthProcessed,
+                    bool rgbOnly, float icpWeight, bool pyramid, bool fastOdom){
+    pose = getPose();
+    frameToModel.initICPModel(shouldFillIn ? getFillInVertexTexture() : indexMap.vertexTex(),
+                              shouldFillIn ? getFillInNormalTexture() : indexMap.normalTex(),
+                              maxDepthProcessed, pose);
+    frameToModel.initRGBModel((shouldFillIn || false) ? getFillInImageTexture() : indexMap.imageTex());
+    frameToModel.initICP(filteredDepth, maxDepthProcessed);
+    frameToModel.initRGB(rawRGB);
+    Eigen::Vector3f trans = pose.topRightCorner(3, 1);
+    Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = pose.topLeftCorner(3, 3);
+    frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
+    pose.topRightCorner(3, 1) = trans;
+    pose.topLeftCorner(3, 3) = rot;
+
+
 }
 
 void Model::fuse(  const int & time,
@@ -619,4 +640,11 @@ Eigen::Vector4f * Model::downloadMap()
     glFinish();
 
     return vertices;
+}
+
+void Model::performFillIn(GPUTexture* rawRGB, GPUTexture* rawDepth /*, bool frameToFrameRGB=, bool lost*/)
+{
+    fillIn.vertex(indexMap.vertexTex(), rawDepth, false);
+    fillIn.normal(indexMap.normalTex(), rawDepth, false);
+    fillIn.image(indexMap.imageTex(), rawRGB, false || /*frameToFrameRGB*/false);
 }
