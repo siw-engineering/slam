@@ -1,6 +1,5 @@
 #include "inputs/RawLogReader.h"
 #include <libconfig.hh>
-#include "../ui/EFGUI.h"
 #include "../ui/GUI.h"
 // #include "../odom/RGBDOdometryef.h"
 #include "../gl/ComputePack.h"
@@ -11,6 +10,8 @@
 #if enableMultipleModel
 #include "../segmentation/Segmentation.h"
 #endif // multiplemodel
+#include "../segmentation/Yolact.h"
+#include "../tracking/Tracker.h"
 
 using namespace libconfig;
 
@@ -198,6 +199,14 @@ void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenc
 int main(int argc, char const *argv[])
 {
 
+    // float x,y,z;
+    // int c = 1*256;
+    // x = (c % 256) / 255.0f;
+    // y = ((c / 256) % 256) / 255.0f;
+    // z = ((c / (256 * 256)) % 256) / 255.0f;
+    // std::cout<<x<<" "<<y<<" "<<z<<std::endl;
+    // exit(0);
+
     Config cfg;
     try
     {
@@ -242,12 +251,15 @@ int main(int argc, char const *argv[])
     float width, height;
     root["gui"].lookupValue("width", width);
     root["gui"].lookupValue("height", height);
+
+    //segmenation
     GLfloat* bbox_vertices_ptr;
     GLushort* bbox_elements_ptr;
     int* no;
     int no_ = 0;
     no = &no_;
-
+    int segmentation_width = 550;
+    int segmentation_height = 550;
 
     //Shaders
     std::string gl_shaders, model_shaders, lc_shaders, ui_shaders;
@@ -270,7 +282,6 @@ int main(int argc, char const *argv[])
     if (spose)
         pose_file.open(savepose_file);
 
-    // EFGUI gui(width, height, intr.cx, intr.cy, intr.fx, intr.fy, ui_shaders);
     GUI gui(ui_shaders);
     RGBDOdometryef frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy);
 
@@ -334,8 +345,12 @@ int main(int argc, char const *argv[])
     int64_t timestamp;
     fernDeforms = 0;
     Eigen::Matrix4f currPose = Eigen::Matrix4f::Identity();
-
     Yolact yolact;
+    CudaOps cudaops;
+
+
+    //tracking
+    Tracker tracker;
 
     while (logReader->hasMore())
     {
@@ -363,7 +378,16 @@ int main(int argc, char const *argv[])
             globalModel.initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
             frameToModel.initFirstRGB(textures[GPUTexture::RGB]);   
             // IF enableMultipleModel CHECK?
-            segmentator.getBBox(textures[GPUTexture::RGB], bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            cudaArray * textPtr;
+            cudaGraphicsMapResources(1, &textures[GPUTexture::RGB]->cudaRes);
+            cudaGraphicsSubResourceGetMappedArray(&textPtr, textures[GPUTexture::RGB]->cudaRes, 0, 0);
+            int fd = cudaops.imageResize(textPtr, segmentation_width, segmentation_height);
+            cudaGraphicsUnmapResources(1, &textures[GPUTexture::RGB]->cudaRes);
+            std::vector<Object> objects;
+            yolact.detect_yolact(objects, fd);
+            // yolact.computeBBox(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            tracker.init_track_objects(objects);
+            tracker.Update(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
 
         }
         else
@@ -387,7 +411,21 @@ int main(int argc, char const *argv[])
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
 
-            segmentator.getBBox(textures[GPUTexture::RGB], bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            // segmentator.getBBox(textures[GPUTexture::RGB], bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            
+            cudaArray * textPtr;
+            cudaGraphicsMapResources(1, &textures[GPUTexture::RGB]->cudaRes);
+            cudaGraphicsSubResourceGetMappedArray(&textPtr, textures[GPUTexture::RGB]->cudaRes, 0, 0);
+            int fd = cudaops.imageResize(textPtr, segmentation_width, segmentation_height);
+            cudaGraphicsUnmapResources(1, &textures[GPUTexture::RGB]->cudaRes);
+            std::vector<Object> objects;
+            yolact.detect_yolact(objects, fd);
+            // yolact.computeBBox(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            tracker.init_track_objects(objects);
+            tracker.Update(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+
+
+  
 #if enableMultipleModel
             textures[GPUTexture::MASK]->texture = segmentator.performSegmentation(textures[GPUTexture::RGB]);
             gui.renderMask(textures[GPUTexture::MASK], textures[GPUTexture::RGB]);
@@ -631,6 +669,8 @@ int main(int argc, char const *argv[])
 
         gui.renderImg(textures[GPUTexture::RGB]);
         tick++;
+        delete bbox_vertices_ptr;
+        delete bbox_elements_ptr;
 
     }
 

@@ -166,9 +166,6 @@ class GUI
 		void renderLiveBBox(GLfloat *& bbox_vertices_ptr, GLushort *& bbox_elements_ptr, int no, const Eigen::Matrix4f & pose)
 		{
 
-		    GLfloat** bbox_vetrs_data;
-		    GLushort** bbox_ele_data;
-
 		    GLuint vbo_vertices;
 		    glGenBuffers(1, &vbo_vertices);
 		    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
@@ -192,19 +189,15 @@ class GUI
 		    GL_FLOAT,           // the type of each element
 		    GL_FALSE,           // take our values as-is
 		    0,                  // no extra data between each position
-		    0                   // offset of first element
+		    (void*)0                    // offset of first element
 		    );
-		    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		    
+
+
 		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
-
-		    glBeginTransformFeedback(GL_LINES);
-
 		    glDrawElements(GL_LINES, 24*no, GL_UNSIGNED_SHORT, 0);
-
 		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
 		    glDisableVertexAttribArray(0);
+
 		    glBindBuffer(GL_ARRAY_BUFFER, 0);
 		    glDeleteBuffers(1, &vbo_vertices);
 		    glDeleteBuffers(1, &ibo_elements);

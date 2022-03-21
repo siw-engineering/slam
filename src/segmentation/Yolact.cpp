@@ -514,13 +514,13 @@ cv::Mat Yolact::processFrame(int fd){
 }
 
 
-void Yolact::computeBBox(int fd, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height)
+void Yolact::computeBBox(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height)
 {
-    std::vector<Object> objects;
-    detect_yolact(objects, fd);
 
     int num_objects = objects.size();
-    int box_attrbs_num = 32;
+    // int box_attrbs_num = 33; // 32(box cords)+1(color) 
+    int box_attrbs_num = 32; 
+
     *no = num_objects;
 
     bbox_verts_ptr = new GLfloat[num_objects*box_attrbs_num];
@@ -531,54 +531,67 @@ void Yolact::computeBBox(int fd, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele
     // (x - cam.x) * z * cam.z, (y - cam.y) * z * cam.w, z
     for (int i=0; i<num_objects;i++)
     {
-        d_index = (int)(640 * (objects[i].rect.y + objects[i].rect.height/2) + (objects[i].rect.x + objects[i].rect.width/2));
+        d_index = (int)(640 * (objects[i].rect.y + objects[i].rect.height/2)*480/550 + (objects[i].rect.x + objects[i].rect.width/2)*640/550);
         obj_depth = depth[d_index]/1000;
-        bbox_verts_ptr[i*box_attrbs_num] = (((objects[i].rect.x)- cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 1] =(((objects[i].rect.y) - cy) * obj_depth * 1/fy);
+        bbox_verts_ptr[i*box_attrbs_num] = (((objects[i].rect.x * 640/550)- cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 1] =(((objects[i].rect.y * 480/550) - cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 2] = obj_depth;  
-        bbox_verts_ptr[i*box_attrbs_num + 3] = 1;  
+        bbox_verts_ptr[i*box_attrbs_num + 3] = 2;  
 
-        bbox_verts_ptr[i*box_attrbs_num + 4] = ((((objects[i].rect.x+objects[i].rect.width)) - cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 5] = (((objects[i].rect.y) - cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 4] = ((((objects[i].rect.x+objects[i].rect.width) * 640/550) - cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 5] = (((objects[i].rect.y * 480/550) - cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 6] = obj_depth;  
-        bbox_verts_ptr[i*box_attrbs_num + 7] = 1;  
+        bbox_verts_ptr[i*box_attrbs_num + 7] = 2;  
 
-        bbox_verts_ptr[i*box_attrbs_num + 8] = ((((objects[i].rect.x+objects[i].rect.width))- cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 9] = ((((objects[i].rect.y+objects[i].rect.height))- cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 8] = ((((objects[i].rect.x+objects[i].rect.width) * 640/550)- cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 9] = ((((objects[i].rect.y+objects[i].rect.height) * 480/550)- cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 10] = obj_depth;  
-        bbox_verts_ptr[i*box_attrbs_num + 11] = 1;  
+        bbox_verts_ptr[i*box_attrbs_num + 11] = 2;  
 
-        bbox_verts_ptr[i*box_attrbs_num + 12] = (((objects[i].rect.x)- cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 13] = ((((objects[i].rect.y+objects[i].rect.height))- cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 12] = (((objects[i].rect.x * 640/550)- cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 13] = ((((objects[i].rect.y+objects[i].rect.height) * 480/550)- cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 14] = obj_depth;  
-        bbox_verts_ptr[i*box_attrbs_num + 15] = 1; 
+        bbox_verts_ptr[i*box_attrbs_num + 15] = 2; 
 
 
-        bbox_verts_ptr[i*box_attrbs_num + 16] = (((objects[i].rect.x)- cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 17] =(((objects[i].rect.y) - cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 16] = (((objects[i].rect.x * 640/550)- cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 17] =(((objects[i].rect.y * 480/550) - cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 18] = obj_depth + 0.5;  
-        bbox_verts_ptr[i*box_attrbs_num + 19] = 1;  
+        bbox_verts_ptr[i*box_attrbs_num + 19] = 2;  
 
-        bbox_verts_ptr[i*box_attrbs_num + 20] = ((((objects[i].rect.x+objects[i].rect.width)) - cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 21] = (((objects[i].rect.y) - cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 20] = ((((objects[i].rect.x+objects[i].rect.width) * 640/550) - cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 21] = (((objects[i].rect.y * 480/550) - cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 22] = obj_depth + 0.5;  
-        bbox_verts_ptr[i*box_attrbs_num + 23] = 1;  
+        bbox_verts_ptr[i*box_attrbs_num + 23] = 2; 
 
 
-        bbox_verts_ptr[i*box_attrbs_num + 24] = ((((objects[i].rect.x+objects[i].rect.width))- cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 25] = ((((objects[i].rect.y+objects[i].rect.height))- cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 24] = ((((objects[i].rect.x+objects[i].rect.width) * 640/550)- cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 25] = ((((objects[i].rect.y+objects[i].rect.height) * 480/550)- cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 26] = obj_depth + 0.5;  
-        bbox_verts_ptr[i*box_attrbs_num + 27] = 1;  
+        bbox_verts_ptr[i*box_attrbs_num + 27] = 2;  
 
-        bbox_verts_ptr[i*box_attrbs_num + 28] = (((objects[i].rect.x)- cx) * obj_depth * 1/fx);
-        bbox_verts_ptr[i*box_attrbs_num + 29] = ((((objects[i].rect.y+objects[i].rect.height))- cy) * obj_depth * 1/fy);
+
+        bbox_verts_ptr[i*box_attrbs_num + 28] = (((objects[i].rect.x * 640/550)- cx) * obj_depth * 1/fx);
+        bbox_verts_ptr[i*box_attrbs_num + 29] = ((((objects[i].rect.y+objects[i].rect.height) * 480/550)- cy) * obj_depth * 1/fy);
         bbox_verts_ptr[i*box_attrbs_num + 30] = obj_depth + 0.5;  
-        bbox_verts_ptr[i*box_attrbs_num + 31] = 1; 
+        bbox_verts_ptr[i*box_attrbs_num + 31] = 2; 
 
+        
+        //box colour
+        // bbox_verts_ptr[i*box_attrbs_num + 32] = 50; 
+
+        
         bbox_ele_ptr[i*24] = i*8; 
         bbox_ele_ptr[i*24 + 1] = i*8 + 1; 
         bbox_ele_ptr[i*24 + 2] = i*8 + 1; 
         bbox_ele_ptr[i*24 + 3] = i*8 + 2; 
+
         bbox_ele_ptr[i*24 + 4] = i*8 + 2; 
         bbox_ele_ptr[i*24 + 5] = i*8 + 3; 
         bbox_ele_ptr[i*24 + 6] = i*8 + 3; 
@@ -588,16 +601,17 @@ void Yolact::computeBBox(int fd, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele
         bbox_ele_ptr[i*24 + 9] = i*8 + 5; 
         bbox_ele_ptr[i*24 + 10] = i*8 + 5; 
         bbox_ele_ptr[i*24 + 11] = i*8 + 6; 
+
         bbox_ele_ptr[i*24 + 12] = i*8 + 6; 
         bbox_ele_ptr[i*24 + 13] = i*8 + 7; 
         bbox_ele_ptr[i*24 + 14] = i*8 + 7; 
         bbox_ele_ptr[i*24 + 15] = i*8 + 4; 
 
-
         bbox_ele_ptr[i*24 + 16] = i*8; 
         bbox_ele_ptr[i*24 + 17] = i*8 + 4; 
         bbox_ele_ptr[i*24 + 18] = i*8 + 3; 
         bbox_ele_ptr[i*24 + 19] = i*8 + 7; 
+
         bbox_ele_ptr[i*24 + 20] = i*8 + 1; 
         bbox_ele_ptr[i*24 + 21] = i*8 + 5; 
         bbox_ele_ptr[i*24 + 22] = i*8 + 2; 

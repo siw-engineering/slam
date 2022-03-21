@@ -105,6 +105,8 @@ file(GLOB odom_cuda odom/*.cu)
 file(GLOB of_cuda of/*.cu)
 file(GLOB cuda_containers cuda/containers/*.cpp)
 file(GLOB sf sf/*.cpp)
+file(GLOB tracking tracking/*.cpp)
+
 
 
 set(CUDA_ARCH_PTX "" CACHE STRING "Specify 'virtual' PTX arch to build PTX intermediate code for. Example: 1.0 1.2 or 10 12")
@@ -143,6 +145,7 @@ add_executable(${PROJECT_NAME}
                ${of_cuda_objs}
                ${cuda_containers}
                ${sf}
+               ${tracking}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
