@@ -384,6 +384,7 @@ int main(int argc, char const *argv[])
             cudaGraphicsUnmapResources(1, &textures[GPUTexture::RGB]->cudaRes);
             std::vector<Object> objects;
             yolact.detect_yolact(objects, fd);
+            cudaops.cleanAllocations();
             // yolact.computeBBox(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
             tracker.init_track_objects(objects);
             tracker.Update(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
@@ -417,6 +418,7 @@ int main(int argc, char const *argv[])
             cudaGraphicsUnmapResources(1, &textures[GPUTexture::RGB]->cudaRes);
             std::vector<Object> objects;
             yolact.detect_yolact(objects, fd);
+            cudaops.cleanAllocations();
             // yolact.computeBBox(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
             tracker.init_track_objects(objects);
             tracker.Update(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
@@ -664,8 +666,6 @@ int main(int argc, char const *argv[])
 
         gui.renderImg(textures[GPUTexture::RGB]);
         tick++;
-        delete bbox_vertices_ptr;
-        delete bbox_elements_ptr;
 
     }
 

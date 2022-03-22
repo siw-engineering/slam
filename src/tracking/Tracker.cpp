@@ -2,6 +2,7 @@
 
 Tracker::Tracker()
 {
+    //TO DO : change this to a function
     idx_to_rgb = {
                     {0,Eigen::Vector3f(0,0,1)},
                     {1,Eigen::Vector3f(0,1,0)},
@@ -13,7 +14,13 @@ Tracker::Tracker()
                     {7,Eigen::Vector3f(0.5,0,0)},
                     {8,Eigen::Vector3f(0.5,0,1)},
                     {9,Eigen::Vector3f(0,0.5,0.5)},
-                    {10,Eigen::Vector3f(1,0.25,0.5)},                  
+                    {10,Eigen::Vector3f(1,0.25,0.5)},
+                    {11,Eigen::Vector3f(.66,0.25,0.5)},
+                    {12,Eigen::Vector3f(1,0.25,0.5)},                  
+                    {13,Eigen::Vector3f(1,0,0.65)},                  
+                    {15,Eigen::Vector3f(1,0.45,0.85)},                  
+                    {14,Eigen::Vector3f(1,0.25,0.25)},                  
+
                 };
 
 }
@@ -187,18 +194,16 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
             }
         }
 
-        int num_objects = centers.size();
-        int box_attrbs_num = 32; 
-
-        bbox_verts_ptr = new GLfloat[num_objects*box_attrbs_num];
-        bbox_ele_ptr = new GLushort[num_objects*24];
-
         float obj_depth = 0.5;
         int d_index = 0;
         int b_idx = 0;
 
         if (centers.size()>0)
         {
+            int num_objects = centers.size();
+            int box_attrbs_num = 32; 
+            bbox_verts_ptr = new GLfloat[(num_objects+1)*box_attrbs_num];
+            bbox_ele_ptr = new GLushort[(num_objects+1)*24];
             Update(centers);
             for(int i=0;i<tracks.size();i++)
             {
@@ -213,7 +218,7 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
                                 const Object& track_obj = track_objects[ik];
                                 //TO DO
                                 Eigen::Vector3f rgb;
-                                if (tracks[i]->track_id > 10)
+                                if (tracks[i]->track_id > 13)
                                 {
                                     rgb(0)=1;
                                     rgb(1)=1;
@@ -227,6 +232,8 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
 
                                 d_index = (int)(640 * (track_obj.rect.y + track_obj.rect.height/2)*480/550 + (track_obj.rect.x + track_obj.rect.width/2)*640/550);
                                 obj_depth = depth[d_index]/1000;
+                                if (isnan(obj_depth))
+                                    obj_depth = 0;
                                 bbox_verts_ptr[b_idx*box_attrbs_num] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 1] =(((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 2] = obj_depth;  
@@ -277,10 +284,6 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 31] = ec; 
 
 
-                                //box colour
-                                // bbox_verts_ptr[b_idx*box_attrbs_num + 32] = 50; 
-
-
                                 bbox_ele_ptr[b_idx*24] = b_idx*8; 
                                 bbox_ele_ptr[b_idx*24 + 1] = b_idx*8 + 1; 
                                 bbox_ele_ptr[b_idx*24 + 2] = b_idx*8 + 1; 
@@ -313,12 +316,9 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
 
                                 b_idx++;
 
-
                             }
-
                         }
                     }
-
                     for(int x=0;x<tracks.size();x++)
                     {
                         start_time = tracks[x]->begin_time;
@@ -334,7 +334,6 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
             }
         }
         *no = b_idx;
-
     }
 }
 
