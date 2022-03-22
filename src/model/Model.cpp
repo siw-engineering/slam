@@ -16,15 +16,17 @@
  *
  */
 
-#include "GlobalModel.h"
+#include "Model.h"
 
-const int GlobalModel::TEXTURE_DIMENSION = 3072;
-const int GlobalModel::MAX_VERTICES = GlobalModel::TEXTURE_DIMENSION * GlobalModel::TEXTURE_DIMENSION;
-const int GlobalModel::NODE_TEXTURE_DIMENSION = 16384;
-const int GlobalModel::MAX_NODES = GlobalModel::NODE_TEXTURE_DIMENSION / 16; //16 floats per node
+const int Model::TEXTURE_DIMENSION = 3072;
+const int Model::MAX_VERTICES = Model::TEXTURE_DIMENSION * Model::TEXTURE_DIMENSION;
+const int Model::NODE_TEXTURE_DIMENSION = 16384;
+const int Model::MAX_NODES = Model::NODE_TEXTURE_DIMENSION / 16; //16 floats per node
 
-GlobalModel::GlobalModel(int width, int height, CameraModel intr, std::string shader_dir)
- : target(0),
+Model::Model(int width, int height, CameraModel intr, std::string shader_dir)
+ : pose(Eigen::Matrix4f::Identity()),
+   frameToModel(width, height, intr.cx,intr.cy, intr.fx, intr.fy),
+   target(0),
    renderSource(1),
    bufferSize(MAX_VERTICES * Vertex::SIZE),
    count(0),
@@ -42,7 +44,9 @@ GlobalModel::GlobalModel(int width, int height, CameraModel intr, std::string sh
    width(width),
    height(height),
    numPixels(width*height),
-   intr(intr)
+   intr(intr),
+   indexMap(width, height, intr, "/home/developer/slam/src/model/shaders/"),
+   fillIn(width, height, intr, "/home/developer/slam/src/gl/shaders/")
 {
     vbos = new std::pair<GLuint, GLuint>[2];
 
@@ -183,7 +187,7 @@ GlobalModel::GlobalModel(int width, int height, CameraModel intr, std::string sh
     initProgram->Unbind();
 }
 
-GlobalModel::~GlobalModel()
+Model::~Model()
 {
     glDeleteBuffers(1, &vbos[0].first);
     glDeleteTransformFeedbacks(1, &vbos[0].second);
@@ -201,7 +205,7 @@ GlobalModel::~GlobalModel()
     delete [] vbos;
 }
 
-void GlobalModel::initialise(const FeedbackBuffer & rawFeedback,
+void Model::initialise(const FeedbackBuffer & rawFeedback,
                              const FeedbackBuffer & filteredFeedback)
 {
     initProgram->Bind();
@@ -251,7 +255,8 @@ void GlobalModel::initialise(const FeedbackBuffer & rawFeedback,
     glFinish();
 }
 
-void GlobalModel::renderPointCloud(pangolin::OpenGlMatrix mvp,
+
+void Model::renderPointCloud(pangolin::OpenGlMatrix mvp,
                                    const float threshold,
                                    const bool drawUnstable,
                                    const bool drawNormals,
@@ -305,23 +310,36 @@ void GlobalModel::renderPointCloud(pangolin::OpenGlMatrix mvp,
     program->Unbind();
 }
 
-const std::pair<GLuint, GLuint> & GlobalModel::model()
+const std::pair<GLuint, GLuint> & Model::getModel()
 {
     return vbos[target];
 }
 
-void GlobalModel::fuse(const Eigen::Matrix4f & pose,
-                       const int & time,
-                       GPUTexture * rgb,
-                       GPUTexture * depthRaw,
-                       GPUTexture * depthFiltered,
-                       GPUTexture * indexMap,
-                       GPUTexture * vertConfMap,
-                       GPUTexture * colorTimeMap,
-                       GPUTexture * normRadMap,
-                       const float depthCutoff,
-                       const float confThreshold,
-                       const float weighting)
+void Model::performTracking(GPUTexture* rawRGB, GPUTexture* filteredDepth, bool shouldFillIn, const float maxDepthProcessed,
+                    bool rgbOnly, float icpWeight, bool pyramid, bool fastOdom){
+    pose = getPose();
+    frameToModel.initICPModel(shouldFillIn ? getFillInVertexTexture() : indexMap.vertexTex(),
+                              shouldFillIn ? getFillInNormalTexture() : indexMap.normalTex(),
+                              maxDepthProcessed, pose);
+    frameToModel.initRGBModel((shouldFillIn || false) ? getFillInImageTexture() : indexMap.imageTex());
+    frameToModel.initICP(filteredDepth, maxDepthProcessed);
+    frameToModel.initRGB(rawRGB);
+    Eigen::Vector3f trans = pose.topRightCorner(3, 1);
+    Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = pose.topLeftCorner(3, 3);
+    frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
+    pose.topRightCorner(3, 1) = trans;
+    pose.topLeftCorner(3, 3) = rot;
+
+
+}
+
+void Model::fuse(  const int & time,
+                   GPUTexture * rgb,
+                   GPUTexture * depthRaw,
+                   GPUTexture * depthFiltered,
+                   const float depthCutoff,
+                   const float confThreshold,
+                   const float weighting)
 {
     //This first part does data association and computes the vertex to merge with, storing
     //in an array that sets which vertices to update by index
@@ -354,7 +372,7 @@ void GlobalModel::fuse(const Eigen::Matrix4f & pose,
     dataProgram->setUniform(Uniform("rows", (float)height));
     dataProgram->setUniform(Uniform("scale", (float)IndexMap::FACTOR));
     dataProgram->setUniform(Uniform("texDim", (float)TEXTURE_DIMENSION));
-    dataProgram->setUniform(Uniform("pose", pose));
+    dataProgram->setUniform(Uniform("pose", getPose()));
     dataProgram->setUniform(Uniform("maxDepth", depthCutoff));
 
     glEnableVertexAttribArray(0);
@@ -375,16 +393,16 @@ void GlobalModel::fuse(const Eigen::Matrix4f & pose,
     glBindTexture(GL_TEXTURE_2D, depthFiltered->texture->tid);
 
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, indexMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.indexTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE4);
-    glBindTexture(GL_TEXTURE_2D, vertConfMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.vertConfTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, colorTimeMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.colorTimeTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, normRadMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.normalRadTex()->texture->tid);
 
     glBeginTransformFeedback(GL_POINTS);
 
@@ -468,18 +486,12 @@ void GlobalModel::fuse(const Eigen::Matrix4f & pose,
     glFinish();
 }
 
-void GlobalModel::clean(const Eigen::Matrix4f & pose,
-                        const int & time,
-                        GPUTexture * indexMap,
-                        GPUTexture * vertConfMap,
-                        GPUTexture * colorTimeMap,
-                        GPUTexture * normRadMap,
-                        GPUTexture * depthMap,
-                        const float confThreshold,
-                        std::vector<float> & graph,
-                        const int timeDelta,
-                        const float maxDepth,
-                        const bool isFern)
+void Model::clean(  const int & time,
+                    const float confThreshold,
+                    std::vector<float> & graph,
+                    const int timeDelta,
+                    const float maxDepth,
+                    const bool isFern)
 {
     assert(graph.size() / 16 < MAX_NODES);
 
@@ -506,7 +518,7 @@ void GlobalModel::clean(const Eigen::Matrix4f & pose,
     unstableProgram->setUniform(Uniform("timeDelta", timeDelta));
     unstableProgram->setUniform(Uniform("maxDepth", maxDepth));
     unstableProgram->setUniform(Uniform("isFern", (int)isFern));
-
+    pose = getPose();
     Eigen::Matrix4f t_inv = pose.inverse();
     unstableProgram->setUniform(Uniform("t_inv", t_inv));
 
@@ -537,22 +549,22 @@ void GlobalModel::clean(const Eigen::Matrix4f & pose,
     glBeginTransformFeedback(GL_POINTS);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, indexMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.indexTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, vertConfMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.vertConfTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, colorTimeMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.colorTimeTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, normRadMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.normalRadTex()->texture->tid);
 
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, deformationNodes.texture->tid);
 
     glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, depthMap->texture->tid);
+    glBindTexture(GL_TEXTURE_2D, indexMap.depthTex()->texture->tid);
 
     glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, countQuery);
 
@@ -595,12 +607,12 @@ void GlobalModel::clean(const Eigen::Matrix4f & pose,
     glFinish();
 }
 
-unsigned int GlobalModel::lastCount()
+unsigned int Model::lastCount()
 {
     return count;
 }
 
-Eigen::Vector4f * GlobalModel::downloadMap()
+Eigen::Vector4f * Model::downloadMap()
 {
     glFinish();
 
@@ -628,4 +640,11 @@ Eigen::Vector4f * GlobalModel::downloadMap()
     glFinish();
 
     return vertices;
+}
+
+void Model::performFillIn(GPUTexture* rawRGB, GPUTexture* rawDepth /*, bool frameToFrameRGB=, bool lost*/)
+{
+    fillIn.vertex(indexMap.vertexTex(), rawDepth, false);
+    fillIn.normal(indexMap.normalTex(), rawDepth, false);
+    fillIn.image(indexMap.imageTex(), rawRGB, false || /*frameToFrameRGB*/false);
 }

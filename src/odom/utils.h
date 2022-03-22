@@ -2,6 +2,8 @@
 #include <Eigen/Dense>
 #include <float.h>
 
+#pragma once
+
 class OdometryProvider
 {
     public:
