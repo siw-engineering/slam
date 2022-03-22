@@ -17,18 +17,21 @@
 
 using namespace std;
 using namespace cv;
+
+struct Object
+{
+    cv::Rect_<float> rect;
+    int label;
+    float prob;
+    std::vector<float> maskdata;
+    cv::Mat mask;
+};
+
 class Yolact{
 public:
 	Yolact();
 
-    struct Object
-    {
-        cv::Rect_<float> rect;
-        int label;
-        float prob;
-        std::vector<float> maskdata;
-        cv::Mat mask;
-    };
+
     // struct ProcessingChainData
     // {
     //     cv::Mat img;
@@ -45,10 +48,7 @@ public:
     void qsort_descent_inplace(std::vector<Object>& objects);
     void nms_sorted_bboxes(const std::vector<Object>& objects, std::vector<int>& picked, float nms_threshold);
     cv::Mat draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects, std::vector<Object>& track_objects);
-    void computeBBox(int fd, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height);
-
-
-
+    void computeBBox(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height);
 
 };
 #endif /* YOLACTTEST_H_ */
