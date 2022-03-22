@@ -4,7 +4,6 @@
 // #include "../odom/RGBDOdometryef.h"
 #include "../gl/ComputePack.h"
 #include "../gl/FillIn.h"
-#include "../model/GlobalModel.h"
 #include "../lc/Deformation.h"
 #include "../lc/PoseMatch.h"
 #if enableMultipleModel
@@ -90,7 +89,7 @@ Eigen::Vector3f rodrigues2(const Eigen::Matrix3f& matrix)
 }
 
 
-void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenceThreshold)
+void savePly(ModelPointer& globalModel, std::string saveFilename, float confidenceThreshold)
 {
     std::string filename = saveFilename;
     filename.append(".ply");
@@ -99,11 +98,11 @@ void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenc
     std::ofstream fs;
     fs.open (filename.c_str ());
 
-    Eigen::Vector4f * mapData = globalModel.downloadMap();
+    Eigen::Vector4f * mapData = globalModel->downloadMap();
 
     int validCount = 0;
 
-    for(unsigned int i = 0; i < globalModel.lastCount(); i++)
+    for(unsigned int i = 0; i < globalModel->lastCount(); i++)
     {
         Eigen::Vector4f pos = mapData[(i * 3) + 0];
 
@@ -141,7 +140,7 @@ void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenc
     // Open file in binary appendable
     std::ofstream fpout (filename.c_str (), std::ios::app | std::ios::binary);
 
-    for(unsigned int i = 0; i < globalModel.lastCount(); i++)
+    for(unsigned int i = 0; i < globalModel->lastCount(); i++)
     {
         Eigen::Vector4f pos = mapData[(i * 3) + 0];
 
@@ -670,11 +669,11 @@ int main(int argc, char const *argv[])
 
     }
 
-    // if (sply)
-    // {
-    //     std::cout<<"saving ply..";
-    //     savePly(globalModel, saveply_file, confidence);
-    // }
+    if (sply)
+    {
+        std::cout<<"saving ply..";
+        savePly(globalModel, saveply_file, confidence);
+    }
     if (spose)
         pose_file.close();
 
