@@ -661,9 +661,6 @@ int main(int argc, char const *argv[])
             gui.renderCam(currPose, width, height, Kinv);
         if (gui.draw_boxes->Get())
             gui.renderLiveBBox(bbox_vertices_ptr, bbox_elements_ptr, *no, currPose);
-        if (gui.draw_mask->Get())
-            {}// call draw_mask here
-
         gui.renderImg(textures[GPUTexture::RGB]);
         tick++;
 

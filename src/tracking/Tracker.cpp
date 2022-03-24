@@ -261,26 +261,26 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
 
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 16] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 17] =(((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 18] = obj_depth + 0.5;  
+                                bbox_verts_ptr[b_idx*box_attrbs_num + 18] = obj_depth - 0.5;  
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 19] = ec;  
 
 
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 20] = ((((track_obj.rect.x+track_obj.rect.width) * 640/550) - cx) * obj_depth * 1/fx);
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 21] = (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 22] = obj_depth + 0.5;  
+                                bbox_verts_ptr[b_idx*box_attrbs_num + 22] = obj_depth - 0.5;  
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 23] = ec; 
 
 
 
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 24] = ((((track_obj.rect.x+track_obj.rect.width) * 640/550)- cx) * obj_depth * 1/fx);
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 25] = ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 26] = obj_depth + 0.5;  
+                                bbox_verts_ptr[b_idx*box_attrbs_num + 26] = obj_depth - 0.5;  
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 27] = ec;  
 
 
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 28] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 29] = ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 30] = obj_depth + 0.5;  
+                                bbox_verts_ptr[b_idx*box_attrbs_num + 30] = obj_depth - 0.5;  
                                 bbox_verts_ptr[b_idx*box_attrbs_num + 31] = ec; 
 
 
