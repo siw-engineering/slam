@@ -149,6 +149,15 @@ RUN echo " installing libconfig " \
    && ./configure \
    && sudo make install
 
+RUN echo " installing kalman " \
+   && cd ~/deps/ \
+   && git clone https://github.com/mherb/kalman.git \
+   && cd kalman/ \
+   && mkdir build \
+   && cd build \
+   && cmake -DBUILD_TESTING=0 .. \
+   && sudo make install 
+
 #VulkanSDK
 RUN echo "downloading vulkan sdk " \
    && cd ~/deps/ \
@@ -171,4 +180,15 @@ RUN echo "Installing NCNN " \
    && cd build \
    && cmake -DCMAKE_BUILD_TYPE=Release -DNCNN_VULKAN=ON -DNCNN_SYSTEM_GLSLANG=ON -DNCNN_BUILD_EXAMPLES=ON .. \
    && make -j$(nproc) \
+   && sudo make install
+
+RUN echo "Installing OPENCV AND OPENCV_CONTRIB " \
+   && cd ~/deps/ \
+   && git clone https://github.com/Itseez/opencv.git \
+   && git clone https://github.com/Itseez/opencv_contrib.git \
+   && cd opencv \
+   && mkdir release \
+   && cd release \
+   && cmake -D BUILD_TIFF=ON -D WITH_CUDA=OFF -D ENABLE_AVX=OFF -D WITH_OPENGL=OFF -D WITH_OPENCL=OFF -D WITH_IPP=OFF -D WITH_TBB=ON -D BUILD_TBB=ON -D WITH_EIGEN=OFF -D WITH_V4L=OFF -D WITH_VTK=OFF -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D OPENCV_EXTRA_MODULES_PATH=/home/developer/deps/opencv_contrib/modules .. \
+   && sudo make -j4 \
    && sudo make install
