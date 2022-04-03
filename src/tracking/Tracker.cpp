@@ -25,11 +25,6 @@ Tracker::Tracker()
 
 }
 
-void Tracker::init_track_objects(std::vector<Object> objs)
-{
-    track_objects = objs;
-}
-
 void Tracker::Update(vector<Point2f>& detections)
 {
 
@@ -181,6 +176,9 @@ Eigen::Vector3f Tracker::decodeColor(float c)
 
 void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height)
 {
+    obj_tid = new int[objects.size()];
+
+    track_objects = objects;
     if (track_objects.size()>0)
     {
         vector<Point2f> centers;
@@ -192,6 +190,7 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
                 Point center = Point(track_obj.rect.x+(track_obj.rect.width/2), track_obj.rect.y+(track_obj.rect.height/2));
                 centers.push_back(center);
             }
+            obj_tid[i] = -1; // initialize obj_id map to -1
         }
 
         float obj_depth = 0.5;
@@ -216,6 +215,7 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
                             if(distance(tracks[i]->prediction.x,tracks[i]->prediction.y, centers[ik].x, centers[ik].y)< 10)
                             {
                                 const Object& track_obj = track_objects[ik];
+                                obj_tid[ik] = tracks[i]->track_id;
                                 //TO DO
                                 Eigen::Vector3f rgb;
                                 if (tracks[i]->track_id > 13)

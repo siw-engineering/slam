@@ -16,12 +16,12 @@ class Tracker
 	std::map<int,Eigen::Vector3f> idx_to_rgb;
 
 public:
+	int* obj_tid; // use only after Update() call
 	Tracker();
 	void Update(vector<Point2f>& detections);
 	void Update();
 	void Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height);
 	float distance(int x1, int y1, int x2, int y2);
-	void init_track_objects(std::vector<Object> objs);
 	float encodeColor(Eigen::Vector3f c);
 	Eigen::Vector3f decodeColor(float c);
 
