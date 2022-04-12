@@ -169,7 +169,7 @@ class GUI
 		    GLuint vbo_vertices;
 		    glGenBuffers(1, &vbo_vertices);
 		    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
-		    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*32*no, bbox_vertices_ptr, GL_STATIC_DRAW);
+		    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat)*8*4*no, bbox_vertices_ptr, GL_STATIC_DRAW);
 		    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 		    GLuint ibo_elements;
@@ -181,22 +181,19 @@ class GUI
 		    drawbbox_program->Bind();
 		    drawbbox_program->setUniform(Uniform("MVP", getMVP()));
 		    drawbbox_program->setUniform(Uniform("pose", pose));
+
 		    glBindBuffer(GL_ARRAY_BUFFER, vbo_vertices);
 		    glEnableVertexAttribArray(0);
-		    glVertexAttribPointer(
-		    0,  // attribute
-		    4,                  // number of elements per vertex, here (x,y,z,w)
-		    GL_FLOAT,           // the type of each element
-		    GL_FALSE,           // take our values as-is
-		    0,                  // no extra data between each position
-		    (void*)0                    // offset of first element
-		    );
+		    glVertexAttribPointer(0, 4,GL_FLOAT,GL_FALSE, 0,(void*)0);
 
 
 		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
 		    glDrawElements(GL_LINES, 24*no, GL_UNSIGNED_SHORT, 0);
 		    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
 		    glDisableVertexAttribArray(0);
+		    glDisableVertexAttribArray(1);
+
 
 		    glBindBuffer(GL_ARRAY_BUFFER, 0);
 		    glDeleteBuffers(1, &vbo_vertices);

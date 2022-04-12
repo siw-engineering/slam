@@ -19,6 +19,8 @@ vec3 decodeColor(float c)
 
 void main()
 {
-    gl_Position = MVP * pose * (vec4(position.xyz, 1.0));
+
+    gl_Position = MVP * (vec4(position.xyz, 1.0));
     vColor0 = vec4(decodeColor(position.w),1);
+
 }		

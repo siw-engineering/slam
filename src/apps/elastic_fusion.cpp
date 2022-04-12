@@ -350,6 +350,7 @@ int main(int argc, char const *argv[])
 
     //tracking
     Tracker tracker;
+    int ts = 0;
 
     while (logReader->hasMore())
     {
@@ -386,7 +387,7 @@ int main(int argc, char const *argv[])
             yolact.detect_yolact(objects, fd);
             cudaops.cleanAllocations();
             // yolact.computeBBox(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
-            tracker.Update(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            tracker.Update(objects, currPose, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
 
         }
         else
@@ -419,7 +420,7 @@ int main(int argc, char const *argv[])
             yolact.detect_yolact(objects, fd);
             cudaops.cleanAllocations();
             // yolact.computeBBox(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
-            tracker.Update(objects, bbox_vertices_ptr, bbox_elements_ptr, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
+            tracker.Update(objects, currPose, no, logReader->depth, intr.cx, intr.cy, intr.fx, intr.fy, width, height);
 
 
   
@@ -655,10 +656,13 @@ int main(int argc, char const *argv[])
         K(0, 2) = intr.cx;
         K(1, 2) = intr.cy;
         Eigen::Matrix3f Kinv = K.inverse();
+
+        tracker.getBoxVBO(ts, bbox_vertices_ptr, bbox_elements_ptr);
+
         if (gui.draw_cam->Get())
             gui.renderCam(currPose, width, height, Kinv);
         if (gui.draw_boxes->Get())
-            gui.renderLiveBBox(bbox_vertices_ptr, bbox_elements_ptr, *no, currPose);
+            gui.renderLiveBBox(bbox_vertices_ptr, bbox_elements_ptr, ts, currPose);
         gui.renderImg(textures[GPUTexture::RGB]);
         tick++;
 

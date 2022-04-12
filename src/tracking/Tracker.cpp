@@ -22,7 +22,7 @@ Tracker::Tracker()
                     {14,Eigen::Vector3f(1,0.25,0.25)},                  
 
                 };
-
+    b_idx = 0;
 }
 
 void Tracker::Update(vector<Point2f>& detections)
@@ -173,8 +173,92 @@ Eigen::Vector3f Tracker::decodeColor(float c)
     return col;
 }
 
+void Tracker::getBoxVBO(int& ts, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr)
+{   
+    ts = tracks.size();
+    if (ts <=0 )
+        return;
+    bbox_verts_ptr = new GLfloat[ts*8*4];
+    bbox_ele_ptr = new GLushort[ts*24];
 
-void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLushort *& bbox_ele_ptr,  int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height)
+    for (int i = 0; i < ts; ++i)
+    {
+        bbox_verts_ptr[i*8*4] = tracks[i]->bbox_vertices_ptr[0];
+        bbox_verts_ptr[i*8*4 + 1]= tracks[i]->bbox_vertices_ptr[1]; 
+        bbox_verts_ptr[i*8*4 + 2]= tracks[i]->bbox_vertices_ptr[2]; 
+        bbox_verts_ptr[i*8*4 + 3]= tracks[i]->bbox_vertices_ptr[3]; 
+
+        bbox_verts_ptr[i*8*4 + 4]= tracks[i]->bbox_vertices_ptr[4]; 
+        bbox_verts_ptr[i*8*4 + 5]= tracks[i]->bbox_vertices_ptr[5]; 
+        bbox_verts_ptr[i*8*4 + 6]= tracks[i]->bbox_vertices_ptr[6]; 
+        bbox_verts_ptr[i*8*4 + 7]= tracks[i]->bbox_vertices_ptr[7];
+
+        bbox_verts_ptr[i*8*4 + 8]= tracks[i]->bbox_vertices_ptr[8]; 
+        bbox_verts_ptr[i*8*4 + 9]= tracks[i]->bbox_vertices_ptr[9];
+        bbox_verts_ptr[i*8*4 + 10]= tracks[i]->bbox_vertices_ptr[10]; 
+        bbox_verts_ptr[i*8*4 + 11]= tracks[i]->bbox_vertices_ptr[11];
+
+        bbox_verts_ptr[i*8*4 + 12]= tracks[i]->bbox_vertices_ptr[12]; 
+        bbox_verts_ptr[i*8*4 + 13]= tracks[i]->bbox_vertices_ptr[13]; 
+        bbox_verts_ptr[i*8*4 + 14]= tracks[i]->bbox_vertices_ptr[14];
+        bbox_verts_ptr[i*8*4 + 15]= tracks[i]->bbox_vertices_ptr[15]; 
+
+        bbox_verts_ptr[i*8*4 + 16]= tracks[i]->bbox_vertices_ptr[16]; 
+        bbox_verts_ptr[i*8*4 + 17]= tracks[i]->bbox_vertices_ptr[17]; 
+        bbox_verts_ptr[i*8*4 + 18]= tracks[i]->bbox_vertices_ptr[18]; 
+        bbox_verts_ptr[i*8*4 + 19]= tracks[i]->bbox_vertices_ptr[19]; 
+
+        bbox_verts_ptr[i*8*4 + 20]= tracks[i]->bbox_vertices_ptr[20]; 
+        bbox_verts_ptr[i*8*4 + 21]= tracks[i]->bbox_vertices_ptr[21]; 
+        bbox_verts_ptr[i*8*4 + 22]= tracks[i]->bbox_vertices_ptr[22]; 
+        bbox_verts_ptr[i*8*4 + 23]= tracks[i]->bbox_vertices_ptr[23]; 
+
+        bbox_verts_ptr[i*8*4 + 24]= tracks[i]->bbox_vertices_ptr[24]; 
+        bbox_verts_ptr[i*8*4 + 25]= tracks[i]->bbox_vertices_ptr[25]; 
+        bbox_verts_ptr[i*8*4 + 26]= tracks[i]->bbox_vertices_ptr[26]; 
+        bbox_verts_ptr[i*8*4 + 27]= tracks[i]->bbox_vertices_ptr[27];
+
+        bbox_verts_ptr[i*8*4 + 28]= tracks[i]->bbox_vertices_ptr[28]; 
+        bbox_verts_ptr[i*8*4 + 29]= tracks[i]->bbox_vertices_ptr[29];
+        bbox_verts_ptr[i*8*4 + 30]= tracks[i]->bbox_vertices_ptr[30]; 
+        bbox_verts_ptr[i*8*4 + 31]= tracks[i]->bbox_vertices_ptr[31]; 
+
+
+        bbox_ele_ptr[i*24] = i*8; 
+        bbox_ele_ptr[i*24 + 1] = i*8 + 1; 
+        bbox_ele_ptr[i*24 + 2] = i*8 + 1; 
+        bbox_ele_ptr[i*24 + 3] = i*8 + 2; 
+
+        bbox_ele_ptr[i*24 + 4] = i*8 + 2; 
+        bbox_ele_ptr[i*24 + 5] = i*8 + 3; 
+        bbox_ele_ptr[i*24 + 6] = i*8 + 3; 
+        bbox_ele_ptr[i*24 + 7] = i*8; 
+
+        bbox_ele_ptr[i*24 + 8] = i*8 + 4; 
+        bbox_ele_ptr[i*24 + 9] = i*8 + 5; 
+        bbox_ele_ptr[i*24 + 10] = i*8 + 5; 
+        bbox_ele_ptr[i*24 + 11] = i*8 + 6; 
+
+        bbox_ele_ptr[i*24 + 12] = i*8 + 6; 
+        bbox_ele_ptr[i*24 + 13] = i*8 + 7; 
+        bbox_ele_ptr[i*24 + 14] = i*8 + 7; 
+        bbox_ele_ptr[i*24 + 15] = i*8 + 4; 
+
+        bbox_ele_ptr[i*24 + 16] = i*8; 
+        bbox_ele_ptr[i*24 + 17] = i*8 + 4; 
+        bbox_ele_ptr[i*24 + 18] = i*8 + 3; 
+        bbox_ele_ptr[i*24 + 19] = i*8 + 7; 
+
+        bbox_ele_ptr[i*24 + 20] = i*8 + 1; 
+        bbox_ele_ptr[i*24 + 21] = i*8 + 5; 
+        bbox_ele_ptr[i*24 + 22] = i*8 + 2; 
+        bbox_ele_ptr[i*24 + 23] = i*8 + 6; 
+    }
+
+}
+
+
+void Tracker::Update(std::vector<Object> objects, const Eigen::Matrix4f & currPose, int* no, unsigned short* depth, float cx, float cy, float fx, float fy, float width, float height)
 {
     obj_tid = new int[objects.size()];
 
@@ -195,14 +279,11 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
 
         float obj_depth = 0.5;
         int d_index = 0;
-        int b_idx = 0;
 
         if (centers.size()>0)
         {
             int num_objects = centers.size();
-            int box_attrbs_num = 32; 
-            bbox_verts_ptr = new GLfloat[(num_objects+1)*box_attrbs_num];
-            bbox_ele_ptr = new GLushort[(num_objects+1)*24];
+
             Update(centers);
             for(int i=0;i<tracks.size();i++)
             {
@@ -234,87 +315,92 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
                                 obj_depth = depth[d_index]/1000;
                                 if (isnan(obj_depth))
                                     obj_depth = 0;
-                                bbox_verts_ptr[b_idx*box_attrbs_num] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 1] =(((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 2] = obj_depth;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 3] = ec;  
+
+                                Eigen::Vector4f p = currPose * Eigen::Vector4f((((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx),
+                                                                               (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy),
+                                                                                obj_depth,
+                                                                                1);
+                                tracks[i]->bbox_vertices_ptr[0] = p[0];
+                                tracks[i]->bbox_vertices_ptr[1] = p[1];
+                                tracks[i]->bbox_vertices_ptr[2] = p[2];  
+                                tracks[i]->bbox_vertices_ptr[3] = ec;  
+
+                                p = currPose * Eigen::Vector4f(((((track_obj.rect.x+track_obj.rect.width) * 640/550) - cx) * obj_depth * 1/fx),
+                                                                               (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy),
+                                                                                obj_depth,
+                                                                                1);
+
+                                tracks[i]->bbox_vertices_ptr[4] = p[0];
+                                tracks[i]->bbox_vertices_ptr[5] = p[1];
+                                tracks[i]->bbox_vertices_ptr[6] = p[2];  
+                                tracks[i]->bbox_vertices_ptr[7] = ec;  
 
 
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 4] = ((((track_obj.rect.x+track_obj.rect.width) * 640/550) - cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 5] = (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 6] = obj_depth;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 7] = ec;  
+                                p = currPose * Eigen::Vector4f(((((track_obj.rect.x+track_obj.rect.width) * 640/550)- cx) * obj_depth * 1/fx),
+                                                                               ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy),
+                                                                                obj_depth,
+                                                                                1);
+
+                                tracks[i]->bbox_vertices_ptr[8] = p[0];
+                                tracks[i]->bbox_vertices_ptr[9] = p[1];
+                                tracks[i]->bbox_vertices_ptr[10] = p[2];  
+                                tracks[i]->bbox_vertices_ptr[11] = ec;  
 
 
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 8] = ((((track_obj.rect.x+track_obj.rect.width) * 640/550)- cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 9] = ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 10] = obj_depth;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 11] = ec;  
+                                p = currPose * Eigen::Vector4f((((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx),
+                                                                               ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy),
+                                                                                obj_depth,
+                                                                                1);
+
+                                tracks[i]->bbox_vertices_ptr[12] = p[0];
+                                tracks[i]->bbox_vertices_ptr[13] = p[1];
+                                tracks[i]->bbox_vertices_ptr[14] = p[2];  
+                                tracks[i]->bbox_vertices_ptr[15] = ec; 
 
 
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 12] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 13] = ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 14] = obj_depth;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 15] = ec; 
+                                p = currPose * Eigen::Vector4f((((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx),
+                                                                            (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy),
+                                                                                obj_depth - 0.5,
+                                                                                1);
+
+                                tracks[i]->bbox_vertices_ptr[16] = p[0]; 
+                                tracks[i]->bbox_vertices_ptr[17] = p[1];
+                                tracks[i]->bbox_vertices_ptr[18] = p[2];    
+                                tracks[i]->bbox_vertices_ptr[19] = ec;  
+
+                                p = currPose * Eigen::Vector4f(((((track_obj.rect.x+track_obj.rect.width) * 640/550) - cx) * obj_depth * 1/fx),
+                                                                               (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy),
+                                                                                obj_depth - 0.5,
+                                                                                1);
 
 
+                                tracks[i]->bbox_vertices_ptr[20] = p[0]; 
+                                tracks[i]->bbox_vertices_ptr[21] = p[1]; 
+                                tracks[i]->bbox_vertices_ptr[22] = p[2];   
+                                tracks[i]->bbox_vertices_ptr[23] = ec; 
 
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 16] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 17] =(((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 18] = obj_depth - 0.5;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 19] = ec;  
-
-
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 20] = ((((track_obj.rect.x+track_obj.rect.width) * 640/550) - cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 21] = (((track_obj.rect.y * 480/550) - cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 22] = obj_depth - 0.5;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 23] = ec; 
+                                p = currPose * Eigen::Vector4f(((((track_obj.rect.x+track_obj.rect.width) * 640/550)- cx) * obj_depth * 1/fx),
+                                                                              ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy),
+                                                                                obj_depth - 0.5,
+                                                                                1);
 
 
+                                tracks[i]->bbox_vertices_ptr[24] = p[0];
+                                tracks[i]->bbox_vertices_ptr[25] = p[1];
+                                tracks[i]->bbox_vertices_ptr[26] = p[2];   
+                                tracks[i]->bbox_vertices_ptr[27] = ec;  
 
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 24] = ((((track_obj.rect.x+track_obj.rect.width) * 640/550)- cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 25] = ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 26] = obj_depth - 0.5;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 27] = ec;  
+                                p = currPose * Eigen::Vector4f((((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx),
+                                                                               ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy),
+                                                                                obj_depth - 0.5,
+                                                                                1);
 
+                                tracks[i]->bbox_vertices_ptr[28] =p[0]; 
+                                tracks[i]->bbox_vertices_ptr[29] =p[1];
+                                tracks[i]->bbox_vertices_ptr[30] =p[2];  
+                                tracks[i]->bbox_vertices_ptr[31] = ec; 
 
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 28] = (((track_obj.rect.x * 640/550)- cx) * obj_depth * 1/fx);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 29] = ((((track_obj.rect.y+track_obj.rect.height) * 480/550)- cy) * obj_depth * 1/fy);
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 30] = obj_depth - 0.5;  
-                                bbox_verts_ptr[b_idx*box_attrbs_num + 31] = ec; 
-
-
-                                bbox_ele_ptr[b_idx*24] = b_idx*8; 
-                                bbox_ele_ptr[b_idx*24 + 1] = b_idx*8 + 1; 
-                                bbox_ele_ptr[b_idx*24 + 2] = b_idx*8 + 1; 
-                                bbox_ele_ptr[b_idx*24 + 3] = b_idx*8 + 2; 
-
-                                bbox_ele_ptr[b_idx*24 + 4] = b_idx*8 + 2; 
-                                bbox_ele_ptr[b_idx*24 + 5] = b_idx*8 + 3; 
-                                bbox_ele_ptr[b_idx*24 + 6] = b_idx*8 + 3; 
-                                bbox_ele_ptr[b_idx*24 + 7] = b_idx*8 ; 
-
-                                bbox_ele_ptr[b_idx*24 + 8] = b_idx*8 + 4; 
-                                bbox_ele_ptr[b_idx*24 + 9] = b_idx*8 + 5; 
-                                bbox_ele_ptr[b_idx*24 + 10] = b_idx*8 + 5; 
-                                bbox_ele_ptr[b_idx*24 + 11] = b_idx*8 + 6; 
-
-                                bbox_ele_ptr[b_idx*24 + 12] = b_idx*8 + 6; 
-                                bbox_ele_ptr[b_idx*24 + 13] = b_idx*8 + 7; 
-                                bbox_ele_ptr[b_idx*24 + 14] = b_idx*8 + 7; 
-                                bbox_ele_ptr[b_idx*24 + 15] = b_idx*8 + 4; 
-
-                                bbox_ele_ptr[b_idx*24 + 16] = b_idx*8; 
-                                bbox_ele_ptr[b_idx*24 + 17] = b_idx*8 + 4; 
-                                bbox_ele_ptr[b_idx*24 + 18] = b_idx*8 + 3; 
-                                bbox_ele_ptr[b_idx*24 + 19] = b_idx*8 + 7; 
-
-                                bbox_ele_ptr[b_idx*24 + 20] = b_idx*8 + 1; 
-                                bbox_ele_ptr[b_idx*24 + 21] = b_idx*8 + 5; 
-                                bbox_ele_ptr[b_idx*24 + 22] = b_idx*8 + 2; 
-                                bbox_ele_ptr[b_idx*24 + 23] = b_idx*8 + 6; 
-
-                                b_idx++;
+                                // b_idx++;
 
                             }
                         }
@@ -333,8 +419,9 @@ void Tracker::Update(std::vector<Object> objects, GLfloat *& bbox_verts_ptr, GLu
                 }
             }
         }
-        *no = b_idx;
+        // *no = b_idx;
     }
+
 }
 
 kalman_track::kalman_track(int td, Point2f pt, float dt, float acceleration)
@@ -343,11 +430,17 @@ kalman_track::kalman_track(int td, Point2f pt, float dt, float acceleration)
     track_id=td;
     
     KF = new TKalmanFilter(pt,dt,acceleration);
- 
     begin_time = clock();
     suspicious = 0;
     prediction=pt;
     misses=0;
+    for(int i = 0; i< 8*4; i++)
+    {
+        bbox_vertices_ptr[i] = 0;
+        if (i < 24)
+            bbox_elements_ptr[i] = 0;
+    }
+    ec = 0;
 
 }
 
