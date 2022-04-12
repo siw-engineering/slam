@@ -335,6 +335,7 @@ int Yolact::detect_yolact(std::vector<Object>& objects, int imgShareableHandle)
 
 cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects, std::vector<Object>& track_objects)
 {
+    /*
     static const char* class_names[] = {"background",
                                         "person", "bicycle", "car", "motorcycle", "airplane", "bus",
                                         "train", "truck", "boat", "traffic light", "fire hydrant",
@@ -435,8 +436,8 @@ cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& obje
         {255, 56, 0},
         {245, 255, 0}
     };
-
-    cv::Mat image = bgr.clone();
+    */
+    cv::Mat resized_image = bgr.clone();
 
     int color_index = 1;
 
@@ -453,52 +454,27 @@ cv::Mat Yolact::draw_objects(const cv::Mat& bgr, const std::vector<Object>& obje
         // const unsigned char* color = colors[color_index % 81];
         // color_index++;
 
-        // cv::rectangle(image, obj.rect, cv::Scalar(color[0], color[1], color[2]));
 
-        char text[256];
+        // char text[256];
         // sprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
         //fprintf(text, "%s %.1f%%", class_names[obj.label], obj.prob * 100);
 
-        int baseLine = 0;
-        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
-
-        int x = obj.rect.x;
-        int y = obj.rect.y - label_size.height - baseLine;
-        if (y < 0)
-            y = 0;
-        if (x + label_size.width > image.cols)
-            x = image.cols - label_size.width;
-
-        // cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
-        //               cv::Scalar(255, 255, 255), -1);
-
-        // cv::putText(image, text, cv::Point(x, y + label_size.height),
-        //             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
-
-        // draw mask
-        for (int y = 0; y < image.rows; y++)
+         for (int y = 0; y < resized_image.rows; y++)
         {
-            const uchar* mp = obj.mask.ptr(y);
-            uchar* p = image.ptr(y);
-            for (int x = 0; x < image.cols; x++)
+            uchar* p = resized_image.ptr(y);
+            int dy = (int)(y * 1.14);
+            const uchar* mp = obj.mask.ptr(dy);
+            for (int x = 0; x < resized_image.cols; x++)
             {
-                if (mp[x] == 255)
+                int dx = (int)(x * 0.859);
+                if (mp[dx] == 255)
                 {
-                    // p[0] = cv::saturate_cast<uchar>(p[0] * 0.5 + color[0] * 0.5);
-                    // p[1] = cv::saturate_cast<uchar>(p[1] * 0.5 + color[1] * 0.5);
-                    // p[2] = cv::saturate_cast<uchar>(p[2] * 0.5 + color[2] * 0.5);
                     p[x] = cv::saturate_cast<unsigned char>(color_index);
                 }
-                // p += 3;
             }
         }
         color_index++;
     }
-    cv::Mat resized_image;
-    cv::resize(image, resized_image, cv::Size(640,480), cv::INTER_LINEAR);
-    // cv::imshow(" instance ", image);
-    // cv::waitKey(0);
-    // return 0;
     return resized_image;
 }
 
@@ -508,7 +484,7 @@ cv::Mat Yolact::processFrame(int fd){
     std::vector<Object> objects;
     std::vector<Object> track_objects;
     detect_yolact(objects, fd);
-    cv::Mat mask = draw_objects(Mat::zeros(Size(550,550),CV_8UC1), objects, track_objects);
+    cv::Mat mask = draw_objects(Mat::zeros(Size(640,480),CV_8UC1), objects, track_objects);
     return mask;
 
 }
