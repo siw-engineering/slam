@@ -24,7 +24,7 @@ class GUI
 		std::shared_ptr<Shader> draw_program;
 		std::shared_ptr<Shader> drawbbox_program;
 		std::shared_ptr<Shader> drawcam_program;
-		pangolin::Var<bool> *draw_boxes, *draw_mask, *draw_cam;
+		pangolin::Var<bool> *draw_boxes, *draw_mask, *draw_cam, *pause;
 
 		pangolin::OpenGlMatrix mvp;
 
@@ -68,6 +68,7 @@ class GUI
 			int widthPanel = 200;
 			pangolin::CreatePanel("ui").SetBounds(0.0, 1.0, 0.0, pangolin::Attach::Pix(widthPanel));
 
+		    pause = new pangolin::Var<bool>("ui.Pause", false, true);
 			draw_cam = new pangolin::Var<bool>("ui.draw_cam", false, true);
 			draw_boxes = new pangolin::Var<bool>("ui.draw_boxes", false, true);
 			draw_mask = new pangolin::Var<bool>("ui.draw_mask", false, true);

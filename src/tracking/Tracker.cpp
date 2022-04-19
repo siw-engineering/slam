@@ -25,7 +25,7 @@ Tracker::Tracker()
     b_idx = 0;
 }
 
-void Tracker::Update(vector<Point2f>& detections)
+void Tracker::Update(vector<Point3f>& detections)
 {
 
     if(tracks.size()==0)
@@ -52,8 +52,8 @@ void Tracker::Update(vector<Point2f>& detections)
 
         for(int j=0;j<detections.size();j++)
         {
-            Point2d diff=(tracks[i]->prediction-detections[j]);
-            dist=sqrtf(diff.x*diff.x+diff.y*diff.y);
+            Point3d diff=(tracks[i]->prediction-detections[j]);
+            dist=sqrtf(diff.x*diff.x+diff.y*diff.y + diff.z*diff.z);
             Cost[i][j]=dist;
         }
     }
@@ -134,7 +134,7 @@ void Tracker::Update(vector<Point2f>& detections)
             tracks[i]->prediction=tracks[i]->KF->Update(detections[assignment[i]],1);
         }else               
         {
-            tracks[i]->prediction=tracks[i]->KF->Update(Point2f(0,0),0);    
+            tracks[i]->prediction=tracks[i]->KF->Update(Point3f(0,0,0),0);    
         }
         
         if(tracks[i]->trace.size()>max_trace)
@@ -148,11 +148,12 @@ void Tracker::Update(vector<Point2f>& detections)
 
 }
 
-float Tracker::distance(int x1, int y1, int x2, int y2)
+float Tracker::distance(int x1, int y1, int z1, int x2, int y2, int z2)
 {
     // Calculating distance
     return sqrt(pow(x2 - x1, 2) +
-                pow(y2 - y1, 2) * 1.0);
+                pow(y2 - y1, 2) +
+                pow(z2 - z1, 2));
 
 }
 
@@ -265,20 +266,26 @@ void Tracker::Update(std::vector<Object> objects, const Eigen::Matrix4f & currPo
     track_objects = objects;
     if (track_objects.size()>0)
     {
-        vector<Point2f> centers;
+        vector<Point3f> centers;
+
+        float obj_depth = 0.5;
+        int d_index = 0;
+
         for (size_t i = 0; i < track_objects.size(); i++)
         {
             const Object& track_obj = track_objects[i];
             if (track_obj.prob > 0.65)
             {
-                Point center = Point(track_obj.rect.x+(track_obj.rect.width/2), track_obj.rect.y+(track_obj.rect.height/2));
+
+                d_index = (int)(640 * (track_obj.rect.y + track_obj.rect.height/2)*480/550 + (track_obj.rect.x + track_obj.rect.width/2)*640/550);
+                obj_depth = depth[d_index]/1000;
+                if (isnan(obj_depth))
+                    obj_depth = 0;
+                Point3f center = Point3f(track_obj.rect.x+(track_obj.rect.width/2), track_obj.rect.y+(track_obj.rect.height/2), obj_depth);
                 centers.push_back(center);
             }
             obj_tid[i] = -1; // initialize obj_id map to -1
         }
-
-        float obj_depth = 0.5;
-        int d_index = 0;
 
         if (centers.size()>0)
         {
@@ -293,7 +300,7 @@ void Tracker::Update(std::vector<Object> objects, const Eigen::Matrix4f & currPo
                     {
                         for(int ik=0;ik<centers.size();ik++)
                         {
-                            if(distance(tracks[i]->prediction.x,tracks[i]->prediction.y, centers[ik].x, centers[ik].y)< 10)
+                            if(distance(tracks[i]->prediction.x,tracks[i]->prediction.y, tracks[i]->prediction.z, centers[ik].x, centers[ik].y, centers[ik].z)< 10)
                             {
                                 const Object& track_obj = track_objects[ik];
                                 obj_tid[ik] = tracks[i]->track_id;
@@ -424,7 +431,7 @@ void Tracker::Update(std::vector<Object> objects, const Eigen::Matrix4f & currPo
 
 }
 
-kalman_track::kalman_track(int td, Point2f pt, float dt, float acceleration)
+kalman_track::kalman_track(int td, Point3f pt, float dt, float acceleration)
 {
 
     track_id=td;

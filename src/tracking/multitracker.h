@@ -13,7 +13,7 @@ using namespace std;
 class kalman_track
 {
 public:
-	vector<Point2d> trace;
+	vector<Point3d> trace;
 	time_t begin_time;
 	int suspicious;
 	int track_id;
@@ -21,9 +21,9 @@ public:
 	GLfloat bbox_vertices_ptr[8*4];
 	GLushort bbox_elements_ptr[24];
 	int ec;
-	Point2f prediction;
+	Point3f prediction;
 	TKalmanFilter* KF;
-	kalman_track(int td, Point2f p, float dt, float acceleration);
+	kalman_track(int td, Point3f p, float dt, float acceleration);
 	~kalman_track();
 };
 

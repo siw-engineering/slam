@@ -14,13 +14,12 @@ class TKalmanFilter
 public:
 	cv::KalmanFilter* kalman;
 	double deltatime; //Time Increment
-	Point2f LastResult;
+	Point3f LastResult;
 
 
-
-	TKalmanFilter(Point2f p,float dt=0.2,float Accel_noise_mag=0.5);
+	TKalmanFilter(Point3f p,float dt=0.2,float Accel_noise_mag=0.5);
 	~TKalmanFilter();
-	Point2f GetPrediction();
-	Point2f Update(Point2f p, bool DataCorrect);
+	Point3f GetPrediction();
+	Point3f Update(Point3f p, bool DataCorrect);
 };
 

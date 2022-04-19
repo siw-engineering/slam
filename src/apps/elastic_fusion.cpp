@@ -354,6 +354,8 @@ int main(int argc, char const *argv[])
 
     while (logReader->hasMore())
     {
+        if (!gui.pause->Get())
+        {
         logReader->getNext();
         timestamp = logReader->timestamp;
         textures[GPUTexture::DEPTH_RAW]->texture->Upload(logReader->depth, GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT);
@@ -665,6 +667,7 @@ int main(int argc, char const *argv[])
             gui.renderLiveBBox(bbox_vertices_ptr, bbox_elements_ptr, ts, currPose);
         gui.renderImg(textures[GPUTexture::RGB]);
         tick++;
+    }
 
     }
 
