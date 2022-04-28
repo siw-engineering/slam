@@ -22,6 +22,7 @@ class GUI
 		int height_img;
 
 		std::shared_ptr<Shader> draw_program;
+		std::shared_ptr<Shader> draw_model_program;
 		std::shared_ptr<Shader> drawbbox_program;
 		std::shared_ptr<Shader> drawcam_program;
 		pangolin::Var<bool> *draw_boxes, *draw_mask, *draw_cam, *pause;
@@ -75,8 +76,10 @@ class GUI
 
 
 			draw_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_global_surface_.vert","draw_global_surface_.frag", shader_dir));
+			draw_model_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_global_surface_.vert","draw_global_surface_.frag", shader_dir));
 			drawbbox_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_bbox.vert","draw_bbox.frag", shader_dir));
 			drawcam_program =  std::shared_ptr<Shader>(loadProgramFromFile("draw_cam.vert", "draw_cam.frag", shader_dir));
+
 
 		}
 
@@ -150,6 +153,40 @@ class GUI
 #endif // multiplemodel
 		}
 
+		void renderModel(const std::pair<GLuint, GLuint>& vbos, int vs, Eigen::Matrix4f pose)
+		{
+			pangolin::Display("cam").Activate(s_cam);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glColor4f(1.0f,1.0f,1.0f,1.0f);
+
+			Eigen::Matrix4f t_inv = pose.inverse();
+
+			draw_model_program->Bind();
+			draw_model_program->setUniform(Uniform("MVP", getMVP()));
+			draw_model_program->setUniform(Uniform("t_inv", t_inv));
+
+			glBindBuffer(GL_ARRAY_BUFFER, vbos.first);
+
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, vs, 0);
+
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, vs, reinterpret_cast<GLvoid*>(sizeof(Eigen::Vector4f) * 1));
+
+			glEnableVertexAttribArray(2);
+			glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, vs, reinterpret_cast<GLvoid*>(sizeof(Eigen::Vector4f) * 2));
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glDrawTransformFeedback(GL_POINTS, vbos.second);  // RUN GPU-PASS
+
+			glDisableVertexAttribArray(0);
+			glDisableVertexAttribArray(1);
+			glDisableVertexAttribArray(2);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+			draw_model_program->Unbind();
+			pangolin::FinishFrame();
+			
+		}
 		void renderCam(const Eigen::Matrix4f & pose, float width, float height, Eigen::Matrix3f & Kinv)
 		{
 
