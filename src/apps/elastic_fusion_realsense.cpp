@@ -3,9 +3,10 @@
 // #include "../odom/RGBDOdometryef.h"
 #include "../gl/ComputePack.h"
 #include "../gl/FillIn.h"
-#include "../model/GlobalModel.h"
+// #include "../model/GlobalModel.h"
 #include "../lc/Deformation.h"
 #include "../lc/PoseMatch.h"
+#include "../model/Model.h"
 #include <librealsense2/rs.hpp> 
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -14,33 +15,28 @@
 using namespace libconfig;
 
 
-void predict(IndexMap& indexMap, Eigen::Matrix4f& currPose, GlobalModel& globalModel, int maxDepthProcessed, float confidenceThreshold, int tick, int timeDelta, FillIn& fillIn, std::map<std::string, GPUTexture*>& textures)
+void predict(ModelPointer& model, int maxDepthProcessed, float confidenceThreshold, int tick, int timeDelta, std::map<std::string, GPUTexture*>& textures)
 {
     if(/*lastFrameRecovery*/false)
     {
-        indexMap.combinedPredict(currPose,
-                                 globalModel.model(),
-                                 maxDepthProcessed,
-                                 confidenceThreshold,
-                                 0,
-                                 tick,
-                                 timeDelta,
-                                 IndexMap::ACTIVE);
+        model->combinedPredict(maxDepthProcessed,
+                            confidenceThreshold,
+                            0,
+                            tick,
+                            timeDelta,
+                            IndexMap::ACTIVE);
     }
     else
     {
-        indexMap.combinedPredict(currPose,
-                                 globalModel.model(),
-                                 maxDepthProcessed,
-                                 confidenceThreshold,
-                                 tick,
-                                 tick,
-                                 timeDelta,
-                                 IndexMap::ACTIVE);
+        model->combinedPredict(maxDepthProcessed,
+                                confidenceThreshold,
+                                tick,
+                                tick,
+                                timeDelta,
+                                IndexMap::ACTIVE);
     }
-    fillIn.vertex(indexMap.vertexTex(), textures[GPUTexture::DEPTH_FILTERED], false);
-    fillIn.normal(indexMap.normalTex(), textures[GPUTexture::DEPTH_FILTERED], false);
-    fillIn.image(indexMap.imageTex(), textures[GPUTexture::RGB], false || /*frameToFrameRGB*/false);
+    model->performFillIn(textures[GPUTexture::RGB], textures[GPUTexture::DEPTH_FILTERED]);
+
 }
 
 Eigen::Vector3f rodrigues2(const Eigen::Matrix3f& matrix)
@@ -91,7 +87,7 @@ Eigen::Vector3f rodrigues2(const Eigen::Matrix3f& matrix)
 }
 
 
-void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenceThreshold)
+void savePly(ModelPointer& globalModel, std::string saveFilename, float confidenceThreshold)
 {
     std::string filename = saveFilename;
     filename.append(".ply");
@@ -100,11 +96,11 @@ void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenc
     std::ofstream fs;
     fs.open (filename.c_str ());
 
-    Eigen::Vector4f * mapData = globalModel.downloadMap();
+    Eigen::Vector4f * mapData = globalModel->downloadMap();
 
     int validCount = 0;
 
-    for(unsigned int i = 0; i < globalModel.lastCount(); i++)
+    for(unsigned int i = 0; i < globalModel->lastCount(); i++)
     {
         Eigen::Vector4f pos = mapData[(i * 3) + 0];
 
@@ -142,7 +138,7 @@ void savePly(GlobalModel& globalModel, std::string saveFilename, float confidenc
     // Open file in binary appendable
     std::ofstream fpout (filename.c_str (), std::ios::app | std::ios::binary);
 
-    for(unsigned int i = 0; i < globalModel.lastCount(); i++)
+    for(unsigned int i = 0; i < globalModel->lastCount(); i++)
     {
         Eigen::Vector4f pos = mapData[(i * 3) + 0];
 
@@ -276,6 +272,8 @@ int main(int argc, char const *argv[])
     Deformation localDeformation(lc_shaders);
     Deformation globalDeformation(lc_shaders);
 
+
+
     std::vector<PoseMatch> poseMatches;
     std::vector<Deformation::Constraint> relativeCons;
 
@@ -291,11 +289,15 @@ int main(int argc, char const *argv[])
     rs2::pipeline pipe;
     rs2::config rs_cfg;
 
+    // std::string fileName = "/home/developer/datasets/20220609_114728.bag";
+
+    // rs_cfg.enable_device_from_file(fileName, 0);
+
     rs_cfg.enable_stream(RS2_STREAM_COLOR, intr.width, intr.height, RS2_FORMAT_RGB8,fps);
     rs_cfg.enable_stream(RS2_STREAM_DEPTH, intr.width, intr.height, RS2_FORMAT_Z16, fps);
-    rs_cfg.enable_stream(RS2_STREAM_INFRARED, 1, intr.width, intr.height, RS2_FORMAT_Y8, fps);
+    // rs_cfg.enable_stream(RS2_STREAM_INFRARED, 1, intr.width, intr.height, RS2_FORMAT_Y8, fps);
     pipe.start(rs_cfg);
-    rs2::align align(RS2_STREAM_INFRARED);
+    rs2::align align(RS2_STREAM_DEPTH);
 
     std::map<std::string, GPUTexture*> textures;
     std::map<std::string, ComputePack*> computePacks;
@@ -309,6 +311,7 @@ int main(int argc, char const *argv[])
     textures[GPUTexture::DEPTH_METRIC] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
     textures[GPUTexture::DEPTH_METRIC_FILTERED] = new GPUTexture(width, height, GL_LUMINANCE32F_ARB, GL_LUMINANCE, GL_FLOAT);
     textures[GPUTexture::DEPTH_NORM] = new GPUTexture(width, height, GL_LUMINANCE, GL_LUMINANCE, GL_FLOAT, true);
+    textures[GPUTexture::MASK] = new GPUTexture(width, height, GL_R8UI, GL_RED_INTEGER, GL_UNSIGNED_BYTE, false, true);
 
     //createcompute
     computePacks[ComputePack::NORM] = new ComputePack(loadProgramFromFile("empty.vert", "depth_norm.frag", "quad.geom", gl_shaders), textures[GPUTexture::DEPTH_NORM]->texture, width, height);
@@ -321,9 +324,12 @@ int main(int argc, char const *argv[])
     feedbackBuffers[FeedbackBuffer::FILTERED] = new FeedbackBuffer(loadProgramGeomFromFile("vertex_feedback.vert", "vertex_feedback.geom", gl_shaders), width, height, intr);
     
 
-    IndexMap indexMap(width, height, intr, model_shaders);
-    GlobalModel globalModel(width, height, intr, model_shaders);
-    FillIn fillIn(width, height, intr, gl_shaders);
+    ModelPointer modelPtr;
+    ModelList models;
+    ModelListIterator modelIterator;
+
+    std::shared_ptr<Model> globalModel;
+    globalModel = std::make_shared<Model>(0, width, height, intr, model_shaders);
 
 
     int tick = 1;
@@ -339,10 +345,8 @@ int main(int argc, char const *argv[])
 
         rs2::depth_frame current_depth_frame = aligned_frames.get_depth_frame();
         rs2::video_frame current_color_frame = aligned_frames.get_color_frame();
-
         textures[GPUTexture::DEPTH_RAW]->texture->Upload(current_depth_frame.get_data(), GL_LUMINANCE_INTEGER_EXT, GL_UNSIGNED_SHORT);
         textures[GPUTexture::RGB]->texture->Upload(current_color_frame.get_data(), GL_RGB, GL_UNSIGNED_BYTE);
-
         std::vector<Uniform> uniformsfd;
         uniformsfd.push_back(Uniform("cols", (float)width));
         uniformsfd.push_back(Uniform("rows", (float)height));
@@ -358,37 +362,38 @@ int main(int argc, char const *argv[])
         {
             feedbackBuffers[FeedbackBuffer::RAW]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC]->texture, tick, maxDepthProcessed);
             feedbackBuffers[FeedbackBuffer::FILTERED]->compute(textures[GPUTexture::RGB]->texture, textures[GPUTexture::DEPTH_METRIC_FILTERED]->texture, tick, maxDepthProcessed);
-
-            globalModel.initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
-            frameToModel.initFirstRGB(textures[GPUTexture::RGB]);   
+            globalModel->initialise(0, *feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED], textures[GPUTexture::MASK]);
+            // globalModel->initialise(*feedbackBuffers[FeedbackBuffer::RAW], *feedbackBuffers[FeedbackBuffer::FILTERED]);
+            globalModel->initFirstRGB(textures[GPUTexture::RGB]);
+            models.push_back(globalModel);
+            std::cout << " count one ---- " << std::endl; 
         }
         else
         {
             Eigen::Matrix4f lastPose = currPose;
-            bool trackingOk = frameToModel.lastICPError < 1e-04;
+            // bool trackingOk = frameToModel.lastICPError < 1e-04;
+            bool trackingOk = true;
             bool shouldFillIn = true;
-            frameToModel.initICPModel(shouldFillIn ? &fillIn.vertexTexture : indexMap.vertexTex(),
-                                      shouldFillIn ? &fillIn.normalTexture : indexMap.normalTex(),
-                                      maxDepthProcessed, currPose);
-            frameToModel.initRGBModel((shouldFillIn || false) ? &fillIn.imageTexture : indexMap.imageTex());
-            frameToModel.initICP(textures[GPUTexture::DEPTH_FILTERED], maxDepthProcessed);
-            frameToModel.initRGB(textures[GPUTexture::RGB]);
-            Eigen::Vector3f trans = currPose.topRightCorner(3, 1);
-            Eigen::Matrix<float, 3, 3, Eigen::RowMajor> rot = currPose.topLeftCorner(3, 3);
-            frameToModel.getIncrementalTransformation(trans, rot, rgbOnly, icpWeight, pyramid, fastOdom, true);
-            currPose.topRightCorner(3, 1) = trans;
-            currPose.topLeftCorner(3, 3) = rot;
+
+            for (auto model : models)
+            {
+                model->performTracking(textures[GPUTexture::RGB], textures[GPUTexture::DEPTH_FILTERED], shouldFillIn, maxDepthProcessed,
+                                        rgbOnly, icpWeight, pyramid, fastOdom);
+            }
+            currPose = globalModel->getPose();
+
+
 
             Eigen::Matrix4f diff = currPose.inverse() * lastPose;
             Eigen::Vector3f diffTrans = diff.topRightCorner(3, 1);
             Eigen::Matrix3f diffRot = diff.topLeftCorner(3, 3);
 
             //save pose
-            if(spose)
-            {
-                Eigen::Quaternionf q(rot);
-                pose_file<<tick<<" "<<trans(0)<<" "<<trans(1)<<" "<<trans(2)<<" "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl;
-            }
+            // if(spose)
+            // {
+            //     Eigen::Quaternionf q(rot);
+            //     pose_file<<tick<<" "<<trans(0)<<" "<<trans(1)<<" "<<trans(2)<<" "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl;
+            // }
 
             //Weight by velocity
             float weighting = std::max(diffTrans.norm(), rodrigues2(diffRot).norm());
@@ -400,7 +405,11 @@ int main(int argc, char const *argv[])
                 weighting = largest;
 
             weighting = std::max(1.0f - (weighting / largest), minWeight) * 1;
-            predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
+            for (auto model : models)
+            {
+                predict(model, maxDepthProcessed, confidence, tick, timeDelta, textures);
+            }
+
             Eigen::Matrix4f recoveryPose = currPose;
 
 
@@ -410,9 +419,9 @@ int main(int argc, char const *argv[])
 
                 recoveryPose = ferns.findFrame(constraints,
                                                currPose,
-                                               &fillIn.vertexTexture,
-                                               &fillIn.normalTexture,
-                                               &fillIn.imageTexture,
+                                               globalModel->getFillInVertexTexture(),
+                                               globalModel->getFillInNormalTexture(),
+                                               globalModel->getFillInImageTexture(),
                                                tick,
                                                false);
             }
@@ -428,7 +437,7 @@ int main(int argc, char const *argv[])
                                                     ferns.frames.at(ferns.lastClosest)->srcTime,
                                                     true);
                 }
-                // std::cout << " loop closure detected -------------" << std::endl;
+                std::cout << " loop closure detected -------------" << std::endl;
 
                 for(size_t i = 0; i < relativeCons.size(); i++)
                 {
@@ -453,15 +462,17 @@ int main(int argc, char const *argv[])
 
             if(closeLoops && rawGraph.size()==0)
             {
-                indexMap.combinedPredict(currPose,
-                                         globalModel.model(),
-                                         maxDepthProcessed,
-                                         confidence,
-                                         0,
-                                         tick - timeDelta,
-                                         timeDelta,
-                                         IndexMap::INACTIVE);
 
+
+                globalModel->combinedPredict(maxDepthProcessed,
+                                            confidence,
+                                            0,
+                                            tick - timeDelta,
+                                            timeDelta,
+                                            IndexMap::INACTIVE);
+
+
+                IndexMap& indexMap = globalModel->getIndexMap();
                 //WARNING initICP* must be called before initRGB*
                 modelToModel.initICPModel(indexMap.oldVertexTex(), indexMap.oldNormalTex(), maxDepthProcessed, currPose);
                 modelToModel.initRGBModel(indexMap.oldImageTex());
@@ -552,60 +563,58 @@ int main(int argc, char const *argv[])
 
             }
 
-            if (trackingOk)
+            for (auto model : models)
             {
-                indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
-                globalModel.fuse(currPose,
-                                 tick,
-                                 textures[GPUTexture::RGB],
-                                 textures[GPUTexture::DEPTH_METRIC],
-                                 textures[GPUTexture::DEPTH_METRIC_FILTERED],
-                                 indexMap.indexTex(),
-                                 indexMap.vertConfTex(),
-                                 indexMap.colorTimeTex(),
-                                 indexMap.normalRadTex(),
-                                 maxDepthProcessed,
-                                 confidence,
-                                 weighting);
-
-                indexMap.predictIndices(currPose, tick, globalModel.model(), maxDepthProcessed, timeDelta);
-
-                if(rawGraph.size() > 0 && !fernAccepted)
+                if (trackingOk)
                 {
-                    indexMap.synthesizeDepth(currPose,
-                                             globalModel.model(),
-                                             maxDepthProcessed,
-                                             confidence,
-                                             tick,
-                                             tick - timeDelta,
-                                             std::numeric_limits<unsigned short>::max());
-                }
+                    model->predictIndices(tick, maxDepthProcessed, timeDelta);
+                    model->fuse(tick,
+                                textures[GPUTexture::RGB],
+                                textures[GPUTexture::DEPTH_METRIC],
+                                textures[GPUTexture::DEPTH_METRIC_FILTERED],
+                                textures[GPUTexture::MASK],
+                                maxDepthProcessed,
+                                confidence,
+                                weighting);
 
+                    model->predictIndices(tick, maxDepthProcessed, timeDelta);
 
-                globalModel.clean(currPose,
-                                  tick,
-                                  indexMap.indexTex(),
-                                  indexMap.vertConfTex(),
-                                  indexMap.colorTimeTex(),
-                                  indexMap.normalRadTex(),
-                                  indexMap.depthTex(),
+                    if(rawGraph.size() > 0 && !fernAccepted)
+                    {
+                        globalModel->getIndexMap().synthesizeDepth(globalModel->getPose(),
+                                                 globalModel->getModel(),
+                                                 maxDepthProcessed,
+                                                 confidence,
+                                                 tick,
+                                                 tick - timeDelta,
+                                                 std::numeric_limits<unsigned short>::max());
+                    }
+                    model->clean( tick,
+                                  textures[GPUTexture::MASK],
                                   confidence,
                                   rawGraph,
                                   timeDelta,
                                   maxDepthProcessed,
                                   false);
+
+                }
             }
         }
 
         poseGraph.push_back(std::pair<unsigned long long int, Eigen::Matrix4f>(tick, currPose));
         poseLogTimes.push_back(timestamp);
-        localDeformation.sampleGraphModel(globalModel.model());
+        localDeformation.sampleGraphModel(globalModel->getModel());
         globalDeformation.sampleGraphFrom(localDeformation);
 
-        predict(indexMap, currPose, globalModel, maxDepthProcessed, confidence, tick, timeDelta, fillIn, textures);
-        ferns.addFrame(&fillIn.imageTexture, &fillIn.vertexTexture, &fillIn.normalTexture, currPose, tick, fernThresh);
+        for (auto& model : models)
+        {
+            predict(model, maxDepthProcessed, confidence, tick, timeDelta, textures);
+        }
 
-        gui.render(globalModel.model(), Vertex::SIZE);
+
+        ferns.addFrame(globalModel->getFillInImageTexture(),globalModel->getFillInVertexTexture(), globalModel->getFillInNormalTexture(), currPose, tick, fernThresh);
+
+        gui.render(globalModel->getModel(), Vertex::SIZE);
         tick++;
 
     }
