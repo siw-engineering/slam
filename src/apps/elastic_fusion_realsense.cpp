@@ -189,6 +189,46 @@ void savePly(ModelPointer& globalModel, std::string saveFilename, float confiden
     delete [] mapData;
 }
 
+/*
+void savePCD(ModelPointer& globalModel, std::string saveFilename, float confidenceThreshold)
+{
+    Eigen::Vector4f * mapData = globalModel->downloadMap();
+
+    int validCount = 0;
+
+    for(unsigned int i = 0; i < globalModel->lastCount(); i++)
+    {
+        Eigen::Vector4f pos = mapData[(i * 3) + 0];
+
+        if(pos[3] > confidenceThreshold)
+        {
+            validCount++;
+        }
+    }
+    // pcl::PointXYZ pt_tmp;
+    pcl::PointCloud<pcl::PointXYZ> pt_tmp;
+    pt_tmp.resize(validCount);
+    for(unsigned int i = 0; i < validCount; i++)
+    {
+        Eigen::Vector4f pos = mapData[(i * 3) + 0];
+        if(pos[3] > confidenceThreshold)
+        {
+            pt_tmp.points[i].x = pos[0];
+            pt_tmp.points[i].y = pos[1];
+            pt_tmp.points[i].z = pos[2];
+
+            // pt_tmp.x = pos[0];
+            // pt_tmp.y = pos[1];
+            // pt_tmp.z = pos[2];
+
+        }
+    }
+    std::string filename = saveFilename;
+    filename.append(".pcd");
+    pcl::io::savePCDFileASCII (filename, pt_tmp);
+
+}
+*/
 
 int main(int argc, char const *argv[])
 {
